@@ -1,0 +1,46 @@
+.DS_Store
+.idea
+*.log
+tmp/
+
+# ignore Quartus II generated files
+quartus/*_generation_script*
+quartus/*_inst.vhd
+quartus/*.bak
+quartus/*.cmp
+quartus/*.done
+quartus/*.eqn
+quartus/*.hex
+quartus/*.html
+quartus/*.jdi
+quartus/*.jpg
+quartus/# *.mif
+quartus/*.pin
+quartus/*.pof
+quartus/*.ptf.*
+quartus/*.qar
+quartus/*.qarlog
+quartus/*.qws
+quartus/*.rpt
+quartus/*.smsg
+quartus/*.sof
+quartus/*.sopc_builder
+quartus/*.summary
+quartus/*.tcl
+quartus/*.txt # Explicitly add any text files used
+quartus/*~
+quartus/*example*
+quartus/*sopc_*
+# *.sdc # I want those timing files
+
+# ignore Quartus II generated folders
+quartus/*/db/
+quartus/*/incremental_db/
+quartus/*/simulation/
+quartus/*/timing/
+quartus/*/testbench/
+quartus/*/*_sim/
+quartus/incremental_db/
+quartus/db/
+quartus/_output_files/
+quartus/PLLJ_PLLSPE_INFO.txt
