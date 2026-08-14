@@ -18,23 +18,24 @@ qualquer coisa, leia, nesta ordem:
 4. `specs/tasks.md` — backlog de tarefas atômicas, em ordem
 
 ## Regras de comportamento
-- Não pule fases. Cada fase do pipeline (ver `plan.md`) só é considerada
-  concluída quando os critérios de aceite da tarefa correspondente em
-  `tasks.md` passam.
-- Se o enunciado real da disciplina divergir do que está em `spec.md`, pare e
-  atualize `spec.md` antes de mexer em código — não improvise em cima de uma
-  spec desatualizada.
-- Nunca declare uma simulação VHDL como "passou" sem ter rodado o GHDL de
-  fato e checado o exit code/saída. Não infira resultado de teste a partir do
-  código gerado.
-- Cada VHDL e testbench gerado deve referenciar o ID do requisito da spec que
-  ele implementa (comentário `-- REQ: FR-xx`).
+- Não pule fases. Cada fase do pipeline (ver `specs/plan.md`) só é
+  considerada concluída quando os critérios de aceite da tarefa
+  correspondente em `specs/tasks.md` passam.
+- Se o enunciado real da disciplina divergir do que está em `specs/spec.md`,
+  pare e atualize `specs/spec.md` antes de mexer em código — não improvise
+  em cima de uma spec desatualizada.
+- Nunca declare uma simulação como "passou" sem ter rodado o GHDL de fato
+  (via cocotb) e checado o exit code/saída. Não infira resultado de teste a
+  partir do código gerado.
+- Cada arquivo VHDL gerado deve referenciar o ID do requisito da spec que
+  implementa (comentário `-- REQ: FR-xx`); cada testbench cocotb gerado faz
+  o mesmo em Python (comentário `# REQ: FR-xx`).
 - Uma tarefa = um commit, seguindo Conventional Commits.
 - Se uma tarefa parecer ambígua ou maior que meio dia de trabalho, pare e
-  proponha quebrá-la em subtarefas menores, atualizando `tasks.md` — não
-  tente resolver tudo de uma vez num commit gigante.
-- Ao concluir uma tarefa, marque o checkbox correspondente em `tasks.md` no
-  mesmo commit.
+  proponha quebrá-la em subtarefas menores, atualizando `specs/tasks.md` —
+  não tente resolver tudo de uma vez num commit gigante.
+- Ao concluir uma tarefa, marque o checkbox correspondente em
+  `specs/tasks.md` no mesmo commit.
 
 ## Stack
 - Python 3.11+, gerenciado com uv (ou venv)
@@ -42,9 +43,15 @@ qualquer coisa, leia, nesta ordem:
   arquitetural e geração de VHDL — usar variável de ambiente
   `ANTHROPIC_API_KEY`, nunca hardcode a chave
 - GHDL para compilação/simulação VHDL (`apt install ghdl` em WSL2/Linux)
-- Yosys + ghdl-yosys-plugin para a análise PPA (ver `plan.md`, fase 5)
-- pytest para os testes do próprio pipeline Python (não confundir com os
-  testbenches VHDL gerados, que são outra coisa)
+- cocotb (`pip install cocotb`) para os testbenches gerados — testbench
+  escrito em Python, dirigindo o DUT VHDL através do GHDL como simulador
+  (fluxo `make SIM=ghdl`; ver `specs/plan.md`, fase 3/4). Ambiente de
+  referência: imagem Docker `rafaelcorsi/pl-descomp-cocotb`, usada também no
+  smoke test de `examples/toolchain_smoketest/`
+- Yosys + ghdl-yosys-plugin para a análise PPA (ver `specs/plan.md`, fase 5)
+- pytest para os testes do próprio pipeline Python — diferente dos
+  testbenches cocotb gerados: pytest testa o pipeline, cocotb testa o
+  hardware gerado
 
 ## Idioma
 - Documentação e specs: português (é a língua do enunciado original e da

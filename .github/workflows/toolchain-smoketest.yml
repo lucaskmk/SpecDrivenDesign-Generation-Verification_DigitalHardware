@@ -1,16 +1,16 @@
-name: Cocotb
+name: Toolchain smoke test (GHDL + cocotb)
 
 on:
   workflow_dispatch: {}
   push:
     paths:
-      - .github/workflows/cocotb.yml
-      - src/**
-      - test/**
+      - .github/workflows/toolchain-smoketest.yml
+      - examples/toolchain_smoketest/src/**
+      - examples/toolchain_smoketest/test/**
 
 jobs:
-  quartus:
-    name: Cocotb test
+  cocotb:
+    name: Run demux smoke test
     runs-on: ubuntu-latest
     container:
       image: rafaelcorsi/pl-descomp-cocotb:latest
@@ -20,4 +20,4 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Run test
-      run: make -C /var/www/test/
+      run: make -C /var/www/examples/toolchain_smoketest/test/

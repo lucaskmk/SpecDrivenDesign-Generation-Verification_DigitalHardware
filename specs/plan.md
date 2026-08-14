@@ -5,6 +5,10 @@
 - Anthropic SDK — extração de spec, decomposição arquitetural e geração de
   VHDL (chamadas de LLM)
 - GHDL — compilação e simulação VHDL
+- cocotb — testbench em Python, dirige o DUT VHDL através do GHDL (fluxo
+  `make SIM=ghdl`); ambiente de referência é a imagem Docker
+  `rafaelcorsi/pl-descomp-cocotb`, a mesma usada no smoke test de
+  `examples/toolchain_smoketest/`
 - Yosys + ghdl-yosys-plugin — síntese real para métricas PPA
 - pytest — testes do pipeline Python
 - Typer (ou argparse) — CLI
@@ -29,9 +33,17 @@ specHDL/
 │       ├── report/          # fase 6 — geração do relatório final
 │       └── cli.py
 ├── examples/
-│   └── alu_4bit/             # caso de teste fixo, não faz parte do core
+│   ├── alu_4bit/              # caso de teste fixo, não faz parte do core
+│   └── toolchain_smoketest/   # smoke test do toolchain GHDL+cocotb (T0.2),
+│       ├── src/                # não gerado pelo pipeline, fixo
+│       └── test/
 ├── tests/                    # testes pytest do pipeline
 └── outputs/                  # artefatos gerados por execução (gitignored)
+    └── <bloco>/
+        ├── src/<bloco>.vhd
+        └── test/
+            ├── test_<bloco>.py
+            └── Makefile       # segue o padrão cocotb (TOPLEVEL_LANG=vhdl, SIM=ghdl)
 ```
 
 ## Contratos de dados entre fases (JSON simplificado)
@@ -69,10 +81,22 @@ specHDL/
   "block": "alu",
   "vhdl_path": "...",
   "testbench_path": "...",
+  "testbench_framework": "cocotb",
+  "makefile_path": "...",
   "simulation": {"status": "pass|fail", "log_path": "...", "failed_requirement": null},
   "ppa": {"cells": 0, "estimated_critical_path_ns": 0, "method": "synthesis|heuristic"}
 }
 ```
+
+## Fase 3/4 em detalhe — testbench via cocotb
+Cada bloco gerado vem com um testbench cocotb (Python) e um `Makefile` no
+padrão `TOPLEVEL_LANG = vhdl`, `SIM = ghdl`, `MODULE = test_<bloco>`,
+`VHDL_SOURCES = ../src/<bloco>.vhd` — o mesmo padrão usado em
+`examples/toolchain_smoketest/`. O wrapper Python da fase 4 (T4.1) roda
+`make -C outputs/<bloco>/test/` e captura exit code + log, em vez de chamar
+`ghdl` diretamente; quem invoca o GHDL por baixo é o próprio cocotb. Ambiente
+de referência (usado também na CI de smoke test): imagem Docker
+`rafaelcorsi/pl-descomp-cocotb`.
 
 ## Fase 5 em detalhe — por que síntese real em vez de a IA "chutar" PPA
 Yosys, com o plugin ghdl-yosys-plugin, lê VHDL usando o GHDL como frontend,

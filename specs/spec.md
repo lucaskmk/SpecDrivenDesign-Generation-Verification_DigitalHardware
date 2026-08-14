@@ -34,16 +34,21 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 
 ## Fase 3 — Geração de VHDL e testbench
 
+> Testbench = cocotb (Python), não VHDL. O cocotb dirige o DUT VHDL através
+> do GHDL como simulador (fluxo `make SIM=ghdl`, ver `plan.md`).
+
 - **FR-07**: FOR EACH bloco definido na fase 2, THE SYSTEM SHALL gerar um
-  arquivo VHDL correspondente e um testbench derivado dos mesmos requisitos.
+  arquivo VHDL correspondente e um testbench cocotb (Python) derivado dos
+  mesmos requisitos, incluindo o Makefile necessário para rodá-lo via GHDL.
 - **FR-08**: THE SYSTEM SHALL inserir, em cada arquivo VHDL gerado,
-  comentários referenciando o(s) ID(s) de requisito atendido(s).
+  comentários referenciando o(s) ID(s) de requisito atendido(s); o mesmo
+  vale para cada testbench cocotb gerado, em comentário Python.
 
 ## Fase 4 — Verificação
 
-- **FR-09**: WHEN um bloco VHDL e seu testbench estão prontos, THE SYSTEM
-  SHALL compilar e simular via GHDL, registrando o resultado (pass/fail, log,
-  waveform).
+- **FR-09**: WHEN um bloco VHDL e seu testbench cocotb estão prontos, THE
+  SYSTEM SHALL compilar e simular via GHDL (orquestrado pelo cocotb),
+  registrando o resultado (pass/fail, log, waveform).
 - **FR-10**: IF a simulação falhar, THEN THE SYSTEM SHALL reportar qual
   requisito da spec não foi satisfeito, além do erro técnico bruto.
 - **FR-11**: THE SYSTEM SHALL integrar os blocos verificados individualmente

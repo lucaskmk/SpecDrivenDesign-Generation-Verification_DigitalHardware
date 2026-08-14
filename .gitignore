@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Artefatos gerados pelo pipeline (ver specs/plan.md)
+outputs/
+
+# GHDL / cocotb
+sim_build/
+*.vcd
+*.ghw
+*.o
+*.cf
+results.xml
+
+# Editor / SO
+.DS_Store
+.idea/
+.vscode/

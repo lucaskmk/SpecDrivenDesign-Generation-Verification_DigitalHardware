@@ -5,7 +5,10 @@ todas as tarefas da fase N estarem concluídas (ver `plan.md`, fase gate).
 
 ## Fase 0 — Setup
 - [ ] T0.1 — Criar estrutura de pastas (ver `plan.md`) e ambiente virtual Python
-- [ ] T0.2 — Instalar e validar GHDL (`ghdl --version`) no WSL2/Linux
+- [ ] T0.2 — Instalar e validar GHDL (`ghdl --version`) e cocotb
+  (`pip install cocotb`) no WSL2/Linux; validar o par rodando
+  `make -C examples/toolchain_smoketest/test/` e conferindo que o teste do
+  demux passa (smoke test do toolchain antes de gerar qualquer bloco real)
 - [ ] T0.3 — Instalar e validar Yosys + ghdl-yosys-plugin
 - [ ] T0.4 — Configurar `ANTHROPIC_API_KEY` via variável de ambiente, testar chamada mínima ao SDK
 - [ ] T0.5 — Criar exemplo fixo em `examples/alu_4bit/` (enunciado de teste) para usar como fixture nas fases seguintes
@@ -24,11 +27,17 @@ todas as tarefas da fase N estarem concluídas (ver `plan.md`, fase gate).
 
 ## Fase 3 — Geração de VHDL + testbench (FR-07, FR-08)
 - [ ] T3.1 — Geração de VHDL por bloco, com comentário de rastreabilidade (FR-08)
-- [ ] T3.2 — Geração de testbench por bloco, derivado da mesma spec
-- [ ] T3.3 — Teste pytest: validar sintaxe VHDL gerada (parse básico, sem rodar GHDL ainda)
+- [ ] T3.2 — Geração de testbench cocotb (Python) por bloco, derivado da
+  mesma spec, incluindo o Makefile (`TOPLEVEL_LANG=vhdl`, `SIM=ghdl`) no
+  padrão de `examples/toolchain_smoketest/`
+- [ ] T3.3 — Teste pytest: validar sintaxe VHDL gerada (parse básico) do
+  DUT, sem rodar GHDL ainda
+- [ ] T3.4 — Teste pytest: validar o testbench cocotb gerado (import do
+  módulo + parse via `ast`, sem depender do GHDL ainda)
 
 ## Fase 4 — Verificação (FR-09, FR-10, FR-11)
-- [ ] T4.1 — Wrapper Python para compilar + simular um bloco via GHDL, capturando exit code e log
+- [ ] T4.1 — Wrapper Python que roda `make -C outputs/<bloco>/test/`
+  (cocotb + GHDL) para compilar + simular um bloco, capturando exit code e log
 - [ ] T4.2 — Mapeamento de falha de simulação → requisito não atendido (FR-10)
 - [ ] T4.3 — Integração top-level: simular todos os blocos juntos (FR-11)
 - [ ] T4.4 — Teste pytest: rodar fase 4 fim a fim no exemplo fixo e checar reprodutibilidade
