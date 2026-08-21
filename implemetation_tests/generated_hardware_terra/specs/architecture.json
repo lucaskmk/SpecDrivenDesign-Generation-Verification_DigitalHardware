@@ -1,0 +1,24 @@
+{
+  "blocks": [
+    {
+      "name": "ula32_mips",
+      "inputs": ["a[31:0]", "b[31:0]", "alu_control[3:0]"],
+      "outputs": ["result[31:0]", "zero"],
+      "responsibility": "Execute the MIPS ALU operation selected by alu_control and derive the zero flag from its result.",
+      "satisfies": ["FR-01", "FR-02", "FR-03", "FR-04", "FR-05", "FR-06", "FR-07", "FR-08", "FR-09", "NFR-01", "NFR-02"],
+      "design_rationale": "A single combinational process implements all operations. This minimizes area and latency for the unpipelined MIPS datapath (NFR-01) and uses numeric_std for portable signed arithmetic (NFR-02)."
+    }
+  ],
+  "connections": [],
+  "alternatives": [
+    {
+      "option": "Bit-sliced one-bit ALUs",
+      "tradeoff": "Makes carry propagation explicit for teaching, but adds structural complexity without improving the required combinational interface."
+    },
+    {
+      "option": "Single behavioral combinational process",
+      "selected": true,
+      "tradeoff": "Concise, synthesizable description that lets the synthesis tool select the implementation."
+    }
+  ]
+}

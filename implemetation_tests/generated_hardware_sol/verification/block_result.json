@@ -1,0 +1,23 @@
+{
+  "block": "ula32",
+  "vhdl_path": "src/ula32.vhd",
+  "testbench_path": "test/test_ula32.py",
+  "testbench_framework": "cocotb 2.0.0",
+  "makefile_path": "test/Makefile",
+  "simulation": {
+    "status": "pass",
+    "simulator": "GHDL 2.0.0",
+    "tests": 3,
+    "passed": 3,
+    "failed": 0,
+    "vectors": 1221,
+    "results_path": "test/results.xml",
+    "waveform_path": "test/ula32.ghw",
+    "failed_requirement": null
+  },
+  "ppa": {
+    "status": "not_measured",
+    "method": null,
+    "reason": "No synthesis or PPA measurement was requested or executed; no metric is estimated."
+  }
+}

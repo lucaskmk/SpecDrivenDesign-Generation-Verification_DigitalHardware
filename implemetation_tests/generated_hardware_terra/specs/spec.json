@@ -1,0 +1,36 @@
+{
+  "component": "ula32_mips",
+  "interface": {
+    "inputs": [
+      {"name": "a", "type": "std_logic_vector", "width": 32},
+      {"name": "b", "type": "std_logic_vector", "width": 32},
+      {"name": "alu_control", "type": "std_logic_vector", "width": 4}
+    ],
+    "outputs": [
+      {"name": "result", "type": "std_logic_vector", "width": 32},
+      {"name": "zero", "type": "std_logic", "width": 1}
+    ]
+  },
+  "operations": {
+    "0000": "and",
+    "0001": "or",
+    "0010": "add",
+    "0110": "subtract",
+    "0111": "signed_set_less_than",
+    "1100": "nor"
+  },
+  "requirements": [
+    {"id": "FR-01", "type": "functional", "text": "32-bit operand and 4-bit control interface"},
+    {"id": "FR-02", "type": "functional", "text": "AND operation"},
+    {"id": "FR-03", "type": "functional", "text": "OR operation"},
+    {"id": "FR-04", "type": "functional", "text": "32-bit ADD operation"},
+    {"id": "FR-05", "type": "functional", "text": "32-bit SUB operation"},
+    {"id": "FR-06", "type": "functional", "text": "signed SLT operation"},
+    {"id": "FR-07", "type": "functional", "text": "NOR operation"},
+    {"id": "FR-08", "type": "functional", "text": "zero flag"},
+    {"id": "FR-09", "type": "functional", "text": "deterministic unsupported control"},
+    {"id": "NFR-01", "type": "non_functional", "category": "speed", "text": "purely combinational implementation"},
+    {"id": "NFR-02", "type": "non_functional", "category": "maintainability", "text": "IEEE numeric_std arithmetic"},
+    {"id": "NFR-03", "type": "non_functional", "category": "traceability", "text": "requirement identifiers in source and tests"}
+  ]
+}

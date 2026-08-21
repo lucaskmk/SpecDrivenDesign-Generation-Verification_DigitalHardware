@@ -1,0 +1,20 @@
+{
+  "design": "ula32",
+  "blocks": [
+    {
+      "name": "ula32",
+      "inputs": ["a[31:0]", "b[31:0]", "alu_control[3:0]"],
+      "outputs": ["result[31:0]", "zero"],
+      "responsibility": "Select and execute one combinational arithmetic, logical, or comparison operation.",
+      "satisfies": ["FR-01", "FR-02", "FR-03", "FR-04", "FR-05", "FR-06", "NFR-01", "NFR-02"],
+      "design_rationale": "A single combinational block has zero cycle latency (NFR-01), while numeric_std and no vendor primitives preserve synthesis portability (NFR-02)."
+    }
+  ],
+  "connections": [],
+  "alternatives": [
+    {
+      "name": "pipelined_ula32",
+      "tradeoff": "Could shorten the combinational critical path at a high clock rate, but adds registers, area, clocking, and one or more cycles of latency; rejected by NFR-01."
+    }
+  ]
+}

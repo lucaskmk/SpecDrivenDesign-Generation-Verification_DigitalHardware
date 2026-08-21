@@ -1,0 +1,24 @@
+{
+  "design": "ula32",
+  "status": "approved",
+  "width": 32,
+  "requirements": [
+    {"id": "FR-01", "type": "functional", "text": "Purely combinational 32-bit ULA with two operands, 4-bit control, 32-bit result, and zero flag."},
+    {"id": "FR-02", "type": "functional", "text": "Implement AND, OR, ADD, SUB, signed SLT, and NOR using the specified MIPS-style controls."},
+    {"id": "FR-03", "type": "functional", "text": "Assert zero exactly when result is zero."},
+    {"id": "FR-04", "type": "functional", "text": "Undefined controls produce zero result and asserted zero flag."},
+    {"id": "FR-05", "type": "functional", "text": "Addition and subtraction use 32-bit modular arithmetic."},
+    {"id": "FR-06", "type": "functional", "text": "SLT interprets operands as signed two's-complement values."},
+    {"id": "NFR-01", "type": "non_functional", "category": "speed", "text": "No clock or additional latency."},
+    {"id": "NFR-02", "type": "non_functional", "category": "area", "text": "Synthesizable portable VHDL using IEEE numeric_std."},
+    {"id": "NFR-03", "type": "non_functional", "category": "verification", "text": "Traceable cocotb testbench run through GHDL with one command."}
+  ],
+  "operations": {
+    "0000": "and",
+    "0001": "or",
+    "0010": "add",
+    "0110": "sub",
+    "0111": "slt_signed",
+    "1100": "nor"
+  }
+}

@@ -1,0 +1,9 @@
+Command: docker run --rm -v <generated-hardware-terra>:/work -w /work/test rafaelcorsi/pl-descomp-cocotb make SIM=ghdl
+Simulator: GHDL 2.0.0 (Debian 2.0.0+dfsg-6.2)
+Framework: cocotb 2.0.0
+
+test_ula32_mips.test_mips_alu_operations: PASS
+test_ula32_mips.test_mips_alu_random_vectors: PASS
+test_ula32_mips.test_unsupported_control_is_deterministic: PASS
+
+TESTS=3 PASS=3 FAIL=0 SKIP=0

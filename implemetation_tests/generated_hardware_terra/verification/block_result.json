@@ -1,0 +1,19 @@
+{
+  "block": "ula32_mips",
+  "vhdl_path": "src/ula32_mips.vhd",
+  "testbench_path": "test/test_ula32_mips.py",
+  "testbench_framework": "cocotb",
+  "makefile_path": "test/Makefile",
+  "simulation": {
+    "status": "pass",
+    "log_path": "verification/simulation.log",
+    "failed_requirement": null,
+    "reason": "Executed in Docker image rafaelcorsi/pl-descomp-cocotb with GHDL 2.0.0 and cocotb 2.0.0: 3 tests passed, 0 failed."
+  },
+  "ppa": {
+    "cells": null,
+    "estimated_critical_path_ns": null,
+    "method": "not_run",
+    "reason": "Synthesis was attempted in the reference container, but the yosys executable is not installed."
+  }
+}
