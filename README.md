@@ -64,6 +64,12 @@ existe.
 O [`CLAUDE.md`](CLAUDE.md) na raiz resume as regras de comportamento pra
 quem (ou qual agente) for implementar o pipeline em cima dessa spec.
 
+Uma versão visual — diagrama do pipeline (com os gates de aprovação humana e
+a triagem de falha), árvore do repositório e status por fase — está em
+[`docs/mapa-do-projeto.html`](docs/mapa-do-projeto.html) (abra localmente no
+navegador). É uma foto do estado do repo num momento; a fonte de verdade
+continua sendo `specs/tasks.md`.
+
 ## Estrutura do repositório
 
 ```
@@ -71,6 +77,8 @@ quem (ou qual agente) for implementar o pipeline em cima dessa spec.
 ├── CLAUDE.md                       # instruções de comportamento pro Claude Code
 ├── README.md
 ├── pipeline_sdd_hardware.png       # diagrama do pipeline (acima)
+├── docs/
+│   └── mapa-do-projeto.html        # versão visual: diagrama + árvore + status
 ├── specs/
 │   ├── constitution.md
 │   ├── spec.md
@@ -97,6 +105,8 @@ Fase 0 — ver estrutura completa proposta em
   variável de ambiente, nunca hardcoded)
 - [GHDL](https://github.com/ghdl/ghdl) — compilação/simulação VHDL
 - [cocotb](https://www.cocotb.org/) — testbenches em Python sobre o GHDL
+- [GTKWave](https://gtkwave.sourceforge.net/) — inspeção visual do waveform
+  (`.vcd`) na triagem manual de falha
 - [Yosys](https://github.com/YosysHQ/yosys) + `ghdl-yosys-plugin` — síntese
   real para as métricas de PPA
 - pytest — testes do próprio pipeline (não confundir com os testbenches

@@ -36,6 +36,10 @@ qualquer coisa, leia, nesta ordem:
   não tente resolver tudo de uma vez num commit gigante.
 - Ao concluir uma tarefa, marque o checkbox correspondente em
   `specs/tasks.md` no mesmo commit.
+- Ao terminar todas as tarefas de uma fase, pare e peça confirmação
+  explícita do usuário antes de iniciar a fase seguinte — testes
+  automatizados passando não bastam pra avançar (ver `specs/plan.md`, fase
+  gate).
 
 ## Stack
 - Python 3.11+, gerenciado com uv (ou venv)
@@ -48,6 +52,8 @@ qualquer coisa, leia, nesta ordem:
   (fluxo `make SIM=ghdl`; ver `specs/plan.md`, fase 3/4). Ambiente de
   referência: imagem Docker `rafaelcorsi/pl-descomp-cocotb`, usada também no
   smoke test de `examples/toolchain_smoketest/`
+- GTKWave para inspeção visual do waveform (`.vcd`) na triagem manual de
+  falha (ver `specs/plan.md`, fase 3/4)
 - Yosys + ghdl-yosys-plugin para a análise PPA (ver `specs/plan.md`, fase 5)
 - pytest para os testes do próprio pipeline Python — diferente dos
   testbenches cocotb gerados: pytest testa o pipeline, cocotb testa o

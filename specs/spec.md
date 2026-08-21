@@ -48,9 +48,13 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 
 - **FR-09**: WHEN um bloco VHDL e seu testbench cocotb estão prontos, THE
   SYSTEM SHALL compilar e simular via GHDL (orquestrado pelo cocotb),
-  registrando o resultado (pass/fail, log, waveform).
+  registrando o resultado (pass/fail, log, waveform em `.vcd` —
+  inspecionável no GTKWave).
 - **FR-10**: IF a simulação falhar, THEN THE SYSTEM SHALL reportar qual
-  requisito da spec não foi satisfeito, além do erro técnico bruto.
+  requisito da spec não foi satisfeito, o erro técnico bruto, e uma
+  classificação da falha — bug de implementação (código/testbench, volta
+  pra fase 3) ou lacuna de spec/arquitetura (volta pra fase 1 ou 2) — ver
+  `constitution.md`, princípio 5.
 - **FR-11**: THE SYSTEM SHALL integrar os blocos verificados individualmente
   em uma simulação de nível superior (top-level) antes de considerar o design
   como um todo verificado.

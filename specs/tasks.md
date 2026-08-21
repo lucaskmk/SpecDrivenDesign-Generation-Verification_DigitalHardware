@@ -5,10 +5,11 @@ todas as tarefas da fase N estarem concluídas (ver `plan.md`, fase gate).
 
 ## Fase 0 — Setup
 - [ ] T0.1 — Criar estrutura de pastas (ver `plan.md`) e ambiente virtual Python
-- [ ] T0.2 — Instalar e validar GHDL (`ghdl --version`) e cocotb
-  (`pip install cocotb`) no WSL2/Linux; validar o par rodando
-  `make -C examples/toolchain_smoketest/test/` e conferindo que o teste do
-  demux passa (smoke test do toolchain antes de gerar qualquer bloco real)
+- [ ] T0.2 — Instalar e validar GHDL (`ghdl --version`), cocotb
+  (`pip install cocotb`) e GTKWave (`gtkwave --version`) no WSL2/Linux;
+  validar o trio rodando `make -C examples/toolchain_smoketest/test/` e
+  conferindo que o teste do demux passa e gera `sim.vcd` (smoke test do
+  toolchain antes de gerar qualquer bloco real)
 - [ ] T0.3 — Instalar e validar Yosys + ghdl-yosys-plugin
 - [ ] T0.4 — Configurar `ANTHROPIC_API_KEY` via variável de ambiente, testar chamada mínima ao SDK
 - [ ] T0.5 — Criar exemplo fixo em `examples/alu_4bit/` (enunciado de teste) para usar como fixture nas fases seguintes
@@ -37,8 +38,10 @@ todas as tarefas da fase N estarem concluídas (ver `plan.md`, fase gate).
 
 ## Fase 4 — Verificação (FR-09, FR-10, FR-11)
 - [ ] T4.1 — Wrapper Python que roda `make -C outputs/<bloco>/test/`
-  (cocotb + GHDL) para compilar + simular um bloco, capturando exit code e log
-- [ ] T4.2 — Mapeamento de falha de simulação → requisito não atendido (FR-10)
+  (cocotb + GHDL) para compilar + simular um bloco, capturando exit code,
+  log e o caminho do waveform (`.vcd`)
+- [ ] T4.2 — Mapeamento de falha de simulação → requisito não atendido +
+  classificação bug de implementação vs. lacuna de spec/arquitetura (FR-10)
 - [ ] T4.3 — Integração top-level: simular todos os blocos juntos (FR-11)
 - [ ] T4.4 — Teste pytest: rodar fase 4 fim a fim no exemplo fixo e checar reprodutibilidade
 

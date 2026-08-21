@@ -9,6 +9,9 @@
   `make SIM=ghdl`); ambiente de referência é a imagem Docker
   `rafaelcorsi/pl-descomp-cocotb`, a mesma usada no smoke test de
   `examples/toolchain_smoketest/`
+- GTKWave — inspeção visual do waveform (`.vcd`) gerado pela simulação,
+  usado na triagem manual de falha quando a classificação automática
+  (FR-10) não é suficiente
 - Yosys + ghdl-yosys-plugin — síntese real para métricas PPA
 - pytest — testes do pipeline Python
 - Typer (ou argparse) — CLI
@@ -83,7 +86,13 @@ specHDL/
   "testbench_path": "...",
   "testbench_framework": "cocotb",
   "makefile_path": "...",
-  "simulation": {"status": "pass|fail", "log_path": "...", "failed_requirement": null},
+  "simulation": {
+    "status": "pass|fail",
+    "log_path": "...",
+    "waveform_path": "...",
+    "failed_requirement": null,
+    "failure_class": "implementation|spec_gap|null"
+  },
   "ppa": {"cells": 0, "estimated_critical_path_ns": 0, "method": "synthesis|heuristic"}
 }
 ```
@@ -98,6 +107,13 @@ padrão `TOPLEVEL_LANG = vhdl`, `SIM = ghdl`, `MODULE = test_<bloco>`,
 de referência (usado também na CI de smoke test): imagem Docker
 `rafaelcorsi/pl-descomp-cocotb`.
 
+Quando a simulação falha (FR-10), a triagem decide entre duas rotas: bug de
+implementação — regenerar o bloco na própria fase 3 — ou lacuna de
+spec/arquitetura — voltar pra fase 1 (spec incompleta) ou fase 2 (decomposição
+errada), ver `constitution.md` princípio 5. O waveform (`.vcd`) fica salvo em
+`waveform_path` no `block_result.json` pra inspeção manual no GTKWave quando a
+classificação automática não é suficiente pra decidir a rota.
+
 ## Fase 5 em detalhe — por que síntese real em vez de a IA "chutar" PPA
 Yosys, com o plugin ghdl-yosys-plugin, lê VHDL usando o GHDL como frontend,
 sintetiza para uma biblioteca de células genérica e roda o comando `stat`
@@ -109,4 +125,7 @@ fallback heurístico do FR-13, deixando isso explícito no relatório final.
 ## Fase gate
 Não iniciar a fase N+1 até que todas as tarefas da fase N em `tasks.md`
 estejam marcadas como concluídas e o critério de aceite verificado — ver
-`constitution.md`, princípio 1.
+`constitution.md`, princípio 1. Isso inclui aprovação humana explícita: os
+testes automatizados passando não bastam pra avançar de fase — pare ao final
+de cada fase e aguarde confirmação do usuário antes de iniciar a tarefa
+seguinte.
