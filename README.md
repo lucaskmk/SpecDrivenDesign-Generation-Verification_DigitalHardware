@@ -47,7 +47,7 @@ existe.
 
 **Pendente (backlog completo em [`specs/tasks.md`](specs/tasks.md)):**
 - T0.1–T0.5 — estrutura de pastas do pipeline, ambiente Python, validação
-  de GHDL/cocotb/Yosys, `ANTHROPIC_API_KEY` e o exemplo fixo (ex.: ALU 4
+  de GHDL/cocotb/Yosys, `OPENROUTER_API_KEY` e o exemplo fixo (ex.: ALU 4
   bits) que serve de fixture pras fases seguintes.
 - Todo o restante do pipeline (Fases 1 a 7): ingestão, decomposição,
   geração, verificação, PPA, relatório e CLI.
@@ -88,6 +88,8 @@ continua sendo `specs/tasks.md`.
 │   └── toolchain_smoketest/        # smoke test do toolchain GHDL+cocotb (T0.2)
 │       ├── src/demux.vhd
 │       └── test/{test_demux.py, Makefile}
+├── scripts/
+│   └── llm_playground.py           # manda um prompt solto pro modelo via OpenRouter (T0.4)
 └── .github/workflows/
     └── toolchain-smoketest.yml
 ```
@@ -100,9 +102,9 @@ Fase 0 — ver estrutura completa proposta em
 ## Stack
 
 - Python 3.11+ (uv ou venv)
-- [Anthropic SDK](https://docs.anthropic.com/) — extração de spec,
-  decomposição arquitetural e geração de VHDL (`ANTHROPIC_API_KEY` via
-  variável de ambiente, nunca hardcoded)
+- [OpenRouter](https://openrouter.ai/docs) (SDK nativo) — extração de spec,
+  decomposição arquitetural e geração de VHDL (`OPENROUTER_API_KEY` via
+  variável de ambiente, modelo via `SPECHDL_LLM_MODEL`, nunca hardcoded)
 - [GHDL](https://github.com/ghdl/ghdl) — compilação/simulação VHDL
 - [cocotb](https://www.cocotb.org/) — testbenches em Python sobre o GHDL
 - [GTKWave](https://gtkwave.sourceforge.net/) — inspeção visual do waveform
@@ -111,6 +113,7 @@ Fase 0 — ver estrutura completa proposta em
   real para as métricas de PPA
 - pytest — testes do próprio pipeline (não confundir com os testbenches
   cocotb gerados, que testam o hardware)
+- python-dotenv — carrega `.env` em desenvolvimento local
 
 Ambiente de referência: Linux/WSL2, imagem Docker
 `rafaelcorsi/pl-descomp-cocotb` (mesma usada no smoke test de CI).

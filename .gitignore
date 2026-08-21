@@ -17,6 +17,11 @@ sim_build/
 *.cf
 results.xml
 
+# Segredos (OPENROUTER_API_KEY etc — ver specs/tasks.md, T0.4)
+.env
+.env.*
+!.env.example
+
 # Editor / SO
 .DS_Store
 .idea/

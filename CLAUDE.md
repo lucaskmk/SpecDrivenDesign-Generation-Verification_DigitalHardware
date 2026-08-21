@@ -43,9 +43,11 @@ qualquer coisa, leia, nesta ordem:
 
 ## Stack
 - Python 3.11+, gerenciado com uv (ou venv)
-- Anthropic SDK (`pip install anthropic`) para extração de spec, decomposição
-  arquitetural e geração de VHDL — usar variável de ambiente
-  `ANTHROPIC_API_KEY`, nunca hardcode a chave
+- OpenRouter (`pip install openrouter`, SDK nativo) para extração de spec,
+  decomposição arquitetural e geração de VHDL — acesso unificado a múltiplos
+  modelos por trás de uma única API; usar variável de ambiente
+  `OPENROUTER_API_KEY`, nunca hardcode a chave. Modelo default configurável
+  via `SPECHDL_LLM_MODEL`, não fixo no código (ver `specs/plan.md`)
 - GHDL para compilação/simulação VHDL (`apt install ghdl` em WSL2/Linux)
 - cocotb (`pip install cocotb`) para os testbenches gerados — testbench
   escrito em Python, dirigindo o DUT VHDL através do GHDL como simulador

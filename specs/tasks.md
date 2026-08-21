@@ -11,7 +11,9 @@ todas as tarefas da fase N estarem concluídas (ver `plan.md`, fase gate).
   conferindo que o teste do demux passa e gera `sim.vcd` (smoke test do
   toolchain antes de gerar qualquer bloco real)
 - [ ] T0.3 — Instalar e validar Yosys + ghdl-yosys-plugin
-- [ ] T0.4 — Configurar `ANTHROPIC_API_KEY` via variável de ambiente, testar chamada mínima ao SDK
+- [ ] T0.4 — Configurar `OPENROUTER_API_KEY` via variável de ambiente
+  (`pip install openrouter`) e `SPECHDL_LLM_MODEL` com o modelo default;
+  testar uma chamada mínima ao SDK
 - [ ] T0.5 — Criar exemplo fixo em `examples/alu_4bit/` (enunciado de teste) para usar como fixture nas fases seguintes
 
 ## Fase 1 — Ingestão e extração de spec (FR-01, FR-02, FR-03)

@@ -2,8 +2,10 @@
 
 ## Stack
 - Python 3.11+
-- Anthropic SDK — extração de spec, decomposição arquitetural e geração de
-  VHDL (chamadas de LLM)
+- OpenRouter (SDK nativo, `pip install openrouter`) — extração de spec,
+  decomposição arquitetural e geração de VHDL (chamadas de LLM); acesso
+  unificado a múltiplos modelos por trás de uma única API, modelo escolhido
+  via `SPECHDL_LLM_MODEL`, não hardcoded no código
 - GHDL — compilação e simulação VHDL
 - cocotb — testbench em Python, dirige o DUT VHDL através do GHDL (fluxo
   `make SIM=ghdl`); ambiente de referência é a imagem Docker
@@ -14,6 +16,8 @@
   (FR-10) não é suficiente
 - Yosys + ghdl-yosys-plugin — síntese real para métricas PPA
 - pytest — testes do pipeline Python
+- python-dotenv — carrega `.env` (chave do OpenRouter, modelo default) em
+  desenvolvimento local
 - Typer (ou argparse) — CLI
 
 ## Estrutura de pastas proposta
@@ -121,6 +125,23 @@ para contagem de células/área. Isso dá números de verdade em vez de uma
 estimativa da LLM — muito mais defensável numa apresentação acadêmica. Se o
 setup do plugin não for viável dentro do prazo da disciplina, cair para o
 fallback heurístico do FR-13, deixando isso explícito no relatório final.
+
+## Acesso a LLM — por que OpenRouter
+Decisão do professor da disciplina: todas as chamadas de LLM do pipeline
+(extração EARS na fase 1, decomposição na fase 2, geração de VHDL na fase 3)
+passam pelo SDK nativo do OpenRouter (`pip install openrouter`), não pelo
+Anthropic SDK direto — substituição total, não convivência dos dois. O
+OpenRouter dá acesso a vários provedores/modelos por trás de uma única API
+com uma única chave (`OPENROUTER_API_KEY`), o que facilita controle de custo
+e de acesso pra turma inteira. O modelo usado não fica fixo no código: é lido
+de `SPECHDL_LLM_MODEL` (variável de ambiente), seguindo o princípio 7 da
+constitution (ferramenta genérica, não hardcoded). Default atual (em
+`.env.example`): `openai/gpt-5.6-luna`, um modelo rápido/econômico — se uma
+fase específica (ex.: decomposição arquitetural) precisar de mais raciocínio,
+trocar o valor da variável é suficiente, sem alterar código. T0.4 valida a
+chave e faz uma chamada mínima antes de qualquer uso real nas fases
+seguintes; `scripts/llm_playground.py` é o utilitário solto pra isso — não é
+código de pipeline, é só validação manual de conectividade.
 
 ## Fase gate
 Não iniciar a fase N+1 até que todas as tarefas da fase N em `tasks.md`
