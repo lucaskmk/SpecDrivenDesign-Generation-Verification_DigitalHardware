@@ -18,7 +18,10 @@
 - pytest — testes do pipeline Python
 - python-dotenv — carrega `.env` (chave do OpenRouter, modelo default) em
   desenvolvimento local
-- Typer (ou argparse) — CLI
+- Streamlit — formulário web local da fase 1 (rubrica interativa: true/false
+  + campos técnicos), único ponto de entrada do pipeline (FR-01, NFR-01)
+- Typer (ou argparse) — CLI (`spechdl web` abre o formulário; demais
+  comandos de reprodutibilidade, ver fase 7)
 
 ## Estrutura de pastas proposta
 
@@ -30,9 +33,14 @@ specHDL/
 │   ├── spec.md
 │   ├── plan.md
 │   └── tasks.md
+├── templates/
+│   └── rubrica.md            # schema/documentação de referência das
+│                              # perguntas — o formulário Streamlit
+│                              # implementa essas mesmas perguntas (FR-01)
 ├── src/
 │   └── spechdl/
-│       ├── ingestion/       # fase 1 — parsing de PDF/docx, extração EARS
+│       ├── ingestion/       # fase 1 — formulário Streamlit + parsing da
+│       │                    # rubrica preenchida em EARS
 │       ├── architecture/    # fase 2 — decomposição em blocos
 │       ├── codegen/         # fase 3 — geração VHDL + testbench
 │       ├── verification/    # fase 4 — wrapper do GHDL
@@ -59,11 +67,14 @@ specHDL/
 ```json
 {
   "requirements": [
-    {"id": "FR-01", "type": "functional", "text": "...", "source_excerpt": "..."},
+    {"id": "FR-01", "type": "functional", "text": "...", "source_field": "tem_cache"},
     {"id": "NFR-01", "type": "non_functional", "category": "power|speed|area", "text": "..."}
   ]
 }
 ```
+`source_field` aponta pra pergunta/campo da rubrica que originou o requisito
+— substitui o antigo `source_excerpt` (que fazia sentido pra texto livre,
+não pra uma rubrica estruturada).
 
 **architecture.json** (saída da fase 2):
 ```json
@@ -74,7 +85,7 @@ specHDL/
       "inputs": ["a", "b", "opcode"],
       "outputs": ["result", "flags"],
       "responsibility": "...",
-      "satisfies": ["FR-03", "NFR-02"],
+      "satisfies": ["FR-06", "NFR-02"],
       "design_rationale": "..."
     }
   ],
@@ -100,6 +111,24 @@ specHDL/
   "ppa": {"cells": 0, "estimated_critical_path_ns": 0, "method": "synthesis|heuristic"}
 }
 ```
+
+## Fase 1 em detalhe — formulário Streamlit em vez de texto livre
+`templates/rubrica.md` documenta o schema das perguntas (true/false — `Tem
+cache?` — e campos técnicos — `Estágios de pipeline: __`, `Largura de
+palavra (bits): __` etc.); `spechdl web` sobe um app Streamlit local que
+renderiza esse mesmo schema como widgets (checkbox, number_input). O aluno
+responde na interface e clica em submeter — nesse momento o app grava
+`rubrica.md` preenchido (versionável, NFR-03) e dispara o resto do pipeline
+automaticamente, sem pausa humana (NFR-01). A validação de estrutura (FR-03)
+roda no próprio formulário antes de liberar o botão de submissão (ex.:
+campo `estágios_pipeline` desabilitado se `tem_pipeline` estiver marcado
+"não"), não depois. O parser da fase 1 não precisa de LLM pra extrair
+sentido de texto ambíguo — é essencialmente determinístico; o que sobra pra
+IA é montar o `spec.json` em EARS a partir das respostas já validadas. Não
+confundir com os exemplos de referência em `examples/ula32_sol/` e
+`examples/ula32_terra/` — esses foram gerados contra o modelo antigo (texto
+livre) por um agente externo, servem só como prova de que o método SDD
+funciona ponta a ponta, não como formato de fixture pra fase 1.
 
 ## Fase 3/4 em detalhe — testbench via cocotb
 Cada bloco gerado vem com um testbench cocotb (Python) e um `Makefile` no
@@ -150,3 +179,10 @@ estejam marcadas como concluídas e o critério de aceite verificado — ver
 testes automatizados passando não bastam pra avançar de fase — pare ao final
 de cada fase e aguarde confirmação do usuário antes de iniciar a tarefa
 seguinte.
+
+Nota: este gate é sobre o processo de **desenvolver** o SpecHDL (fase por
+fase de `tasks.md`) — não sobre a **execução** do pipeline já pronto, que
+roda sem pausas humanas depois que o aluno submete a rubrica (NFR-01). São
+dois conceitos de "fase" com o mesmo nome por coincidência (o backlog de
+desenvolvimento espelha as fases do próprio pipeline), não confundir os
+dois.

@@ -1,12 +1,16 @@
 # SpecHDL — instruções para o Claude Code
 
 ## O que é este projeto
-SpecHDL é um pipeline spec-driven que parte de um documento de especificação
-(enunciado de exercício de arquitetura de computadores/descomp), extrai
-requisitos estruturados, decompõe em blocos de hardware (ULA, banco de
-registradores, unidade de controle, muxes etc.), gera VHDL + testbenches,
-verifica no GHDL e produz um relatório de trade-offs de potência/velocidade/
-área (PPA).
+SpecHDL é um pipeline spec-driven que parte de um formulário web local
+(Streamlit, `spechdl web`) — o aluno responde perguntas true/false e campos
+técnicos (presença de cache, número de estágios de pipeline, largura de
+palavra etc.), não um enunciado em texto livre —, extrai requisitos
+estruturados, decompõe em blocos de hardware (ULA, banco de registradores,
+unidade de controle, muxes etc.), gera VHDL + testbenches, verifica no GHDL
+e produz um relatório de trade-offs de potência/velocidade/área (PPA). Ao
+submeter o formulário, o app grava `rubrica.md` (versionável) e o pipeline
+roda sozinho até o relatório final, sem pedir mais nenhuma decisão do aluno
+— preencher e submeter o formulário é a única responsabilidade dele.
 
 Este projeto está sendo construído seguindo a própria metodologia que ele
 implementa: nada de código antes de spec aprovada. Antes de implementar
@@ -43,6 +47,9 @@ qualquer coisa, leia, nesta ordem:
 
 ## Stack
 - Python 3.11+, gerenciado com uv (ou venv)
+- Streamlit (`pip install streamlit`, `spechdl web`) para o formulário web
+  local da fase 1 — único ponto de entrada do pipeline (rubrica interativa:
+  true/false + campos técnicos), ver `specs/plan.md`, fase 1
 - OpenRouter (`pip install openrouter`, SDK nativo) para extração de spec,
   decomposição arquitetural e geração de VHDL — acesso unificado a múltiplos
   modelos por trás de uma única API; usar variável de ambiente
@@ -71,6 +78,11 @@ qualquer coisa, leia, nesta ordem:
 - Não gerar VHDL "genérico de exemplo" fora do que a spec pede
 - Não pular a etapa de decomposição arquitetural e ir direto pra geração de
   código
+- Não pedir decisão de arquitetura ao aluno fora da rubrica — depois da
+  submissão, o pipeline decide e gera sozinho, sem checkpoint humano no meio
+  (NFR-01)
+- Não tentar extrair requisitos de texto livre — a entrada é sempre o
+  formulário web estruturado (schema documentado em `templates/rubrica.md`)
 - Não estimar métricas de PPA "no chute" — usar a saída real do
   Yosys/ghdl-yosys-plugin (fase 5); se não for viável no prazo, marcar
   claramente como heurística no relatório, nunca como medição
