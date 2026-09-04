@@ -1,0 +1,31 @@
+{
+  "program": "ext_m_test",
+  "isa_base": "RV32I",
+  "extension": "M",
+  "march": "rv32im",
+  "mabi": "ilp32",
+  "note": [
+    "Contrato de cobertura da extensao M (pipeline:FR-19, FR-26): as 8",
+    "instrucoes que a extensao adiciona, cada uma com endereco de evidencia.",
+    "O programa tambem retira instrucoes do RV32I base (lui/addi/sw/jal) para",
+    "montar operandos e guardar resultados; isso e esperado e nao faz parte",
+    "deste contrato -- quem cobre o base e examples/riscv_base_test."
+  ],
+  "must_cover": [
+    {"mnemonic": "mul",    "format": "R", "evidence_addr": "0x00FC8000"},
+    {"mnemonic": "mulh",   "format": "R", "evidence_addr": "0x00FC800C"},
+    {"mnemonic": "mulhu",  "format": "R", "evidence_addr": "0x00FC8018"},
+    {"mnemonic": "mulhsu", "format": "R", "evidence_addr": "0x00FC8020"},
+    {"mnemonic": "div",    "format": "R", "evidence_addr": "0x00FC8028"},
+    {"mnemonic": "divu",   "format": "R", "evidence_addr": "0x00FC803C"},
+    {"mnemonic": "rem",    "format": "R", "evidence_addr": "0x00FC8044"},
+    {"mnemonic": "remu",   "format": "R", "evidence_addr": "0x00FC8058"}
+  ],
+  "must_exercise_features": [
+    {"feature": "div_by_zero",      "how": "div/divu/rem/remu com x0 como divisor (FR-11)"},
+    {"feature": "div_overflow",     "how": "div/rem de -2^31 por -1 (FR-11)"},
+    {"feature": "signedness_split", "how": "0xFFFFFFFF x 0x80000000 da 4 resultados distintos em mul/mulh/mulhu/mulhsu"},
+    {"feature": "trunc_toward_zero","how": "-1/16 = 0 e -100/7 = -14"},
+    {"feature": "termination",      "how": "sentinela 0xC0FFEE00 em 0x00FC8FFC + loop infinito"}
+  ]
+}
