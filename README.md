@@ -14,6 +14,46 @@ O projeto em si é construído seguindo a metodologia que ele implementa:
 **nenhuma linha de código antes de uma spec aprovada** — ver
 [`specs/constitution.md`](specs/constitution.md), princípio 1.
 
+## CPU RISC-V — o caso especial
+
+Quando a rubrica pede um **processador RISC-V**, o pipeline gera uma CPU nova
+e customizada (RV32I base + as extensões escolhidas), usando
+[`examples/RISCV32I/`](examples/RISCV32I/) como referência de arquitetura —
+não como código a copiar. Nesse caso entram duas fases a mais, e o critério
+de pronto é bem mais duro: **CPU só está verificada se rodar software de
+verdade.**
+
+```
+program.S ──as/ld──> ELF ──objcopy──> .rm ──> ROM da CPU gerada
+                       │                            │
+                  objdump                     cocotb + GHDL
+                       │                            │
+                  program.dasm            RAM final == esperado?
+```
+
+Três regras que valem sempre (ver `specs/constitution.md`, princípios 8 a 10):
+
+1. **Testbench de bloco não fecha uma CPU.** ULA e banco de registradores
+   passando isolados é o piso, não o teto. O design só fecha depois de
+   executar um programa montado de verdade e a RAM final bater, endereço por
+   endereço, com o estado esperado.
+2. **O oráculo vem antes da observação.** O estado esperado é derivado da
+   semântica do assembly e gravado *antes* da simulação. O teste obrigatório
+   do RV32I base é um **golden file imutável**: se ele falha, o bug é da CPU
+   gerada, e a correção é no VHDL — nunca no arquivo esperado.
+3. **Toda instrução implementada é testada.** Cobertura é medida
+   dinamicamente, pelo que a CPU *aposentou* durante a simulação (via as
+   portas de trace `dbg_instr`/`dbg_valid`), não pela presença do mnemônico
+   no fonte — senão código morto passaria. Instrução declarada e nunca
+   executada = falha, com a lista nominal do que ficou de fora.
+
+Cada extensão (padrão — M, A, F, D, C, Zicsr… — ou custom) entra com o seu
+próprio programa de teste, cobrindo todas as instruções que ela adiciona. Os
+programas são escritos **direto em assembly**, não em C: com C quem escolhe
+as instruções emitidas é o compilador, e aí não há como garantir cobertura
+instrução por instrução. Detalhes em [`specs/plan.md`](specs/plan.md), seção
+"Fase 3b/4b em detalhe".
+
 ## O pipeline
 
 ![Pipeline (conceito original): documento → spec EARS → decomposição arquitetural → geração de VHDL+testbench → verificação GHDL → análise PPA → relatório final, com falha voltando para a spec](pipeline_sdd_hardware.png)
@@ -30,13 +70,21 @@ O projeto em si é construído seguindo a metodologia que ele implementa:
 3. **Geração de VHDL + testbench** — cada bloco vira um arquivo VHDL e um
    testbench [cocotb](https://www.cocotb.org/) (Python), ambos rastreando o
    ID do requisito que implementam.
+3b. **Software de verificação** (só CPU) — o teste obrigatório do RV32I base
+   mais um programa por extensão declarada, em assembly, montados para `.rm`
+   e carregados na ROM da CPU gerada.
 4. **Verificação** — cada bloco (e depois o design integrado) é compilado e
    simulado de fato no GHDL, orquestrado pelo cocotb; falha de simulação é
    reportada junto do requisito não atendido.
+4b. **Verificação em nível de programa** (só CPU) — cada `.rm` roda na CPU
+   gerada e o estado final da RAM é comparado com o esperado, endereço por
+   endereço, com cobertura de instrução medida dinamicamente. Se o teste
+   obrigatório falha, a fase 5 não roda e a CPU é declarada não verificada.
 5. **Análise PPA** — síntese real via Yosys + `ghdl-yosys-plugin` para
    contagem de células/área, em vez de a IA estimar métricas "no chute".
 6. **Relatório final** — rastreia cada requisito até o bloco, o arquivo
-   VHDL, o resultado do teste e a métrica de PPA correspondente.
+   VHDL, o resultado do teste e a métrica de PPA correspondente; para CPU,
+   inclui também a tabela de cobertura instrução por instrução.
 
 ## Estado atual
 
@@ -44,8 +92,10 @@ O projeto está na **Fase 0/1** — a especificação está concluída e alinhad
 e as duas primeiras tarefas do pipeline já são código real e testado.
 
 **Pronto:**
-- Constituição, spec funcional (EARS, FR-01–FR-15), plano técnico e backlog
-  de tarefas em [`specs/`](specs/), revisados e consistentes entre si.
+- Constituição (10 princípios), spec funcional (EARS, FR-01–FR-29,
+  NFR-01–NFR-05), plano técnico e backlog de tarefas em [`specs/`](specs/),
+  revisados e consistentes entre si — incluindo as fases 3b/4b de verificação
+  de CPU RISC-V rodando software.
 - **T0.1** — estrutura de pastas do pipeline (`src/spechdl/`, `tests/`,
   `outputs/`) e ambiente virtual Python.
 - **T1.1** — schema completo da rubrica em
@@ -68,15 +118,28 @@ e as duas primeiras tarefas do pipeline já são código real e testado.
   [`examples/ula32_terra/`](examples/ula32_terra/) — geradas por um agente
   externo contra o modelo antigo (texto livre), não são fixtures de rubrica,
   mas provam que a metodologia funciona ponta a ponta.
+- CPU RV32I de terceiro (Morgan Demange) em
+  [`examples/RISCV32I/`](examples/RISCV32I/), vendorizada como **referência
+  de arquitetura** para as fases 3b/4b — 5 estágios de pipeline, Harvard.
+  Não foi gerada por este pipeline: não tem `-- REQ:`, não tem testbench
+  cocotb (só um `CPU_tb.vhd`), e o `Makefile` dela aponta pra um toolchain
+  xPack que não está no repo. É material de consulta, não saída do pipeline.
 
 **Pendente (backlog completo em [`specs/tasks.md`](specs/tasks.md)):**
 - T0.2–T0.5 — validar GHDL/cocotb/GTKWave e Yosys de fato (só testamos via
   Docker contra o exemplo de referência, não contra o smoke test oficial
   ainda), configurar `OPENROUTER_API_KEY` e criar o exemplo fixo com rubrica
   preenchida (fixture real das fases seguintes).
-- T1.2–T1.4 e todo o restante do pipeline (Fases 2 a 7): parser EARS,
-  decomposição, geração, verificação, PPA, relatório e CLI instalável
-  (`spechdl web`).
+- T0.6–T0.7 — imagem Docker do projeto com o binutils cruzado RISC-V
+  (NFR-05) e validação da cadeia de montagem assembly → ELF → `.rm`. Hoje
+  nada disso existe: a máquina de desenvolvimento não tem GHDL nem toolchain
+  RISC-V no PATH, só Docker e WSL2.
+- T1.2–T1.5 — parser EARS, validação de submissão e a seleção de ISA/extensões
+  RISC-V na rubrica.
+- Fases 3b e 4b inteiras — fixture golden do RV32I base, conversor de `.rm`,
+  testbench de programa, cobertura dinâmica de instrução e os gates.
+- Todo o restante do pipeline (Fases 2 a 7): decomposição, geração,
+  verificação, PPA, relatório e CLI instalável (`spechdl web`).
 
 ## Especificações — leia nesta ordem
 
@@ -120,13 +183,17 @@ continua sendo `specs/tasks.md`.
 ├── src/spechdl/
 │   ├── ingestion/schema.py         # 137 campos, skip logic, validação cruzada (T1.1)
 │   ├── ingestion/web_form.py       # formulário Streamlit — código real, T1.1
-│   └── architecture/ codegen/ verification/ ppa/ report/  # pacotes vazios ainda
+│   └── architecture/ codegen/ software/ verification/ ppa/ report/  # pacotes vazios ainda
+├── docker/
+│   └── Dockerfile                  # imagem do projeto: GHDL+cocotb+binutils RISC-V (T0.6)
 ├── tests/                          # testes pytest do pipeline (ainda vazio)
 ├── outputs/                        # artefatos gerados por execução (gitignored)
 ├── examples/
 │   ├── toolchain_smoketest/        # smoke test do toolchain GHDL+cocotb (T0.2)
 │   │   ├── src/demux.vhd
 │   │   └── test/{test_demux.py, Makefile}
+│   ├── riscv_base_test/            # fixture GOLDEN do RV32I base (T3b.1/T3b.2)
+│   ├── RISCV32I/                   # CPU RV32I de terceiro — referência de arquitetura
 │   ├── ula32_sol/                  # referência: SDD ponta a ponta, modelo antigo (texto livre)
 │   └── ula32_terra/                # idem, rodado por um segundo agente isolado do primeiro
 ├── scripts/
@@ -156,12 +223,18 @@ proposta em [`specs/plan.md`](specs/plan.md).
   (`.vcd`) na triagem manual de falha
 - [Yosys](https://github.com/YosysHQ/yosys) + `ghdl-yosys-plugin` — síntese
   real para as métricas de PPA
+- Binutils cruzado RISC-V (`riscv64-unknown-elf-as/ld/objcopy/objdump`) —
+  monta os programas de teste de CPU da fase 3b (assembly → ELF → `.rm`);
+  entregue dentro da imagem `docker/Dockerfile`, sem instalação manual
+  (NFR-05)
 - pytest — testes do próprio pipeline (não confundir com os testbenches
   cocotb gerados, que testam o hardware)
 - python-dotenv — carrega `.env` em desenvolvimento local
 
 Ambiente de referência: Linux/WSL2, imagem Docker
-`rafaelcorsi/pl-descomp-cocotb` (mesma usada no smoke test de CI).
+`rafaelcorsi/pl-descomp-cocotb` (mesma usada no smoke test de CI); a imagem
+do projeto (`docker/Dockerfile`, T0.6) estende essa com o toolchain RISC-V e
+o Yosys.
 
 ## Próximo passo
 

@@ -41,3 +41,46 @@ fases.
 O pipeline não assume que o hardware alvo é uma ULA de 4 bits ou qualquer
 exercício específico — o design vem do documento de entrada. Exemplos fixos
 vivem em `examples/`, nunca dentro do core do pipeline.
+
+## 8. CPU só é verificada rodando software de verdade
+Testbench de bloco (ULA isolada, banco de registradores isolado) é condição
+necessária, não suficiente. Quando o design alvo é um processador, ele só é
+considerado verificado depois de **executar um programa montado de verdade**
+e ter o estado final da RAM comparado com o estado esperado. O caminho é
+sempre o completo: assembly → código de máquina (`.rm`) → ROM da CPU
+gerada → simulação cocotb/GHDL → comparação de RAM. Nenhuma etapa desse
+caminho pode ser pulada, simulada de mentira ou substituída por inspeção do
+código gerado.
+
+## 9. O oráculo é independente e vem antes da observação
+O estado de RAM esperado é derivado da semântica do programa de teste,
+**nunca** do que a CPU gerada produziu. Rodar a simulação, ver a RAM que saiu
+e chamar aquilo de "esperado" não é verificação, é tautologia — e é a forma
+mais fácil de a IA se enganar sozinha.
+
+Em consequência:
+- O arquivo de estados esperados é gravado e commitado **antes** de a
+  simulação daquele programa rodar.
+- O golden file do teste obrigatório é **imutável**. Se ele falha, a falha é
+  da CPU gerada, e a correção é no hardware — nunca no golden. A IA não tem
+  permissão de editar, relaxar, regravar ou "atualizar" esse arquivo.
+- Se um estado esperado estiver realmente errado, isso é um bug de spec:
+  pare, corrija a spec do programa de teste e justifique a mudança — não
+  ajuste números silenciosamente até o teste ficar verde.
+
+
+## 10. Toda instrução implementada é uma instrução testada
+Uma instrução que a spec declara como implementada e que nenhum teste
+executou não conta como pronta. A cobertura é medida **dinamicamente**, pelo
+que a CPU efetivamente aposentou (retirou) durante a simulação — não pela
+presença do mnemônico no disassembly, que passaria mesmo com código morto ou
+instrução em caminho de pipeline descartado.
+
+Duas direções, ambas obrigatórias:
+- Instrução declarada e nunca executada → falha, com a lista nominal do que
+  ficou de fora.
+- Instrução executada e não declarada na spec → lacuna de spec (princípio 5),
+  não um detalhe a ignorar.
+
+Cada extensão de ISA (padrão ou custom) entra com seu próprio programa de
+teste, cobrindo todas as instruções que ela adiciona.

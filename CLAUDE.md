@@ -12,6 +12,14 @@ submeter o formulário, o app grava `rubrica.md` (versionável) e o pipeline
 roda sozinho até o relatório final, sem pedir mais nenhuma decisão do aluno
 — preencher e submeter o formulário é a única responsabilidade dele.
 
+Quando o design alvo é um **processador RISC-V**, o pipeline gera uma CPU
+nova e customizada (RV32I base + as extensões escolhidas na rubrica), usando
+`examples/RISCV32I/` como referência de arquitetura — não como código a
+copiar. Nesse caso entram duas fases a mais, 3b e 4b, e a CPU só é
+considerada verificada depois de **executar software de verdade**: assembly
+→ código de máquina (`.rm`) → ROM → simulação cocotb/GHDL → comparação do
+estado final da RAM com o esperado. Ver `specs/spec.md`, fases 3b/4b.
+
 Este projeto está sendo construído seguindo a própria metodologia que ele
 implementa: nada de código antes de spec aprovada. Antes de implementar
 qualquer coisa, leia, nesta ordem:
@@ -45,6 +53,36 @@ qualquer coisa, leia, nesta ordem:
   automatizados passando não bastam pra avançar (ver `specs/plan.md`, fase
   gate).
 
+### Regras específicas de CPU RISC-V (fases 3b/4b)
+- Bloco verificado isoladamente **não** fecha uma CPU. Ela só está verificada
+  depois de rodar o programa de teste e a RAM final bater com o esperado
+  (princípio 8). Não anuncie a CPU como pronta antes disso.
+- O teste obrigatório do RV32I base (`examples/riscv_base_test/`) é fixture
+  golden: você **não** escreve, edita, regrava nem "atualiza" o
+  `expected_ram.json` dele. Se ele falha, o bug é da CPU gerada — conserte o
+  VHDL, não o esperado (princípio 9).
+- Estado de RAM esperado é derivado da semântica do assembly que você
+  escreveu, e gravado **antes** de rodar a simulação. Nunca rode primeiro pra
+  depois anotar o que saiu como "esperado" — isso é tautologia, não teste.
+- Toda instrução declarada como implementada tem que ser exercitada. Cobertura
+  é medida pelo que a CPU **aposentou** durante a simulação (`dbg_valid` +
+  `dbg_instr`), não pela presença do mnemônico no fonte assembly — código
+  morto ou instrução descartada em flush não conta (princípio 10).
+- Cada extensão (padrão ou custom) entra com o seu próprio programa de teste,
+  cobrindo todas as instruções que ela adiciona, com `-march` derivado das
+  extensões declaradas no `spec.json`.
+- Programa de teste é escrito **direto em assembly** (`.S`), não em C — com C
+  quem escolhe as instruções emitidas é o compilador, e aí não há como
+  garantir cobertura instrução por instrução (ver `specs/plan.md`, fase
+  3b/4b). O `.rm` e o disassembly, ao contrário, são sempre derivados por
+  ferramenta: nunca escreva código de máquina à mão.
+- `examples/RISCV32I/` é referência de **arquitetura**, não código pra copiar:
+  é uma CPU de terceiro, não foi gerada por este pipeline, não tem `-- REQ:`
+  e não tem testbench cocotb. Gere uma CPU nova conforme a rubrica.
+- A CPU gerada precisa expor a interface de verificação padrão (`clk`, `rst`,
+  `dbg_pc`, `dbg_instr`, `dbg_valid` e a RAM como `signal` acessível) — sem
+  ela o teste obrigatório não tem onde se acoplar (ver `specs/plan.md`).
+
 ## Stack
 - Python 3.11+, gerenciado com uv (ou venv)
 - Streamlit (`pip install streamlit`, `spechdl web`) para o formulário web
@@ -64,6 +102,11 @@ qualquer coisa, leia, nesta ordem:
 - GTKWave para inspeção visual do waveform (`.vcd`) na triagem manual de
   falha (ver `specs/plan.md`, fase 3/4)
 - Yosys + ghdl-yosys-plugin para a análise PPA (ver `specs/plan.md`, fase 5)
+- Binutils cruzado RISC-V (`riscv64-unknown-elf-as/ld/objcopy/objdump`) para
+  montar os programas de teste de CPU da fase 3b (assembly → ELF → binário →
+  `.rm`). Vem dentro da imagem `docker/Dockerfile` do projeto, junto com GHDL
+  e cocotb — não instale nem referencie toolchain por caminho local da
+  máquina (NFR-05)
 - pytest para os testes do próprio pipeline Python — diferente dos
   testbenches cocotb gerados: pytest testa o pipeline, cocotb testa o
   hardware gerado
@@ -86,3 +129,14 @@ qualquer coisa, leia, nesta ordem:
 - Não estimar métricas de PPA "no chute" — usar a saída real do
   Yosys/ghdl-yosys-plugin (fase 5); se não for viável no prazo, marcar
   claramente como heurística no relatório, nunca como medição
+- Não dar uma CPU por verificada com base em testbench de bloco, em
+  inspeção do VHDL gerado ou em simulação que você não rodou de fato
+  (princípio 8)
+- Não editar golden file pra teste passar, nem derivar estado esperado da
+  saída da simulação (princípio 9)
+- Não declarar uma instrução como implementada sem um programa de teste que a
+  execute de verdade (princípio 10)
+- Não escrever `.rm` nem disassembly à mão — são sempre derivados do ELF por
+  ferramenta
+- Não copiar o VHDL de `examples/RISCV32I/` como se fosse saída do pipeline —
+  é referência de arquitetura de terceiro, sem rastreabilidade `-- REQ:`
