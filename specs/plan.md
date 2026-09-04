@@ -422,8 +422,20 @@ sob teste.
 `docker/Dockerfile` estende `rafaelcorsi/pl-descomp-cocotb` (que já traz
 GHDL + cocotb, e é a imagem usada na CI do smoke test) adicionando o
 binutils cruzado RISC-V (`as`, `ld`, `objcopy`, `objdump` — via o pacote
-`gcc-riscv64-unknown-elf`, que os traz junto) e o Yosys da fase 5. Alvo rv32
-via flags (`-march=rv32i…`, `-mabi=ilp32`), não via toolchain separado.
+`binutils-riscv64-unknown-elf` do bookworm; não entra compilador C, porque
+os programas de teste são escritos direto em assembly) e o Yosys da fase 5.
+Alvo rv32 via flags (`-march=rv32i…`, `-mabi=ilp32`), não via toolchain
+separado. A imagem base é pinada por digest e as versões dos pacotes por
+`ARG`, pra que o build não mude de resultado com o tempo (princípio 6). O
+`ghdl-yosys-plugin` não é pacote Debian e não entra no T0.6: é o T0.3 que
+decide entre buildar o plugin ou cair no fallback heurístico do FR-14.
+
+Build e uso:
+
+```bash
+docker build -t spechdl-toolchain -f docker/Dockerfile docker
+docker run --rm -v "${PWD}:/job" spechdl-toolchain make -C examples/toolchain_smoketest/test/
+```
 
 Por que imagem própria em vez de documentar `apt install`: o `Makefile` de
 `examples/RISCV32I/compilation/` aponta pra

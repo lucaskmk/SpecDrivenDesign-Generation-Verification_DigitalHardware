@@ -24,7 +24,7 @@ para uma CPU não são opcionais (FR-29).
   seguintes — não confundir com `examples/ula32_sol/` e
   `examples/ula32_terra/`, que são referência externa no formato antigo
   (texto livre), não fixtures de rubrica
-- [ ] T0.6 — Criar `docker/Dockerfile` estendendo
+- [x] T0.6 — Criar `docker/Dockerfile` estendendo
   `rafaelcorsi/pl-descomp-cocotb` com o binutils cruzado RISC-V e o Yosys
   (NFR-05). Aceite: na imagem construída, `riscv64-unknown-elf-as
   --version`, `ghdl --version` e `yosys -V` respondem, e
