@@ -206,6 +206,7 @@ def run_program(
     waves: bool = False,
     keep_image_at: Path | None = None,
     src_dir: Path | None = None,
+    dump_ram: tuple[int, int] | None = None,
 ) -> ProgramRun:
     """Monta `asm`, grava a imagem `.ram` e executa a CPU no GHDL.
 
@@ -213,6 +214,9 @@ def run_program(
     `allow_m` controla se o MONTADOR aceita instruções RV32M; por padrão
     acompanha `rv32m`, de modo que um programa de baseline não consegue,
     nem por acidente, usar a extensão M (FR-RV-19).
+    `dump_ram=(endereço, n_palavras)` faz o testbench devolver o conteúdo da
+    RAM em `metrics["ram_dump"]`, usado para provar que as versões RV32I e
+    RV32IM de um mesmo benchmark calculam o mesmo resultado (FR-RV-06).
     """
     if allow_m is None:
         allow_m = rv32m
@@ -262,6 +266,9 @@ def run_program(
         "expect_ram": {hex(k): v for k, v in (expect_ram or {}).items()},
         "metrics_out": str(metrics_out),
     }
+    if dump_ram is not None:
+        # (endereço inicial, quantidade de palavras) -- ver tb_program.py
+        spec["dump_ram"] = {"start": dump_ram[0], "count": dump_ram[1]}
     spec_path = run_dir / "spec.json"
     spec_path.write_text(json.dumps(spec, indent=2), encoding="utf-8")
 
