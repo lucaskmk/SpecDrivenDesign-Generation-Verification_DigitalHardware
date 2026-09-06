@@ -1,0 +1,551 @@
+{
+  "requirements": [
+    "FR-RV-24",
+    "FR-RV-25",
+    "NFR-RV-02",
+    "NFR-RV-03"
+  ],
+  "method": {
+    "synthesis": "ghdl synth --std=08 --out=verilog CPU",
+    "stat": "read_verilog cpu_<cfg>.v; hierarchy -top CPU; proc; memory -nomap; opt_expr; techmap; opt_expr; stat",
+    "why_not_flattened": "a entity CPU nao tem porta de saida; achatada, o Yosys elimina o design inteiro (0 celulas). Mantendo a hierarquia, cada submodulo e otimizado contra as proprias portas.",
+    "cell_meaning": "celulas genericas do Yosys apos techmap; comparaveis entre as duas configuracoes no mesmo fluxo, NAO equivalentes a area em um PDK nem a LUTs de FPGA",
+    "depth_meaning": "ltp -noff: caminho topologico mais longo em NIVEIS DE LOGICA. Medicao estrutural real; nao e atraso em nanossegundos."
+  },
+  "configs": {
+    "rv32i": {
+      "config": "rv32i",
+      "rv32m_enable": false,
+      "total_cells": 100284,
+      "core_logic_cells": 6239,
+      "total_memory_bits": 0,
+      "blocks": {
+        "CPU": {
+          "cells": 0,
+          "wire_bits": 98,
+          "memory_bits": 0,
+          "cell_types": {}
+        },
+        "alu": {
+          "cells": 2139,
+          "wire_bits": 15839,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 556,
+            "$_MUX_": 800,
+            "$_NOT_": 161,
+            "$_OR_": 336,
+            "$_XOR_": 286
+          }
+        },
+        "branching_unit": {
+          "cells": 121,
+          "wire_bits": 233,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 6,
+            "$_MUX_": 2,
+            "$_NOT_": 27,
+            "$_OR_": 86
+          }
+        },
+        "control_unit": {
+          "cells": 827,
+          "wire_bits": 1430,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 40,
+            "$_MUX_": 45,
+            "$_NOT_": 311,
+            "$_OR_": 431
+          }
+        },
+        "data_memory": {
+          "cells": 762,
+          "wire_bits": 8417,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 345,
+            "$_MUX_": 60,
+            "$_NOT_": 115,
+            "$_OR_": 122,
+            "$_XOR_": 118
+          }
+        },
+        "data_ram": {
+          "cells": 93639,
+          "wire_bits": 300441,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 30723,
+            "$_DFF_P_": 4096,
+            "$_MUX_": 34392,
+            "$_NOT_": 1637,
+            "$_OR_": 22696,
+            "$_XOR_": 95
+          }
+        },
+        "data_rom": {
+          "cells": 198,
+          "wire_bits": 6292,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 86,
+            "$_MUX_": 18,
+            "$_NOT_": 52,
+            "$_OR_": 11,
+            "$_XOR_": 31
+          }
+        },
+        "decode_pipeline_register": {
+          "cells": 600,
+          "wire_bits": 1007,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 6,
+            "$_DFF_P_": 196,
+            "$_MUX_": 398
+          }
+        },
+        "execute_pipeline_register": {
+          "cells": 362,
+          "wire_bits": 728,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 2,
+            "$_DFF_P_": 180,
+            "$_MUX_": 180
+          }
+        },
+        "extend_32": {
+          "cells": 75,
+          "wire_bits": 436,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 2,
+            "$_MUX_": 48,
+            "$_NOT_": 9,
+            "$_OR_": 16
+          }
+        },
+        "fetch_pipeline_register": {
+          "cells": 352,
+          "wire_bits": 548,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 29,
+            "$_DFF_PP1_": 3,
+            "$_DFF_P_": 64,
+            "$_MUX_": 256
+          }
+        },
+        "hazard_control_unit": {
+          "cells": 142,
+          "wire_bits": 315,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 16,
+            "$_MUX_": 9,
+            "$_NOT_": 24,
+            "$_OR_": 63,
+            "$_XOR_": 30
+          }
+        },
+        "instruction_decoder": {
+          "cells": 457,
+          "wire_bits": 1490,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 12,
+            "$_MUX_": 160,
+            "$_NOT_": 116,
+            "$_OR_": 169
+          }
+        },
+        "instruction_memory": {
+          "cells": 208,
+          "wire_bits": 6667,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 92,
+            "$_MUX_": 30,
+            "$_NOT_": 40,
+            "$_OR_": 9,
+            "$_XOR_": 36,
+            "$mem_v2": 1
+          }
+        },
+        "mem_pipeline_register": {
+          "cells": 337,
+          "wire_bits": 677,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 1,
+            "$_DFF_P_": 168,
+            "$_MUX_": 168
+          }
+        },
+        "program_counter": {
+          "cells": 65,
+          "wire_bits": 167,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 32,
+            "$_MUX_": 32,
+            "$_OR_": 1
+          }
+        },
+        "register_file": {
+          "cells": 0,
+          "wire_bits": 98,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 2630,
+            "$_DFF_NP0_": 1024,
+            "$_MUX_": 2816,
+            "$_NOT_": 110,
+            "$_OR_": 2081,
+            "$_XOR_": 3
+          }
+        }
+      },
+      "logic_depth_levels": {
+        "alu": 36
+      },
+      "verilog_lines": 15192,
+      "measured_by": "ghdl synth --out=verilog + yosys stat (medicao real, ADR-005)"
+    },
+    "rv32im": {
+      "config": "rv32im",
+      "rv32m_enable": true,
+      "total_cells": 150372,
+      "core_logic_cells": 56327,
+      "total_memory_bits": 0,
+      "blocks": {
+        "CPU": {
+          "cells": 0,
+          "wire_bits": 66,
+          "memory_bits": 0,
+          "cell_types": {}
+        },
+        "alu": {
+          "cells": 2139,
+          "wire_bits": 15839,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 556,
+            "$_MUX_": 800,
+            "$_NOT_": 161,
+            "$_OR_": 336,
+            "$_XOR_": 286
+          }
+        },
+        "branching_unit": {
+          "cells": 121,
+          "wire_bits": 233,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 6,
+            "$_MUX_": 2,
+            "$_NOT_": 27,
+            "$_OR_": 86
+          }
+        },
+        "control_unit": {
+          "cells": 1070,
+          "wire_bits": 1798,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 56,
+            "$_MUX_": 84,
+            "$_NOT_": 387,
+            "$_OR_": 543
+          }
+        },
+        "data_memory": {
+          "cells": 762,
+          "wire_bits": 8417,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 345,
+            "$_MUX_": 60,
+            "$_NOT_": 115,
+            "$_OR_": 122,
+            "$_XOR_": 118
+          }
+        },
+        "data_ram": {
+          "cells": 93639,
+          "wire_bits": 300441,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 30723,
+            "$_DFF_P_": 4096,
+            "$_MUX_": 34392,
+            "$_NOT_": 1637,
+            "$_OR_": 22696,
+            "$_XOR_": 95
+          }
+        },
+        "data_rom": {
+          "cells": 198,
+          "wire_bits": 6292,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 86,
+            "$_MUX_": 18,
+            "$_NOT_": 52,
+            "$_OR_": 11,
+            "$_XOR_": 31
+          }
+        },
+        "decode_pipeline_register": {
+          "cells": 600,
+          "wire_bits": 1007,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 6,
+            "$_DFF_P_": 196,
+            "$_MUX_": 398
+          }
+        },
+        "execute_pipeline_register": {
+          "cells": 362,
+          "wire_bits": 728,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 2,
+            "$_DFF_P_": 180,
+            "$_MUX_": 180
+          }
+        },
+        "extend_32": {
+          "cells": 75,
+          "wire_bits": 436,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 2,
+            "$_MUX_": 48,
+            "$_NOT_": 9,
+            "$_OR_": 16
+          }
+        },
+        "fetch_pipeline_register": {
+          "cells": 352,
+          "wire_bits": 548,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 29,
+            "$_DFF_PP1_": 3,
+            "$_DFF_P_": 64,
+            "$_MUX_": 256
+          }
+        },
+        "hazard_control_unit": {
+          "cells": 142,
+          "wire_bits": 315,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 16,
+            "$_MUX_": 9,
+            "$_NOT_": 24,
+            "$_OR_": 63,
+            "$_XOR_": 30
+          }
+        },
+        "instruction_decoder": {
+          "cells": 478,
+          "wire_bits": 1527,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 13,
+            "$_MUX_": 160,
+            "$_NOT_": 123,
+            "$_OR_": 182
+          }
+        },
+        "instruction_memory": {
+          "cells": 208,
+          "wire_bits": 6667,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 92,
+            "$_MUX_": 30,
+            "$_NOT_": 40,
+            "$_OR_": 9,
+            "$_XOR_": 36,
+            "$mem_v2": 1
+          }
+        },
+        "mem_pipeline_register": {
+          "cells": 337,
+          "wire_bits": 677,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 1,
+            "$_DFF_P_": 168,
+            "$_MUX_": 168
+          }
+        },
+        "mul_div_unit": {
+          "cells": 49824,
+          "wire_bits": 346189,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 23511,
+            "$_MUX_": 1338,
+            "$_NOT_": 2539,
+            "$_OR_": 8617,
+            "$_XOR_": 13819
+          }
+        },
+        "program_counter": {
+          "cells": 65,
+          "wire_bits": 167,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_DFF_PP0_": 32,
+            "$_MUX_": 32,
+            "$_OR_": 1
+          }
+        },
+        "register_file": {
+          "cells": 0,
+          "wire_bits": 66,
+          "memory_bits": 0,
+          "cell_types": {
+            "$_AND_": 2630,
+            "$_DFF_NP0_": 1024,
+            "$_MUX_": 2816,
+            "$_NOT_": 110,
+            "$_OR_": 2081,
+            "$_XOR_": 3
+          }
+        }
+      },
+      "logic_depth_levels": {
+        "alu": 36,
+        "mul_div_unit": 631
+      },
+      "verilog_lines": 16319,
+      "measured_by": "ghdl synth --out=verilog + yosys stat (medicao real, ADR-005)"
+    }
+  },
+  "comparison": {
+    "total_cells_rv32i": 100284,
+    "total_cells_rv32im": 150372,
+    "delta_cells": 50088,
+    "ratio": 1.4995,
+    "core_logic_cells_rv32i": 6239,
+    "core_logic_cells_rv32im": 56327,
+    "delta_core_logic_cells": 50088,
+    "core_logic_ratio": 9.0282,
+    "storage_blocks_excluded_from_core": [
+      "data_ram",
+      "data_rom",
+      "instruction_memory",
+      "register_file"
+    ],
+    "per_block": {
+      "CPU": {
+        "rv32i": 0,
+        "rv32im": 0,
+        "delta": 0
+      },
+      "alu": {
+        "rv32i": 2139,
+        "rv32im": 2139,
+        "delta": 0
+      },
+      "branching_unit": {
+        "rv32i": 121,
+        "rv32im": 121,
+        "delta": 0
+      },
+      "control_unit": {
+        "rv32i": 827,
+        "rv32im": 1070,
+        "delta": 243
+      },
+      "data_memory": {
+        "rv32i": 762,
+        "rv32im": 762,
+        "delta": 0
+      },
+      "data_ram": {
+        "rv32i": 93639,
+        "rv32im": 93639,
+        "delta": 0
+      },
+      "data_rom": {
+        "rv32i": 198,
+        "rv32im": 198,
+        "delta": 0
+      },
+      "decode_pipeline_register": {
+        "rv32i": 600,
+        "rv32im": 600,
+        "delta": 0
+      },
+      "execute_pipeline_register": {
+        "rv32i": 362,
+        "rv32im": 362,
+        "delta": 0
+      },
+      "extend_32": {
+        "rv32i": 75,
+        "rv32im": 75,
+        "delta": 0
+      },
+      "fetch_pipeline_register": {
+        "rv32i": 352,
+        "rv32im": 352,
+        "delta": 0
+      },
+      "hazard_control_unit": {
+        "rv32i": 142,
+        "rv32im": 142,
+        "delta": 0
+      },
+      "instruction_decoder": {
+        "rv32i": 457,
+        "rv32im": 478,
+        "delta": 21
+      },
+      "instruction_memory": {
+        "rv32i": 208,
+        "rv32im": 208,
+        "delta": 0
+      },
+      "mem_pipeline_register": {
+        "rv32i": 337,
+        "rv32im": 337,
+        "delta": 0
+      },
+      "mul_div_unit": {
+        "rv32i": 0,
+        "rv32im": 49824,
+        "delta": 49824
+      },
+      "program_counter": {
+        "rv32i": 65,
+        "rv32im": 65,
+        "delta": 0
+      },
+      "register_file": {
+        "rv32i": 0,
+        "rv32im": 0,
+        "delta": 0
+      }
+    },
+    "logic_depth_levels": {
+      "rv32i": {
+        "alu": 36
+      },
+      "rv32im": {
+        "alu": 36,
+        "mul_div_unit": 631
+      }
+    }
+  }
+}

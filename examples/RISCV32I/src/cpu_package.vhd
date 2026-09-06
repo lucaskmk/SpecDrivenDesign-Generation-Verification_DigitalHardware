@@ -10,8 +10,29 @@ use IEEE.STD_LOGIC_1164.ALL;
 
 package cpu_package is
   
+    -- REQ: FR-RV-12, FR-RV-13, FR-RV-17
+    --
+    -- The eight RV32M operations were appended to this enumeration on purpose,
+    -- instead of being carried to the Execute stage by a new control signal.
+    --
+    -- Rationale (see specs/decisions.md, ADR-007): `alu_op_type` ALREADY travels
+    -- from Decode to Execute through decode_pipeline_register. Reusing it means the
+    -- RV32M extension needs NO new port on any pipeline register and NO change to
+    -- hazard_control_unit.vhd -- the mul/div result simply lands on `alu_result_e`,
+    -- which is where the existing MEM->EX and WB->EX forwarding paths already start.
+    --
+    -- ALU.vhd needs no change either: its final `(others => '0')` fallback covers
+    -- the new values, and CPU.vhd muxes the mul/div result over the ALU result.
     type ALU_OP_TYPE_t is (ALU_OP_TYPE_ADD, ALU_OP_TYPE_SUB, ALU_OP_TYPE_SLT, ALU_OP_TYPE_SLTU,
-                            ALU_OP_TYPE_AND, ALU_OP_TYPE_OR, ALU_OP_TYPE_XOR, ALU_OP_TYPE_SLL, ALU_OP_TYPE_SRL, ALU_OP_TYPE_SRA);
+                            ALU_OP_TYPE_AND, ALU_OP_TYPE_OR, ALU_OP_TYPE_XOR, ALU_OP_TYPE_SLL, ALU_OP_TYPE_SRL, ALU_OP_TYPE_SRA,
+                            -- RV32M standard extension
+                            ALU_OP_TYPE_MUL, ALU_OP_TYPE_MULH, ALU_OP_TYPE_MULHSU, ALU_OP_TYPE_MULHU,
+                            ALU_OP_TYPE_DIV, ALU_OP_TYPE_DIVU, ALU_OP_TYPE_REM, ALU_OP_TYPE_REMU);
+
+    subtype ALU_OP_TYPE_M_t is ALU_OP_TYPE_t range ALU_OP_TYPE_MUL to ALU_OP_TYPE_REMU;
+
+    -- '1' when the operation must be handled by mul_div_unit instead of the ALU
+    function is_rv32m_op(op : ALU_OP_TYPE_t) return boolean;
                             
     type ALU_OP_SRC_t is (ALU_OP_SRC_IMM, ALU_OP_SRC_ALU_RES, ALU_OP_SRC_REG, ALU_OP_SRC_PC_IMM, ALU_OP_SRC_PC_4, ALU_OP_SRC_RD_DATA);
                             
@@ -93,5 +114,27 @@ package cpu_package is
     constant INSTR_FUNCT7_SRA       : std_logic_vector(6 downto 0) := "0100000";
     constant INSTR_FUNCT7_OR        : std_logic_vector(6 downto 0) := "0000000";    
     constant INSTR_FUNCT7_AND       : std_logic_vector(6 downto 0) := "0000000";   
-    
+
+    -- RV32M standard extension: every M instruction is an R-type on the REG_REG
+    -- opcode with funct7 = 0000001, selected by funct3 (FR-RV-13).
+    constant INSTR_FUNCT7_M         : std_logic_vector(6 downto 0) := "0000001";
+    constant INSTR_FUNCT3_MUL       : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_MULH      : std_logic_vector(2 downto 0) := "001";
+    constant INSTR_FUNCT3_MULHSU    : std_logic_vector(2 downto 0) := "010";
+    constant INSTR_FUNCT3_MULHU     : std_logic_vector(2 downto 0) := "011";
+    constant INSTR_FUNCT3_DIV       : std_logic_vector(2 downto 0) := "100";
+    constant INSTR_FUNCT3_DIVU      : std_logic_vector(2 downto 0) := "101";
+    constant INSTR_FUNCT3_REM       : std_logic_vector(2 downto 0) := "110";
+    constant INSTR_FUNCT3_REMU      : std_logic_vector(2 downto 0) := "111";
+
 end package cpu_package;
+
+
+package body cpu_package is
+
+    function is_rv32m_op(op : ALU_OP_TYPE_t) return boolean is
+    begin
+        return op >= ALU_OP_TYPE_MUL;
+    end function;
+
+end package body cpu_package;

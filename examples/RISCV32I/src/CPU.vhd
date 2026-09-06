@@ -10,6 +10,15 @@ use IEEE.NUMERIC_STD.ALL;
 use work.cpu_package.all;
 
 entity CPU is
+    generic(
+        -- REQ: FR-RV-09, FR-RV-16 -- see specs/decisions.md, ADR-001 and ADR-003.
+        -- All three default to the ORIGINAL behaviour of the design, so an
+        -- unparameterised elaboration of this CPU is bit-for-bit the RV32I core
+        -- that was vendored in commit f884a4e.
+        ROM_INIT_FILE   : string  := "";     -- "" -> program comes from INSTRUCTION_MEMORY_CONTENT
+        ROM_SIZE_WORDS  : integer := 0;      -- 0  -> ROM depth is INSTRUCTION_MEMORY_SIZE_WORDS
+        RV32M_ENABLE    : boolean := false   -- false -> RV32I only; true -> RV32IM
+    );
     port(
         rst         : in std_logic;
         clk         : in std_logic
@@ -74,6 +83,16 @@ architecture Behavioral of CPU is
     signal t_mux                : std_logic_vector(31 downto 0);
     signal alu_result_e         : std_logic_vector(31 downto 0);
     signal alu_zero_flag        : std_logic;
+
+    -- RV32M standard extension (REQ: FR-RV-12, FR-RV-13, FR-RV-17; ADR-007)
+    signal alu_core_result_e    : std_logic_vector(31 downto 0);   -- raw ALU output
+    signal m_result_e           : std_logic_vector(31 downto 0);   -- mul_div_unit output
+    signal m_op_e               : std_logic;   -- '1' when the op in EX is an RV32M op
+    signal m_dispatch_e         : std_logic;   -- '1' when that op is a REAL instruction,
+                                               -- not a flushed bubble. Counted by the
+                                               -- cocotb harness as an RV32M dispatch
+                                               -- (FR-RV-24).
+    signal m_busy               : std_logic;
     
     signal rs2_m                : std_logic_vector(31 downto 0);
     signal alu_result_m         : std_logic_vector(31 downto 0);
@@ -130,6 +149,10 @@ begin
         
     -- instruction memory
     instruction_memory : entity work.instruction_memory(Behavioral)
+        generic map(
+            ROM_INIT_FILE => ROM_INIT_FILE,
+            ROM_SIZE_WORDS => ROM_SIZE_WORDS
+        )
         port map(
             addr => pc_f,
             instr => instr_f
@@ -155,6 +178,9 @@ begin
           
      -- instruction decoder
      instruction_decoder : entity work.instruction_decoder(Behavioral)
+        generic map(
+            RV32M_ENABLE => RV32M_ENABLE
+        )
         port map(
             instr => instr_d,
             
@@ -171,6 +197,9 @@ begin
         
      -- Control Unit
      control_unit : entity work.control_unit(Behavioral)
+        generic map(
+            RV32M_ENABLE => RV32M_ENABLE
+        )
         port map(
             opcode => opcode_d,
             funct3 => funct3_d,
@@ -272,10 +301,55 @@ begin
             op2 => op2,
             op_type => alu_op_type_e,
             
-            res => alu_result_e,
+            res => alu_core_result_e,
             zero_flag => alu_zero_flag
         );
-        
+
+
+    -- ------------------------------------------------------------------
+    -- RV32M standard extension  (REQ: FR-RV-12, FR-RV-13, FR-RV-17)
+    --
+    -- The mul/div unit sits BESIDE the ALU in the Execute stage and its result
+    -- is muxed onto `alu_result_e`. Everything downstream -- the execute
+    -- pipeline register, the MEM->EX and WB->EX forwarding paths in
+    -- hazard_control_unit.vhd, and the RD_DATA_SOURCE_ALU_RESULT write-back --
+    -- therefore carries RV32M results with no modification at all.
+    --
+    -- The unit is combinational (1-cycle, same as the ALU), so no new stall is
+    -- introduced and the 5-stage pipeline is untouched. See ADR-007 in
+    -- specs/decisions.md for the trade-off (area and critical path instead of
+    -- cycles) and for the multi-cycle variant registered as future work.
+    -- ------------------------------------------------------------------
+
+    m_op_e <= '1' when is_rv32m_op(alu_op_type_e) else '0';
+
+    -- `write_rd_e` is cleared by the decode-stage flush, so a bubble can never
+    -- be counted as a dispatched RV32M instruction even though the flush leaves
+    -- `alu_op_type_e` holding its previous value.
+    m_dispatch_e <= m_op_e and write_rd_e;
+
+    gen_rv32m : if RV32M_ENABLE generate
+        mul_div_unit_inst : entity work.mul_div_unit(Behavioral)
+            port map(
+                op1     => op1,
+                op2     => op2,
+                op_type => alu_op_type_e,
+                start   => m_dispatch_e,
+
+                res     => m_result_e,
+                busy    => m_busy
+            );
+    end generate;
+
+    gen_no_rv32m : if not RV32M_ENABLE generate
+        m_result_e <= (others => '0');
+        m_busy     <= '0';
+    end generate;
+
+    -- RV32I baseline keeps exactly the original datapath, because m_op_e is
+    -- permanently '0' when the control unit does not decode RV32M.
+    alu_result_e <= m_result_e when m_op_e = '1' else alu_core_result_e;
+
         
         op2 <= imm_e when alu_use_imm_e = '1' else t_mux;
         

@@ -12,6 +12,11 @@ use work.cpu_package.all;
 
 
 entity instruction_decoder is
+    generic(
+        -- REQ: FR-RV-16 -- when false, funct7 = 0000001 on the REG_REG opcode stays
+        -- flagged as an invalid instruction, exactly as in the original RV32I design.
+        RV32M_ENABLE : boolean := false
+    );
     port (
         instr           : in std_logic_vector(31 downto 0);
         
@@ -61,6 +66,8 @@ begin
         or (opcode_signal = INSTR_OPCODE_REG_IMM and ((funct3_signal = INSTR_FUNCT3_SLLI and funct7_signal = INSTR_FUNCT7_SLLI) or
             (funct3_signal = "101" and (funct7_signal = INSTR_FUNCT7_SRLI or funct7_signal = INSTR_FUNCT7_SRAI))))
         or (opcode_signal = INSTR_OPCODE_REG_REG and (funct7_signal = "0000000" or (funct7_signal = "0100000" and (funct3_signal = "000" or funct3_signal = "101"))))
+        -- RV32M: every funct3 is valid when funct7 = 0000001 (FR-RV-12, FR-RV-13)
+        or (RV32M_ENABLE and opcode_signal = INSTR_OPCODE_REG_REG and funct7_signal = INSTR_FUNCT7_M)
 
         else '1';   -- invalid instruction format or not implemented instruction (currently: FENCE, ECALL, EBREAK)
 

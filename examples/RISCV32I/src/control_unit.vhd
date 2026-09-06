@@ -11,6 +11,11 @@ use work.cpu_package.all;
 
 
 entity control_unit is
+    generic(
+        -- REQ: FR-RV-16 -- false reproduces the original RV32I decoding exactly;
+        -- true additionally decodes the RV32M extension (see ADR-001, ADR-007).
+        RV32M_ENABLE : boolean := false
+    );
     port(
         opcode              : in std_logic_vector(6 downto 0);
         funct3              : in std_logic_vector(2 downto 0);
@@ -63,7 +68,21 @@ begin
     mem_write_enable <= '1' when opcode = INSTR_OPCODE_STORE else '0';
     
     
-    alu_op_type <=  ALU_OP_TYPE_SUB     when (opcode = INSTR_OPCODE_REG_REG and funct3 = INSTR_FUNCT3_SUB and funct7 = INSTR_FUNCT7_SUB)
+    -- REQ: FR-RV-12, FR-RV-13
+    -- The RV32M arm comes FIRST in the priority chain, because every RV32M
+    -- instruction shares opcode REG_REG and funct3 values with an RV32I one and
+    -- is distinguished only by funct7 = 0000001. Guarded by RV32M_ENABLE so that
+    -- the baseline configuration decodes exactly what the original design did.
+    alu_op_type <=  ALU_OP_TYPE_MUL     when RV32M_ENABLE and opcode = INSTR_OPCODE_REG_REG and funct7 = INSTR_FUNCT7_M and funct3 = INSTR_FUNCT3_MUL      else
+                    ALU_OP_TYPE_MULH    when RV32M_ENABLE and opcode = INSTR_OPCODE_REG_REG and funct7 = INSTR_FUNCT7_M and funct3 = INSTR_FUNCT3_MULH     else
+                    ALU_OP_TYPE_MULHSU  when RV32M_ENABLE and opcode = INSTR_OPCODE_REG_REG and funct7 = INSTR_FUNCT7_M and funct3 = INSTR_FUNCT3_MULHSU   else
+                    ALU_OP_TYPE_MULHU   when RV32M_ENABLE and opcode = INSTR_OPCODE_REG_REG and funct7 = INSTR_FUNCT7_M and funct3 = INSTR_FUNCT3_MULHU    else
+                    ALU_OP_TYPE_DIV     when RV32M_ENABLE and opcode = INSTR_OPCODE_REG_REG and funct7 = INSTR_FUNCT7_M and funct3 = INSTR_FUNCT3_DIV      else
+                    ALU_OP_TYPE_DIVU    when RV32M_ENABLE and opcode = INSTR_OPCODE_REG_REG and funct7 = INSTR_FUNCT7_M and funct3 = INSTR_FUNCT3_DIVU     else
+                    ALU_OP_TYPE_REM     when RV32M_ENABLE and opcode = INSTR_OPCODE_REG_REG and funct7 = INSTR_FUNCT7_M and funct3 = INSTR_FUNCT3_REM      else
+                    ALU_OP_TYPE_REMU    when RV32M_ENABLE and opcode = INSTR_OPCODE_REG_REG and funct7 = INSTR_FUNCT7_M and funct3 = INSTR_FUNCT3_REMU     else
+
+                    ALU_OP_TYPE_SUB     when (opcode = INSTR_OPCODE_REG_REG and funct3 = INSTR_FUNCT3_SUB and funct7 = INSTR_FUNCT7_SUB)
                                              or (opcode = INSTR_OPCODE_BRANCH and (funct3 = INSTR_FUNCT3_BEQ or funct3 = INSTR_FUNCT3_BNE)) else
                     ALU_OP_TYPE_SLT     when (opcode = INSTR_OPCODE_REG_IMM and funct3 = INSTR_FUNCT3_SLTI)
                                              or (opcode = INSTR_OPCODE_REG_REG and funct3 = INSTR_FUNCT3_SLT and funct7 = INSTR_FUNCT7_SLT)
