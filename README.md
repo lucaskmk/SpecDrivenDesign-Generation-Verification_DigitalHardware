@@ -146,6 +146,16 @@ e as duas primeiras tarefas do pipeline já são código real e testado.
   decomposição, geração, verificação, PPA, relatório e CLI instalável
   (`spechdl web`).
 
+## Onde está o quê
+
+| Documento | Responde |
+|---|---|
+| [`docs/MUDANCAS.md`](docs/MUDANCAS.md) | o que a trilha RISC-V mexeu no repositório — e o que deixou intacto |
+| [`docs/ESTADO-TRILHA-A.md`](docs/ESTADO-TRILHA-A.md) | contexto da trilha A e o que ficou faltando nela |
+| [`examples/RISCV32I/RELATORIO.md`](examples/RISCV32I/RELATORIO.md) | o resultado medido da trilha RISC-V |
+| [`examples/RISCV32I/programs/README.md`](examples/RISCV32I/programs/README.md) | os benchmarks e o formato `.ram` |
+| `docs/mapa-do-projeto.html` | **desatualizado** — só as fases 0–7 da trilha A, sem menção à trilha RISC-V |
+
 ## Especificações — leia nesta ordem
 
 | Ordem | Arquivo | Conteúdo |
