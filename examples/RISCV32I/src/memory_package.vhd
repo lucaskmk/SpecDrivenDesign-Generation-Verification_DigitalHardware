@@ -24,7 +24,12 @@ package memory_package is
     constant INSTRUCTION_MEMORY_SIZE_BYTES  : integer := 388;     -- in bytes, must be a multiple of 4 (32-bits instructions) and must contain at least 2 instructions
     constant INSTRUCTION_MEMORY_SIZE_WORDS  : integer := INSTRUCTION_MEMORY_SIZE_BYTES/4;     -- in 32-bit words
 
-    type INSTRUCTION_MEMORY_ARRAY_t is array(0 to INSTRUCTION_MEMORY_SIZE_WORDS-1) of std_logic_vector(31 downto 0);
+    -- REQ: FR-RV-09 -- tipo irrestrito para que a ROM possa ser dimensionada por
+    -- generic quando carregada a partir de uma imagem .ram (ver decisions.md, ADR-003).
+    -- O subtipo abaixo preserva o nome e o tamanho originais, de modo que a
+    -- constante INSTRUCTION_MEMORY_CONTENT continua valida sem alteracao.
+    type INSTRUCTION_WORDS_t is array(natural range <>) of std_logic_vector(31 downto 0);
+    subtype INSTRUCTION_MEMORY_ARRAY_t is INSTRUCTION_WORDS_t(0 to INSTRUCTION_MEMORY_SIZE_WORDS-1);
     
     -- put the program instruction content here, its size must fit INSTRUCTION_MEMORY_SIZE
     constant INSTRUCTION_MEMORY_CONTENT : INSTRUCTION_MEMORY_ARRAY_t := (
@@ -137,13 +142,19 @@ package memory_package is
     constant DATA_ROM_MEMORY_SIZE_BYTES     : integer := 8;     -- in bytes, must be a multiple of 4 and must be >= 8 (fill with 0s if needed)
     constant DATA_ROM_MEMORY_SIZE_WORDS     : integer := DATA_ROM_MEMORY_SIZE_BYTES/4;     -- in 32-bit words
 
-    -- Memory organized as words, but byte addressable
-    type DATA_ROM_MEMORY_ARRAY_t is array (0 to DATA_ROM_MEMORY_SIZE_WORDS-1, 3 downto 0) of std_logic_vector(7 downto 0);
+    -- Memory organized as 32-bit words, but byte addressable.
+    -- REQ: FR-RV-06 -- 1-D array of words instead of the original 2-D array of
+    -- bytes: the GHDL VPI does not expose 2-D arrays, so cocotb could not read
+    -- the memory contents back (see specs/decisions.md, ADR-002). Byte and
+    -- halfword accesses are implemented by slicing the 32-bit word, which keeps
+    -- the little-endian layout of the original design bit for bit.
+    type DATA_ROM_MEMORY_ARRAY_t is array (0 to DATA_ROM_MEMORY_SIZE_WORDS-1) of std_logic_vector(31 downto 0);
     
     -- put the constant data content here, its size must fit DATA_ROM_MEMORY_SIZE_BYTES
+    -- (same bytes as the original 2-D aggregate, now written as little-endian words)
     constant DATA_ROM_MEMORY_CONTENT : DATA_ROM_MEMORY_ARRAY_t := (
-            (x"00", x"00", x"00", x"07"),
-            (x"00", x"00", x"00", x"0b")
+            x"00000007",
+            x"0000000b"
         );
 
 
@@ -156,8 +167,9 @@ package memory_package is
     constant DATA_RAM_MEMORY_SIZE_BYTES   : integer := 512;     -- in bytes, must be a multiple of 4
     constant DATA_RAM_MEMORY_SIZE_WORDS   : integer := DATA_RAM_MEMORY_SIZE_BYTES/4;     -- in 32-bit words
     
-    -- Memory organized as words, but byte addressable
-    type DATA_RAM_MEMORY_ARRAY_t is array (0 to DATA_RAM_MEMORY_SIZE_WORDS-1, 3 downto 0) of std_logic_vector(7 downto 0);
+    -- Memory organized as 32-bit words, but byte addressable (see ADR-002 above).
+    -- REQ: FR-RV-06
+    type DATA_RAM_MEMORY_ARRAY_t is array (0 to DATA_RAM_MEMORY_SIZE_WORDS-1) of std_logic_vector(31 downto 0);
 
 
 end package memory_package;
