@@ -186,3 +186,281 @@ roda sem pausas humanas depois que o aluno submete a rubrica (NFR-01). São
 dois conceitos de "fase" com o mesmo nome por coincidência (o backlog de
 desenvolvimento espelha as fases do próprio pipeline), não confundir os
 dois.
+
+---
+
+# Plano técnico — Trilha RISC-V (RV32I -> RV32IM)
+
+Trilha paralela à do SpecHDL genérico (Emenda 1 da `constitution.md`). A
+geração genérica de arquitetura passa a segundo plano; aqui o objeto é uma
+CPU RISC-V concreta e existente, que será validada como baseline RV32I e
+depois estendida para RV32IM, com medição de eficiência antes/depois sobre a
+**mesma** base de código. Nada aqui é derivado por leitura de código: todos os
+fatos vêm de execução real de ferramenta, registrada em `specs/decisions.md`
+(ADR-000) — este plano só os organiza em fases.
+
+## 1. Ponto de partida (auditoria ADR-000)
+
+O que já existe em `examples/RISCV32I/src/` (19 arquivos VHDL, autoria de
+Morgan Demange, `simple_RISCV_RV32I_vhdl`, vendorizado no commit `f884a4e`):
+
+| Aspecto | Fato verificado | Onde |
+|---|---|---|
+| Entidade top-level | `entity CPU`, portas **apenas** `rst` e `clk`. Nenhuma saída observável | `CPU.vhd` |
+| Microarquitetura | Pipeline de 5 estágios (F, D, E, M, WB), Harvard, domínio de clock único | `CPU.vhd` |
+| Reset | `rst` **ativo em nível alto**, assíncrono | `program_counter.vhd:41`, `register_file.vhd:58` |
+| Banco de registradores | Escrita na **borda de descida** de `clk` (decisão original para reduzir hazards); leitura assíncrona; `x0` fixo em zero | `register_file.vhd:60` |
+| ROM de instruções | **Assíncrona, latência 0 ciclo**, sem porta de clock. `pc_f` -> `addr`, instrução válida no mesmo ciclo | `instruction_memory.vhd` |
+| Conteúdo da ROM | Constante VHDL `INSTRUCTION_MEMORY_CONTENT` (97 palavras / 388 bytes). **Não lê arquivo nenhum** | `memory_package.vhd` |
+| ROM de dados | Assíncrona, 8 bytes, base `0x00FC8000`, array 2D | `data_rom.vhd` |
+| RAM de dados | Leitura **assíncrona (latência 0)**, escrita síncrona em `rising_edge(clk)`, 512 bytes, base `0x00FC8100`, array 2D | `data_ram.vhd` |
+| Roteamento de dados | Wrapper compara `alu_result_m` com as bases e escolhe RAM ou ROM | `data_memory.vhd:64` |
+| Mapa de memória | Instruções `0x00000000`+; DATA_ROM `0x00FC8000`; DATA_RAM `0x00FC8100` | confirmado em `linker.ld` |
+| Hazards | Forwarding MEM->EX e WB->EX; stall de 1 ciclo em load-use; flush em branch/jump tomado; preditor always-not-taken | `hazard_control_unit.vhd` |
+| Cobertura da ISA | RV32I base completo **exceto** `FENCE`, `ECALL`, `EBREAK` (decoder marca inválidas). Sem CSR, sem interrupções. `invalid_instr` ligado a `open` | `instruction_decoder.vhd`, `CPU.vhd:168` |
+| Testbench VHDL existente | `CPU_tb.vhd` **nunca rodou**: literais `5ns`/`12ns`/`1ms` sem espaço, ilegais em VHDL, falham até com `-frelaxed` | `CPU_tb.vhd` |
+| Toolchain disponível | GHDL 4.1.0 (mcode), Yosys 0.33, cocotb 2.1.0 em `~/venv-cocotb`, make, gtkwave — WSL Ubuntu 24.04 | ADR-006 |
+| Toolchain ausente | Compilador RISC-V (qualquer variante) e `ghdl-yosys-plugin` | ADR-004, ADR-005 |
+| Baseline de área | **6.937 células**, 22.302 wires, 3.104 bits de memória — medição real sobre o RTL **original** (`f884a4e`), **antes** da refatoração de memórias de RV-1 e da introdução dos generics. Serve de referência histórica, **não** de valor a reproduzir depois de RV-1 | ADR-000, ADR-005 |
+
+Conclusão da auditoria: a CPU é ponto de partida válido e funcional (cocotb
+observou `pc_f` avançando até `0x154` e `x28 = 0x0b`). Os problemas reais não
+estão na CPU, e sim na **observabilidade** (arrays 2D invisíveis ao VPI do
+GHDL) e na **carga de programa** (constante VHDL editada à mão).
+
+## 2. Fases da trilha (RV-0 a RV-6)
+
+### RV-0 — Auditoria (CONCLUÍDA)
+- **Entrada:** repositório no commit `f884a4e`.
+- **Saída:** `specs/decisions.md` com ADR-000 (fatos verificados por execução)
+  e ADR-001..006 (decisões). Baseline de área do RTL original já medida
+  (referência histórica; ver a ressalva na tabela da seção 1).
+- **Requisitos:** FR-RV-01, FR-RV-02, FR-RV-20.
+
+### RV-1 — Observabilidade e carga de programa
+- **Entrada:** RTL original + ADR-002 + ADR-003.
+- **Trabalho:**
+  1. Refatorar `data_ram.vhd` e `data_rom.vhd` de
+     `array (0 to N, 3 downto 0) of std_logic_vector(7 downto 0)` (2D) para
+     `array (0 to N-1) of std_logic_vector(31 downto 0)` (1D de palavras),
+     implementando acesso de byte e halfword por slicing. Motivo: o VPI do
+     GHDL **não expõe arrays 2D** — `dut.data_memory.data_ram.memory` dá
+     `AttributeError`, enquanto arrays 1D (`register_file.registers`,
+     `instruction_memory.memory`) são lidos sem problema.
+  2. Adicionar generic `ROM_INIT_FILE : string := ""` à
+     `instruction_memory.vhd`: vazio mantém `INSTRUCTION_MEMORY_CONTENT`
+     (preserva o caminho de síntese, FR-RV-10); preenchido lê a imagem `.ram`
+     por `textio` na elaboração.
+  3. Montador `tools/rv_assembler.py` (`.asm` -> `.ram`), validado por pytest
+     encoding a encoding **antes** de gerar qualquer imagem de teste (ADR-004).
+- **Saída:** memórias legíveis pelo cocotb; troca de programa sem editar VHDL;
+  montador validado.
+- **Gate:** `ghdl -a` e `ghdl -e` exit 0 no design inteiro; teste de
+  equivalência provando comportamento de memória preservado, **inclusive** a
+  regra original de acesso desalinhado (leitura retorna `0xFFFFFFFF`, escrita
+  descartada) — é alteração em bloco de terceiro e FR-RV-07 exige a prova;
+  `ghdl synth` continua exit 0 com `ROM_INIT_FILE` vazio.
+- **Requisitos:** FR-RV-06, FR-RV-07, FR-RV-08, FR-RV-09, FR-RV-10.
+
+### RV-2 — Baseline RV32I verificada
+- **Entrada:** design de RV-1 elaborado com `RV32M_ENABLE = false`.
+- **Trabalho:** suíte cocotb sobre `entity CPU` cobrindo o subconjunto RV32I
+  implementado — aritmética, lógica, shifts, comparações, load/store nas três
+  larguras, branches, `JAL`/`JALR`, `LUI`/`AUIPC`, comportamento de `x0`,
+  reset (FR-RV-15) e os cenários de hazard (load-use, forwarding MEM->EX e
+  WB->EX, flush de branch tomado). Comparação contra o modelo de referência
+  Python (`test/reference_model.py`, aritmética modular de 32 bits em
+  complemento de dois).
+- **Saída:** baseline funcional **provada**, mais o snapshot de métricas de
+  simulação. A contagem de células desta árvore é remedida em RV-5 (ADR-005):
+  as 6.937 células do ADR-000 são do RTL original e **não** são o alvo depois da
+  refatoração de RV-1.
+- **Gate (FR-RV-11):** suíte inteira verde, com exit code 0, em execução real
+  de GHDL+cocotb. **Nenhuma linha da extensão M é escrita antes disso** — sem
+  baseline provada não existe comparação honesta a fazer.
+- **Requisitos:** FR-RV-03, FR-RV-04, FR-RV-05, FR-RV-11, FR-RV-15,
+  FR-RV-19, FR-RV-21, FR-RV-22, FR-RV-23, NFR-RV-01.
+
+### RV-3 — Extensão RV32IM
+- **Entrada:** baseline verde de RV-2 + ADR-001 + ADR-007.
+- **Trabalho:**
+  1. Estender o enum `ALU_OP_TYPE_t` (`cpu_package.vhd`) com 8 variantes M
+     (`MUL`, `MULH`, `MULHSU`, `MULHU`, `DIV`, `DIVU`, `REM`, `REMU`).
+  2. Decodificar `opcode = 0110011` com `funct7 = 0000001` no
+     `instruction_decoder.vhd`, condicionado ao generic `RV32M_ENABLE`; com
+     `false`, essas instruções continuam inválidas exatamente como hoje.
+  3. Novo bloco `mul_div_unit.vhd` (nome fixado por `VHDL_ORDER` de
+     `test/rv_build.py`), combinacional, instanciado no estágio EX sob
+     `if RV32M_ENABLE generate`, em paralelo com a ALU, com mux na saída.
+  4. Divisor restaurador combinacional (32 iterações de subtração e
+     deslocamento), sintetizável; multiplicador por produto de 64 bits com
+     seleção da metade alta ou baixa e tratamento de sinal por variante.
+- **Saída:** design único que elabora nas duas configurações do generic.
+- **Gate:** `ghdl -a`, `-e` e `synth` exit 0 nas duas configurações; a suíte de
+  RV-2 **continua verde** com `RV32M_ENABLE = true` (não-regressão do RV32I).
+- **Requisitos:** FR-RV-12, FR-RV-13, FR-RV-14, FR-RV-16, FR-RV-17, NFR-RV-03.
+
+### RV-4 — Verificação da extensão M
+- **Entrada:** design de RV-3 com `RV32M_ENABLE = true`.
+- **Trabalho:** testes cocotb dirigidos das 8 instruções contra o modelo de
+  referência Python, cobrindo obrigatoriamente: zero, operandos negativos,
+  extremos (`0x7FFFFFFF`, `0x80000000`, `0xFFFFFFFF`), **divisão por zero**,
+  **overflow de divisão** (`0x80000000 / -1`), a assimetria de sinal do
+  `MULHSU` e sequências com dependência entre instruções M e I, para exercitar
+  forwarding e stall (FR-RV-22).
+- **Saída:** prova por execução de que a extensão M funciona.
+- **Gate:** suíte M verde **e** suíte RV32I de RV-2 ainda verde na mesma
+  configuração; qualquer falha reporta o **primeiro ciclo divergente** e deixa
+  o `.vcd` para triagem no GTKWave; exit code diferente de 0 em falha.
+- **Requisitos:** FR-RV-13, FR-RV-14, FR-RV-21, FR-RV-22, FR-RV-23.
+
+### RV-5 — Eficiência (simulação + síntese)
+- **Entrada:** os mesmos benchmarks executados nas duas configurações.
+- **Trabalho:** contagem de ciclos, instruções retiradas, stalls, flushes e
+  instruções RV32M executadas, por observação de sinais reais na simulação;
+  área por `ghdl synth --out=verilog` alimentando `yosys stat`, nas duas
+  configurações (ADR-005).
+- **Saída:** tabela de métricas A/B, cada célula rotulada MEDIDO ou ESTIMADO
+  (ver seção 5).
+- **Gate:** nenhum número no relatório sem a execução de ferramenta que o
+  produziu (NFR-RV-02).
+- **Requisitos:** FR-RV-24, FR-RV-25, NFR-RV-02, NFR-RV-03.
+
+### RV-6 — Relatório comparativo
+- **Entrada:** todos os artefatos de RV-2 a RV-5.
+- **Saída:** relatório em português com: benchmarks usados e sua justificativa
+  (FR-RV-18), tabela RV32I vs RV32IM, análise do trade-off ciclos x área x
+  caminho crítico, ressalvas metodológicas explícitas (células genéricas do
+  Yosys não são µm²; tempo de execução é estimativa) e comandos de reprodução
+  incluindo o venv (`~/venv-cocotb`, ADR-006).
+- **Gate:** rastreabilidade completa — cada afirmação aponta para o requisito
+  FR-RV-xx e para o log de execução correspondente.
+- **Requisitos:** FR-RV-18, FR-RV-24, FR-RV-25, NFR-RV-02.
+
+## 3. Como a unidade M entra no pipeline (ADR-007)
+
+**Decisão:** unidade M **combinacional**, latência de 1 ciclo, igual à ALU,
+instanciada no estágio EX em paralelo com a ALU e selecionada por mux.
+
+O que torna isso barato é que tanto o caminho de controle quanto o de dados
+necessários **já existem**:
+
+- **Caminho de controle.** A seleção da operação viaja de D para E pelo sinal
+  `alu_op_type`, que já é porta do `decode_pipeline_register`
+  (`alu_op_type_in` / `alu_op_type_out`, do tipo `ALU_OP_TYPE_t`) e chega ao
+  estágio EX como `alu_op_type_e`. Estender o **enum** `ALU_OP_TYPE_t` com as
+  8 variantes M faz o seletor da unidade M pegar carona nesse mesmo fio:
+  nenhuma porta nova em registrador de pipeline, nenhuma largura alterada — o
+  tipo enumerado cresce, a interface não muda.
+- **Caminho de dados.** Hoje `alu_result_e` é dirigido diretamente pela porta
+  `res` da ALU (`CPU.vhd:275`). Passa a ser dirigido por um mux entre `res` da
+  ALU e o resultado da unidade M, escolhido pelo próprio `alu_op_type_e`. Como
+  `alu_result_e` é exatamente o sinal de onde o forwarding MEM->EX já parte
+  (ele vira `alu_result_m` no `execute_pipeline_register`, `CPU.vhd:309`, e
+  retorna pelos muxes de operando como `ALU_OP_SRC_ALU_RES`), o resultado de
+  uma instrução M é encaminhado pela lógica existente **sem uma linha nova**
+  na `hazard_control_unit`.
+- **Operandos.** `op1` e `op2` já saem dos muxes de forwarding do EX; a
+  unidade M consome exatamente os mesmos sinais.
+- **Efeitos colaterais que não ocorrem.** `zero_flag` alimenta a
+  `branching_unit`, mas instruções M têm `branch_type = BRANCH_TYPE_NONE`,
+  logo o flag é ignorado. `pc_alu` também deriva de `alu_result_e`
+  (`CPU.vhd:111`), mas só é usado quando
+  `next_pc_sel = PC_NEXT_SRC_PC_ALU_RES` (`JALR`), que nenhuma instrução M
+  seleciona.
+- **Unidade de hazard.** Intocada. Ela raciocina sobre `rd_sel_e/m/wb`,
+  `write_rd_*` e `rd_src_*` — todos idênticos entre uma instrução M e uma
+  instrução R-type qualquer. O stall de load-use continua sendo o único stall
+  do design.
+
+**Trade-off honesto.** Este design **não tem** latência diferenciada para
+MUL/DIV: uma multiplicação ou divisão custa 1 ciclo, como um `ADD`. Logo não
+existe stall novo a tratar, e o ganho da extensão M aparece apenas em
+**contagem de ciclos do programa** (uma instrução M substitui um laço de
+software inteiro), enquanto o custo aparece em **área** e em **caminho
+crítico** — um divisor restaurador de 32 iterações combinacionais é um caminho
+longo. A área é medida por síntese real (ADR-005); o caminho crítico só entra
+no relatório se uma execução real de ferramenta o fornecer. Declarar isso é
+obrigatório: o relatório não pode sugerir que MUL e DIV "custam o mesmo" no
+silício.
+
+**Trabalho futuro registrado.** A variante multiciclo iterativa (divisor
+sequencial de N ciclos, encurtando o caminho crítico ao preço de ciclos) é
+deliberadamente adiada. Custo exato, para quem retomar: adicionar uma porta
+`stall` ao `decode_pipeline_register` (que hoje só tem `flush`), levar um sinal
+de `busy`/`done` da unidade M até a `hazard_control_unit` e estender a lógica
+de stall para congelar F/D/E enquanto a unidade M não termina. Nada disso é
+necessário na variante combinacional escolhida.
+
+## 4. Contrato do formato `.ram` (ADR-003)
+
+| Item | Regra |
+|---|---|
+| Granularidade | Uma palavra de 32 bits por linha |
+| Codificação | 8 dígitos hexadecimais, **sem** prefixo `0x`, case-insensitive |
+| Ordem | Linha de índice 0 = endereço de byte `0x00000000`; linha `n` = endereço `4*n` (ordem crescente de endereço) |
+| Semântica do valor | A instrução como palavra de 32 bits — o mesmo valor que a constante VHDL usa. O little-endian do design está na organização de bytes da memória, não na grafia do arquivo |
+| Comentários | Linhas vazias e linhas iniciadas por `#` são ignoradas |
+| Preenchimento | Palavras não informadas viram `0x00000000` |
+| Convenção de parada | Auto-laço `JAL x0, 0` (encoding `0x0000006f`), o mesmo que o `startup.S` original faz no rótulo `spin`. O testbench detecta término pela **visita ao endereço do auto-laço**, e não por PC estacionário — a CPU resolve saltos em EX, então o PC não congela — nem por instrução mágica fora da ISA (FR-RV-03) |
+| Consumo | `instruction_memory` com `ROM_INIT_FILE` preenchido lê o arquivo por `textio` na elaboração; vazio (padrão) mantém `INSTRUCTION_MEMORY_CONTENT` |
+| Produção | `tools/rv_assembler.py` (`.asm` -> `.ram`), validado por pytest antes de qualquer uso |
+
+Risco a validar na implementação de RV-1: `ghdl synth` pode rejeitar a função
+de leitura de arquivo mesmo com o generic vazio — se ocorrer, isolar a leitura
+dentro de um `generate`.
+
+## 5. Como cada métrica de eficiência é obtida
+
+Regra válida para a trilha inteira (NFR-RV-02): **nada é declarado como medido
+sem a execução da ferramenta correspondente**. Cada linha da tabela final do
+relatório carrega o rótulo abaixo.
+
+| Métrica | Origem | Rótulo |
+|---|---|---|
+| Ciclos até o término | Contagem de bordas de `clk` na simulação cocotb, do fim do reset até a visita ao endereço do auto-laço | **MEDIDO** |
+| Instruções retiradas | Contagem das instruções que chegam ao WB, descontando bolhas, por observação de sinal real na simulação | **MEDIDO** |
+| CPI | Ciclos ÷ instruções retiradas — quociente de duas grandezas medidas | **MEDIDO** (derivado) |
+| Stalls | Contagem de ciclos com `stall_pc` / `stall_f` ativos, sinais reais da `hazard_control_unit` | **MEDIDO** |
+| Flushes | Contagem de ciclos com `flush_f` / `flush_d` ativos | **MEDIDO** |
+| Instruções RV32M executadas | Contagem dos ciclos em que `alu_op_type_e` assume uma das 8 variantes M | **MEDIDO** |
+| Área (células, wires, bits de memória) | `ghdl synth --std=08 --out=verilog CPU` alimentando `yosys -p "read_verilog; hierarchy -top CPU; stat"`, executado nas duas configurações do generic (ADR-005) | **MEDIDO** |
+| Tempo de execução | Ciclos medidos x **período nominal de 10 ns** | **ESTIMADO** — o período atingível não é medido; serve para dar escala, não para comparar frequências |
+| Caminho crítico | Só entra no relatório se uma execução real de ferramenta o fornecer; `yosys stat` **não** o produz | **ausente por padrão** |
+
+Ressalva metodológica obrigatória no relatório: `stat` sobre células genéricas
+do Yosys mede **complexidade estrutural relativa**, adequada para comparar
+RV32I contra RV32IM dentro do mesmo fluxo, e **não** equivale a área em µm² de
+um PDK nem a LUTs de um FPGA específico. A comparação só é honesta porque as
+duas configurações saem da mesma base de código, trocando um generic
+(ADR-001, NFR-RV-03).
+
+## 6. Fase gate da trilha
+
+Mesmo princípio do gate do SpecHDL (`constitution.md`, princípio 1), aplicado à
+sequência RV-n. Para avançar de RV-n para RV-n+1:
+
+1. **Critério objetivo.** Todos os itens de gate da fase RV-n listados na
+   seção 2 verificados por **execução real** — exit code conferido, log
+   guardado. Nunca inferir resultado a partir do código gerado.
+2. **Não-regressão.** A partir de RV-2, avançar exige que as suítes das fases
+   anteriores continuem verdes na configuração corrente do generic. Uma
+   extensão que quebra a baseline não é extensão, é regressão.
+3. **Rastreabilidade.** Todo VHDL novo ou alterado carrega `-- REQ: FR-RV-xx`
+   e todo teste cocotb carrega `# REQ: FR-RV-xx` antes de o gate fechar.
+4. **Checkbox e commit.** Tarefa correspondente marcada em `specs/tasks.md` no
+   mesmo commit (Conventional Commits, uma tarefa = um commit).
+5. **Aprovação humana explícita.** Testes verdes **não bastam**: ao fechar
+   RV-n, parar e aguardar confirmação do usuário antes de iniciar RV-n+1.
+
+Gates de bloqueio duro, que não admitem negociação:
+
+- **RV-1 -> RV-2:** a refatoração de memória só passa com a prova de
+  comportamento preservado exigida por FR-RV-07 (alteração em bloco de
+  terceiro), incluindo os casos de acesso desalinhado.
+- **RV-2 -> RV-3:** sem baseline RV32I verde e medida, **nenhuma linha da
+  extensão M** (FR-RV-11). Comparar contra uma baseline não verificada
+  invalidaria o resultado inteiro da trilha.
+- **RV-5 -> RV-6:** nenhuma métrica entra no relatório sem o log da execução
+  que a produziu, e toda estimativa entra rotulada como estimativa
+  (NFR-RV-02).

@@ -1,0 +1,9 @@
+# Configuração mínima só pra tornar a suíte pytest executável: sem isso o
+# pacote `spechdl` (que mora em src/) não é importável de tests/.
+# O empacotamento de verdade — incluindo o console script `spechdl web` —
+# é escopo do T7.1 (ver specs/tasks.md), não deste arquivo.
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"

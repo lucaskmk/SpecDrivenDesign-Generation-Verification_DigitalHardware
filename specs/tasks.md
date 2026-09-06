@@ -76,3 +76,398 @@ todas as tarefas da fase N estarem concluídas (ver `plan.md`, fase gate).
   submissão dispara as 6 fases em sequência, sem pausas humanas (NFR-01)
 - [ ] T7.2 — Flag para rodar uma fase isolada reaproveitando artefatos anteriores (NFR-02)
 - [ ] T7.3 — README com instruções de uso, incluindo setup de GHDL/Yosys
+
+---
+
+# Backlog — Trilha RISC-V (RV32I -> RV32IM)
+
+Backlog da **trilha B** (`constitution.md`, Emenda 1). Espelha as fases RV-0 a
+RV-6 de `plan.md`, seção 2, e responde aos requisitos `FR-RV-xx` / `NFR-RV-xx`
+de `spec.md`. A trilha A (SpecHDL genérico, tarefas `T0.x` a `T7.x` acima)
+**não é removida nem congelada**: segue no mesmo backlog, apenas sem o foco.
+
+Convenções desta seção:
+
+- uma tarefa = um commit (Conventional Commits), com o checkbox marcado **no
+  mesmo commit** que a conclui;
+- os comandos de aceite rodam na **WSL Ubuntu com o venv do cocotb**
+  (`decisions.md`, ADR-006), a partir da raiz do repositório. A forma curta
+  `pytest ...` usada abaixo equivale a
+  `wsl -e bash -lc "cd /mnt/c/.../SpecDrivenDesign-Generation-Verification_DigitalHardware && ~/venv-cocotb/bin/pytest ..."`;
+- **exit code 0 é parte do critério.** Nenhuma tarefa é marcada por inspeção de
+  código: sem execução real da ferramenta, o checkbox não é marcado
+  (`constitution.md`, princípio 1; NFR-RV-02);
+- fase gate: ao fechar RV-n, parar e pedir confirmação explícita do usuário
+  antes de iniciar RV-n+1 (`plan.md`, seção 6). A partir de RV-2 vale também a
+  não-regressão — as suítes das fases anteriores continuam verdes.
+
+## Fase RV-0 — Auditoria (FR-RV-01, FR-RV-02, FR-RV-20)
+
+- [x] TRV-0.1 — Auditar o RTL vendorizado e registrar a linha de base factual
+  em `specs/decisions.md` (ADR-000)
+  - REQ: FR-RV-01, FR-RV-02, NFR-RV-02
+  - ACEITE: `grep -n "^## ADR-000" specs/decisions.md` encontra o registro, e a
+    tabela de achados cobre interface de `entity CPU` (apenas `rst` e `clk`),
+    polaridade do reset, borda de escrita do banco de registradores, latência
+    de ROM/RAM e o subconjunto RV32I implementado — cada afirmação com a
+    execução que a produziu listada (6 execuções, com exit code)
+- [x] TRV-0.2 — Verificar as ferramentas do ambiente e registrar as ausências,
+  sem instalar nada em silêncio
+  - REQ: FR-RV-20, NFR-RV-01, NFR-RV-02
+  - ACEITE: `ghdl --version && yosys -V && ~/venv-cocotb/bin/python -c "import cocotb; print(cocotb.__version__)"`
+    -> exit 0 (GHDL 4.1.0, Yosys 0.33, cocotb 2.1.0); ausência do compilador
+    RISC-V e do `ghdl-yosys-plugin` registrada em ADR-004 e ADR-005, cada uma
+    com a alternativa adotada
+- [x] TRV-0.3 — Registrar as decisões de compatibilidade da trilha (ADR-001 a
+  ADR-006)
+  - REQ: FR-RV-07, FR-RV-08, FR-RV-16, FR-RV-25, NFR-RV-03
+  - ACEITE: `grep -n "^## ADR-00[0-6]" specs/decisions.md` encontra as sete
+    entradas ADR-000 a ADR-006 (execução conferida);
+    cada ADR no formato contexto -> decisão -> consequência, com as
+    alternativas rejeitadas nomeadas
+- [ ] TRV-0.4 — Registrar a ADR-007 (unidade M combinacional no estágio EX)
+  - REQ: FR-RV-12, FR-RV-13, FR-RV-17
+  - ACEITE: `grep -n "^## ADR-007" specs/decisions.md` encontra a decisão
+    contendo: latência de 1 ciclo idêntica à da ALU; seleção da unidade M pela
+    extensão do enum `ALU_OP_TYPE_t`, sem porta nova em registrador de
+    pipeline; declaração honesta de que **não existe** latência diferenciada
+    neste design, logo não há stall novo a tratar, e de que o custo aparece em
+    área e caminho crítico; divisor restaurador combinacional de 32 iterações;
+    variante multiciclo iterativa registrada como trabalho futuro (exigiria
+    porta `stall` no `decode_pipeline_register`)
+
+## Fase RV-1 — Observabilidade e carga de programa (FR-RV-06 a FR-RV-10)
+
+- [x] TRV-1.1 — Escrever o montador RV32I/RV32IM em Python (`.asm` -> `.ram`)
+  - REQ: FR-RV-04, FR-RV-08, FR-RV-19, FR-RV-20 (ADR-004)
+  - ACEITE: `examples/RISCV32I/tools/rv_assembler.py` existe e expõe
+    `assemble`, `assemble_with_symbols`, `write_ram_image`, `read_ram_image`,
+    `find_halt_addresses` e `disassemble_word`; o flag `allow_m=False` recusa
+    instruções da extensão M, de modo que um programa de baseline não possa
+    usá-las nem por acidente
+- [x] TRV-1.2 — Escrever o modelo de referência RV32I/RV32M em Python
+  - REQ: FR-RV-14, FR-RV-23
+  - ACEITE: `examples/RISCV32I/test/reference_model.py` implementa as 8
+    operações M em aritmética modular de 32 bits e complemento de dois,
+    incluindo os casos especiais da spec (divisão por zero e overflow
+    `0x80000000 / -1`), sem depender do RTL
+- [x] TRV-1.3 — Validar montador e modelo de referência por pytest, encoding a
+  encoding, antes de gerar qualquer imagem de teste
+  - REQ: FR-RV-03, FR-RV-13, FR-RV-14, FR-RV-23, NFR-RV-02 (ADR-004)
+  - ACEITE: `pytest examples/RISCV32I/test/test_toolchain.py -q` -> exit 0
+    (646 casos; execução conferida, nenhuma falha). Cobre encoding R/I/S/B/U/J,
+    pseudo-instruções, `li` exato, ida e volta da imagem `.ram`, a recusa de
+    `FENCE`/`ECALL`/`EBREAK` (ausentes na CPU alvo, ADR-000) e a recusa de
+    mnemônicos fora do RISC-V (FR-RV-03)
+- [x] TRV-1.4 — Escrever o harness cocotb da CPU (clock, reset, término, teto
+  de ciclos, métricas, waveform) e o driver de build
+  - REQ: FR-RV-05, FR-RV-06, FR-RV-21, FR-RV-24, NFR-RV-01
+  - ACEITE: `pytest examples/RISCV32I/test/ --collect-only -q` -> exit 0, sem
+    erro de importação (execução conferida: 689 casos coletados), provando que
+    `rv_harness.py`, `tb_program.py`, `tb_snapshot.py` e `rv_build.py` são
+    importáveis e coerentes entre si. O harness respeita os achados do ADR-000:
+    `rst` ativo em nível alto, escrita do banco de registradores na borda de
+    descida, ROM/RAM com latência zero e término por visita ao auto-laço — e
+    **não** por PC estacionário, já que a CPU resolve saltos em EX.
+    Observação: a execução fim a fim deste harness depende dos generics
+    `ROM_INIT_FILE`/`ROM_SIZE_WORDS` que `rv_build.run_program` passa ao GHDL,
+    criados em TRV-1.5 — desde aquela tarefa o harness roda fim a fim
+- [x] TRV-1.5 — Adicionar os generics `ROM_INIT_FILE` e `ROM_SIZE_WORDS` à
+  `instruction_memory.vhd`, com leitura da imagem `.ram` por `textio` na
+  elaboração, e propagá-los pelo top-level `CPU`
+  - REQ: FR-RV-08, FR-RV-09, FR-RV-10 (ADR-003)
+  - ACEITE: `ghdl -a --std=08` em todos os fontes de `examples/RISCV32I/src/` e
+    `ghdl -e --std=08 CPU` -> exit 0;
+    `pytest examples/RISCV32I/test/test_memory.py -v -k "rom_consumes_generated_image"`
+    -> exit 0 (a imagem gerada pelo montador é de fato consumida pela ROM); com
+    o generic **vazio**, `ghdl synth --std=08 --out=verilog CPU` -> exit 0 e o
+    programa executado é o da constante `INSTRUCTION_MEMORY_CONTENT` (FR-RV-10).
+    Se o `synth` rejeitar a leitura de arquivo, isolar a leitura dentro de um
+    `generate`, conforme o risco previsto em `plan.md`, seção 4
+  - EXECUÇÃO CONFERIDA (2026-09-06, WSL + ~/venv-cocotb): `ghdl -a --std=08` nos 20 fontes na
+    ordem de `VHDL_ORDER` -> exit 0; `ghdl -e --std=08 CPU` -> exit 0;
+    `ghdl synth --std=08 --out=verilog CPU` com `ROM_INIT_FILE` no padrão `""`
+    -> exit 0; `pytest examples/RISCV32I/test/test_memory.py -q` -> exit 0
+    (15 casos, inclui `test_rom_consumes_generated_image`). O risco do `synth`
+    **não** se materializou: a leitura por `textio` não precisou de `generate`
+- [ ] TRV-1.6 — Documentar o formato `.ram` e a convenção de parada em
+  `examples/RISCV32I/README.md`
+  - REQ: FR-RV-08
+  - ACEITE: `grep -n "\.ram" examples/RISCV32I/README.md` mostra a
+    especificação completa — uma palavra de 32 bits por linha, 8 dígitos hex
+    sem prefixo, linha `n` = endereço de byte `4*n`, `#` como comentário,
+    preenchimento com `0x00000000` e parada por auto-laço `j halt`
+    (`0x0000006f`) — e
+    `pytest examples/RISCV32I/test/test_toolchain.py -v -k "RamImage"` -> exit 0,
+    provando que o documento descreve o formato que o código realmente produz
+- [x] TRV-1.7 — Refatorar `data_rom.vhd` de array 2D de bytes para array 1D de
+  palavras de 32 bits
+  - REQ: FR-RV-06, FR-RV-07 (ADR-002)
+  - ACEITE: `grep -n "DATA_ROM_MEMORY_ARRAY_t" examples/RISCV32I/src/memory_package.vhd`
+    mostra `array (0 to N-1) of std_logic_vector(31 downto 0)`;
+    `ghdl -a --std=08` no design inteiro -> exit 0;
+    `pytest examples/RISCV32I/test/test_memory.py -v -k "data_rom_constants_readable"`
+    -> exit 0 (o cocotb lê os valores `0x00000007` e `0x0000000b` da ROM de
+    dados, impossível com o array 2D)
+  - EXECUÇÃO CONFERIDA (2026-09-06, WSL + ~/venv-cocotb): `DATA_ROM_MEMORY_ARRAY_t` é
+    `array (0 to DATA_ROM_MEMORY_SIZE_WORDS-1) of std_logic_vector(31 downto 0)`
+    em `memory_package.vhd:151`; `ghdl -a --std=08` no design -> exit 0;
+    `test_data_rom_constants_readable` passa dentro da suíte de `test_memory.py`
+- [x] TRV-1.8 — Refatorar `data_ram.vhd` para array 1D de palavras, com acesso
+  de byte e halfword por slicing
+  - REQ: FR-RV-06, FR-RV-07 (ADR-002)
+  - ACEITE: `ghdl -a --std=08` e `ghdl -e --std=08 CPU` -> exit 0;
+    `pytest examples/RISCV32I/test/test_memory.py -v -k "WordAccess or ByteAccess or HalfwordAccess"`
+    -> exit 0. A escrita continua síncrona em `rising_edge(clk)` e a leitura
+    assíncrona, exatamente como no original
+  - EXECUÇÃO CONFERIDA (2026-09-06, WSL + ~/venv-cocotb): `ghdl -a`/`-e --std=08 CPU` -> exit 0;
+    `pytest examples/RISCV32I/test/test_memory.py -q` -> exit 0, com as classes
+    `TestWordAccess`, `TestByteAccess` e `TestHalfwordAccess` verdes
+- [x] TRV-1.9 — Provar que a refatoração das memórias preservou o
+  comportamento, inclusive no acesso desalinhado
+  - REQ: FR-RV-07, FR-RV-10, FR-RV-21
+  - ACEITE: `pytest examples/RISCV32I/test/test_memory.py -v` -> exit 0, suíte
+    inteira (15 casos). Inclui o A/B real contra o RTL **original**
+    materializado do commit `f884a4e`
+    (`TestBehaviourPreservation::test_refactor_matches_original_rtl`), as regras
+    originais de acesso desalinhado (leitura devolve `0xFFFFFFFF`, escrita é
+    descartada) e a geração do waveform para triagem no GTKWave.
+    **Gate duro RV-1 -> RV-2** (`plan.md`, seção 6): sem esta prova a fase não
+    fecha, por se tratar de alteração em bloco de terceiro
+  - EXECUÇÃO CONFERIDA (2026-09-06, WSL + ~/venv-cocotb): `pytest examples/RISCV32I/test/test_memory.py -q`
+    -> exit 0, 15 casos, nenhum pulado — inclui
+    `TestBehaviourPreservation::test_refactor_matches_original_rtl` e a classe
+    `TestUnalignedAndOutOfRange`. **Gate RV-1 -> RV-2 fechado**
+
+## Fase RV-2 — Baseline RV32I verificada (FR-RV-11)
+
+- [x] TRV-2.1 — Adicionar o generic `RV32M_ENABLE : boolean := false` ao
+  top-level `CPU` e propagá-lo até `instruction_decoder` e o estágio EX, ainda
+  sem efeito funcional
+  - REQ: FR-RV-16, NFR-RV-03 (ADR-001)
+  - ACEITE: `ghdl -e --std=08 CPU` -> exit 0 com `-gRV32M_ENABLE=false` e com
+    `-gRV32M_ENABLE=true`;
+    `python -c "import sys; sys.path.insert(0,'examples/RISCV32I/test'); import rv_build; print(rv_build.design_has_generic('RV32M_ENABLE'))"`
+    -> `True`, que é o que faz `rv_build.run_program` passar o generic ao GHDL;
+    `pytest examples/RISCV32I/test/test_memory.py -q` continua exit 0
+  - EXECUÇÃO CONFERIDA (2026-09-06, WSL + ~/venv-cocotb): `ghdl -e --std=08 -gRV32M_ENABLE=false CPU`
+    -> exit 0 e `-gRV32M_ENABLE=true` -> exit 0; `design_has_generic` devolve
+    `True` para `RV32M_ENABLE` e para `ROM_INIT_FILE`; `test_memory.py` -> exit 0
+- [x] TRV-2.2 — Deixar verde o núcleo funcional da baseline: fundamentos
+  arquiteturais, aritmética R-type e de imediato, load/store nas três larguras
+  - REQ: FR-RV-04, FR-RV-05, FR-RV-22, FR-RV-23, NFR-RV-01
+  - ACEITE: `pytest examples/RISCV32I/test/test_rv32i_baseline.py -v -k "ArchitecturalBasics or RegRegArithmetic or ImmediateArithmetic or LoadStore"`
+    -> exit 0, com `RV32M_ENABLE=false`. Cobre `x0` cabeado em zero, os 31
+    registradores escrevíveis, wraparound de 32 bits, `LUI`/`AUIPC`, shifts e
+    offset negativo, tudo conferido contra `reference_model.py`
+  - EXECUÇÃO CONFERIDA (2026-09-06, WSL + ~/venv-cocotb): suíte completa de
+    `test_rv32i_baseline.py` -> exit 0 (28 casos), o que cobre este subconjunto
+- [x] TRV-2.3 — Deixar verde o controle de fluxo e os hazards da baseline
+  - REQ: FR-RV-04, FR-RV-22, FR-RV-24
+  - ACEITE: `pytest examples/RISCV32I/test/test_rv32i_baseline.py -v -k "Branches or Jumps or Hazards or Loops"`
+    -> exit 0. Exercita branches tomados e não tomados, `JAL`/`JALR` com
+    registrador de retorno, chamadas aninhadas, cadeia de dependência
+    back-to-back (forwarding MEM->EX e WB->EX), stall de load-use e flush de
+    branch tomado — os três mecanismos que a extensão M **não pode** quebrar
+  - EXECUÇÃO CONFERIDA (2026-09-06, WSL + ~/venv-cocotb): suíte completa de
+    `test_rv32i_baseline.py` -> exit 0 (28 casos), com `TestBranches`,
+    `TestJumps`, `TestHazards` e `TestLoops` verdes
+- [x] TRV-2.4 — Fechar a baseline: reset, trava de escopo RV32I e suíte inteira
+  verde
+  - REQ: FR-RV-03, FR-RV-11, FR-RV-15, FR-RV-19, FR-RV-21
+  - ACEITE: `pytest examples/RISCV32I/test/test_rv32i_baseline.py -v` -> exit 0,
+    suíte inteira (28 casos), sem `-k`. Inclui o comportamento de reset
+    (FR-RV-15) e `TestScopeGuard::test_baseline_cannot_use_rv32m`, que prova que
+    a baseline não usa a extensão M nem por acidente.
+    **Gate duro RV-2 -> RV-3** (`plan.md`, seção 6): enquanto esta tarefa não
+    estiver marcada, **nenhuma linha da extensão M é escrita**
+  - EXECUÇÃO CONFERIDA (2026-09-06, WSL + ~/venv-cocotb): `pytest examples/RISCV32I/test/test_rv32i_baseline.py -q`
+    -> exit 0, 28 casos, nenhum pulado, incluindo `TestResetBehaviour` e
+    `TestScopeGuard::test_baseline_cannot_use_rv32m`. **Gate RV-2 -> RV-3
+    fechado** — a baseline está provada e a extensão M pode começar
+- [ ] TRV-2.5 — Congelar as métricas da baseline em artefato versionado
+  - REQ: FR-RV-11, FR-RV-24, NFR-RV-02
+  - ACEITE: existe `examples/RISCV32I/results/baseline_rv32i.json`, versionado,
+    com ciclos, instruções retiradas, CPI, stalls e flushes por programa,
+    gerado pela execução de TRV-2.4 (nenhum número digitado à mão), mais o
+    commit e o comando exato que o produziram;
+    `python -c "import json,pathlib; d=json.loads(pathlib.Path('examples/RISCV32I/results/baseline_rv32i.json').read_text()); assert d['programs']"`
+    -> exit 0
+
+## Fase RV-3 — Extensão RV32IM (FR-RV-12 a FR-RV-17)
+
+- [ ] TRV-3.1 — Estender o enum `ALU_OP_TYPE_t` (`cpu_package.vhd`) com as 8
+  variantes M
+  - REQ: FR-RV-12, FR-RV-13 (ADR-007)
+  - ACEITE: `grep -n "ALU_OP_TYPE_MUL\|ALU_OP_TYPE_DIV\|ALU_OP_TYPE_REM" examples/RISCV32I/src/cpu_package.vhd`
+    cobre `MUL`, `MULH`, `MULHSU`, `MULHU`, `DIV`, `DIVU`, `REM`, `REMU`;
+    `ghdl -a --std=08` -> exit 0 e a baseline segue verde
+    (`pytest examples/RISCV32I/test/test_rv32i_baseline.py -q` -> exit 0). É por
+    este caminho, que **já existe** até EX, que a seleção da unidade M viaja —
+    nenhuma porta nova em registrador de pipeline (ADR-007)
+- [ ] TRV-3.2 — Implementar o multiplicador combinacional (`MUL`, `MULH`,
+  `MULHSU`, `MULHU`) em `src/mul_div_unit.vhd`
+  - REQ: FR-RV-13 (ADR-007)
+  - ACEITE: `ghdl -a --std=08 examples/RISCV32I/src/mul_div_unit.vhd` -> exit 0
+    e `ghdl synth --std=08 mul_div_unit` -> exit 0 (sintetizável). Produto de 64
+    bits com seleção da metade alta ou baixa e tratamento de sinal por variante,
+    incluindo a assimetria do `MULHSU`.
+    **Atenção ao nome do arquivo:** o nome que vale é `mul_div_unit.vhd`,
+    porque é o que consta em `VHDL_ORDER` de `test/rv_build.py` — e é o nome
+    que `plan.md`, seção 2, passou a usar; como `vhdl_sources()` filtra
+    por existência, um nome divergente seria **silenciosamente ignorado** e só
+    apareceria depois como erro de elaboração
+- [ ] TRV-3.3 — Implementar o divisor restaurador combinacional (`DIV`, `DIVU`,
+  `REM`, `REMU`) no mesmo `mul_div_unit.vhd`, com os casos especiais da spec
+  - REQ: FR-RV-13, FR-RV-14 (ADR-007)
+  - ACEITE: `ghdl -a --std=08` e `ghdl synth --std=08 mul_div_unit` -> exit 0.
+    32 iterações de subtração e deslocamento; divisão por zero e overflow
+    `0x80000000 / -1` tratados sem trap e sem saturação, exatamente como
+    `reference_model.py` os define
+- [ ] TRV-3.4 — Escrever o testbench cocotb dedicado à `mul_div_unit`,
+  comparando contra o modelo de referência em valores de borda
+  - REQ: FR-RV-13, FR-RV-14, FR-RV-22, FR-RV-23, NFR-RV-01
+  - ACEITE: `pytest examples/RISCV32I/test/test_mul_div_unit.py -v` -> exit 0.
+    Verifica a unidade isolada (mais rápido e mais exaustivo do que pela CPU
+    inteira) sobre `ref.EDGE_VALUES`: zero, negativos, `0x7FFFFFFF`,
+    `0x80000000`, `0xFFFFFFFF`, divisor zero e overflow de divisão
+- [ ] TRV-3.5 — Decodificar as 8 instruções M (`opcode = 0110011`,
+  `funct7 = 0000001`) em `instruction_decoder.vhd`, condicionado a
+  `RV32M_ENABLE`
+  - REQ: FR-RV-12, FR-RV-13, FR-RV-16
+  - ACEITE: `ghdl -a --std=08` -> exit 0 nas duas configurações; com
+    `RV32M_ENABLE=false` essas instruções continuam marcadas como inválidas
+    exatamente como hoje, comprovado por
+    `pytest examples/RISCV32I/test/test_rv32i_baseline.py -v -k "ScopeGuard"`
+    -> exit 0
+- [ ] TRV-3.6 — Instanciar a `mul_div_unit` no estágio EX, em paralelo com a
+  ALU, sob `if RV32M_ENABLE generate`, com mux na saída para `alu_result_e`
+  - REQ: FR-RV-12, FR-RV-16, FR-RV-17, NFR-RV-03 (ADR-007)
+  - ACEITE: `ghdl -e --std=08 CPU` e `ghdl synth --std=08 --out=verilog CPU`
+    -> exit 0 com `-gRV32M_ENABLE=false` **e** com `-gRV32M_ENABLE=true`; e a
+    contagem de células do `yosys stat` com `false` é **estritamente menor** que
+    a com `true`, provando que a configuração desabilitada não paga a área da
+    unidade M. As duas contagens são medidas **nesta** árvore (TRV-5.4); as
+    6.937 células do ADR-000 são do RTL original (`f884a4e`, memórias 2D, sem
+    generics) e **não** são o alvo a reproduzir depois da refatoração de RV-1
+- [ ] TRV-3.7 — Comprovar que a extensão não exigiu alteração no controle de
+  hazards nem nos registradores de pipeline
+  - REQ: FR-RV-07, FR-RV-11, FR-RV-17
+  - ACEITE: `git diff --name-only f884a4e -- examples/RISCV32I/src/hazard_control_unit.vhd examples/RISCV32I/src/*pipeline_register.vhd`
+    -> saída **vazia**; e `pytest examples/RISCV32I/test/test_rv32i_baseline.py -q`
+    -> exit 0 rodando com `RV32M_ENABLE=true` (não-regressão do RV32I com a
+    extensão ligada). Registrar no commit a consequência declarada no ADR-007:
+    latência de 1 ciclo, nenhum stall novo, custo em área e caminho crítico
+
+## Fase RV-4 — Verificação da extensão M (FR-RV-21 a FR-RV-23)
+
+- [ ] TRV-4.1 — Verificar as quatro instruções de multiplicação na CPU completa,
+  contra o modelo de referência
+  - REQ: FR-RV-13, FR-RV-22, FR-RV-23, NFR-RV-01
+  - ACEITE: `pytest examples/RISCV32I/test/test_rv32im.py -v -k "Mul"` -> exit 0,
+    com `RV32M_ENABLE=true`. Cobre zero, negativos e extremos, e discrimina de
+    fato `MULH`, `MULHU` e `MULHSU` — um caso em que as três variantes coincidem
+    não prova nada
+- [ ] TRV-4.2 — Verificar divisão e resto na CPU completa, incluindo os casos
+  especiais
+  - REQ: FR-RV-14, FR-RV-22, FR-RV-23
+  - ACEITE: `pytest examples/RISCV32I/test/test_rv32im.py -v -k "Div or Rem"`
+    -> exit 0. Inclui obrigatoriamente divisão por zero (`DIV` -> `-1`,
+    `DIVU` -> `0xFFFFFFFF`, `REM`/`REMU` -> dividendo) e overflow
+    `0x80000000 / -1` (`DIV` -> `0x80000000`, `REM` -> `0`), sem trap
+- [ ] TRV-4.3 — Verificar dependências entre instruções M e I, exercitando
+  forwarding, stall e flush
+  - REQ: FR-RV-17, FR-RV-22, FR-RV-24
+  - ACEITE: `pytest examples/RISCV32I/test/test_rv32im.py -v -k "Hazard"`
+    -> exit 0. Cobre resultado de M consumido no ciclo seguinte (forwarding
+    MEM->EX), M logo após um load (stall de load-use), M no caminho anulado de
+    um branch tomado (flush) e cadeia M -> I -> M
+- [ ] TRV-4.4 — Provar o A/B de configuração sobre a mesma base de código
+  - REQ: FR-RV-16, NFR-RV-03
+  - ACEITE: `pytest examples/RISCV32I/test/test_rv32im.py -v -k "ConfigAB"`
+    -> exit 0: o **mesmo** programa com instruções M produz o resultado esperado
+    com `RV32M_ENABLE=true` e é rejeitado como instrução inválida com
+    `RV32M_ENABLE=false`, provando que a diferença medida é a extensão e não
+    ruído de duas árvores de fontes
+- [ ] TRV-4.5 — Fechar RV-4 com a suíte M e a baseline verdes na mesma
+  configuração, e provar que a falha é detectável
+  - REQ: FR-RV-11, FR-RV-13, FR-RV-21
+  - ACEITE: `pytest examples/RISCV32I/test/ -v` -> exit 0 (toolchain, memórias,
+    baseline e M). Além disso, uma falha induzida deliberadamente (resultado
+    esperado errado de propósito, registrada no commit) precisa reportar o
+    **primeiro ciclo divergente**, deixar o waveform para triagem no GTKWave e
+    devolver exit code diferente de 0
+
+## Fase RV-5 — Eficiência: simulação + síntese (FR-RV-24, FR-RV-25)
+
+- [ ] TRV-5.1 — Escrever os benchmarks em `.c` como especificação legível do
+  algoritmo, rotulados como NÃO COMPILADOS neste ambiente
+  - REQ: FR-RV-18 (ADR-004)
+  - ACEITE: existem os `.c` em `examples/RISCV32I/benchmarks/`, cada um com a
+    justificativa de por que o benchmark discrimina RV32I de RV32IM (peso de
+    multiplicação/divisão) e com o aviso explícito de que não há compilador
+    RISC-V neste ambiente;
+    `grep -L "NAO COMPILADO" examples/RISCV32I/benchmarks/*.c` -> saída vazia
+- [ ] TRV-5.2 — Escrever cada benchmark em duas versões de `.asm`: RV32I puro
+  (multiplicação e divisão por software) e RV32IM (instruções da extensão M)
+  - REQ: FR-RV-18, FR-RV-19
+  - ACEITE: `pytest examples/RISCV32I/test/test_benchmarks.py -v -k "assembles"`
+    -> exit 0 — a versão RV32I monta com `allow_m=False` (prova de que não usa
+    M nem por acidente) e a RV32IM monta com `allow_m=True`; as duas versões
+    produzem **o mesmo resultado** na RAM quando executadas, cada uma na sua
+    configuração do generic
+- [ ] TRV-5.3 — Coletar as métricas de simulação por benchmark e configuração
+  - REQ: FR-RV-24, NFR-RV-02, NFR-RV-03
+  - ACEITE: `pytest examples/RISCV32I/test/test_benchmarks.py -v` -> exit 0 e
+    gera `examples/RISCV32I/results/efficiency.json` com ciclos, instruções
+    retiradas, CPI, stalls, flushes e instruções RV32M executadas — todos por
+    observação de sinal real na simulação, conforme a tabela de `plan.md`,
+    seção 5. Nenhum campo preenchido à mão
+- [ ] TRV-5.4 — Escrever o script de síntese que mede a área nas duas
+  configurações do generic
+  - REQ: FR-RV-25, NFR-RV-02 (ADR-005)
+  - ACEITE: `bash examples/RISCV32I/tools/synth_area.sh` -> exit 0, executando
+    `ghdl synth --std=08 --out=verilog CPU` alimentando
+    `yosys -p "read_verilog; hierarchy -top CPU; stat"` para
+    `RV32M_ENABLE=false` e `=true`, e gravando
+    `examples/RISCV32I/results/area.json` com células, wires e bits de memória
+    de cada configuração, mais o log bruto do Yosys. O valor de `false` é a
+    contagem de referência **desta** árvore — é ele que fixa a área RV32I
+    pós-refatoração; a comparação com as 6.937 células do ADR-000 entra no
+    relatório apenas como nota histórica, porque aquela medição é do RTL
+    original em `f884a4e`, antes da refatoração das memórias
+- [ ] TRV-5.5 — Montar a tabela A/B de eficiência com cada célula rotulada
+  MEDIDO ou ESTIMADO
+  - REQ: FR-RV-24, FR-RV-25, NFR-RV-02, NFR-RV-03
+  - ACEITE: `pytest examples/RISCV32I/test/test_report_metrics.py -v` -> exit 0,
+    checando que toda linha da tabela tem rótulo, que nenhum número aparece sem
+    o arquivo de resultado que o originou (`efficiency.json` ou `area.json`) e
+    que o tempo de execução está rotulado **ESTIMADO** (ciclos medidos x período
+    nominal de 10 ns) e não medido. Caminho crítico só entra se uma execução
+    real de ferramenta o fornecer — `yosys stat` não produz esse número
+
+## Fase RV-6 — Relatório comparativo (FR-RV-18, FR-RV-24, FR-RV-25)
+
+- [ ] TRV-6.1 — Gerar a matriz de rastreabilidade FR-RV-xx -> arquivo -> teste
+  -> execução
+  - REQ: FR-RV-01, FR-RV-07, NFR-RV-02
+  - ACEITE: `pytest examples/RISCV32I/test/test_traceability.py -v` -> exit 0:
+    todo `FR-RV-xx` e `NFR-RV-xx` de `spec.md` aparece em pelo menos um
+    comentário `-- REQ:` no VHDL ou `# REQ:` no Python, e todo ID citado no
+    código existe em `spec.md` (sem requisito órfão nos dois sentidos)
+- [ ] TRV-6.2 — Escrever o relatório comparativo RV32I vs RV32IM em português
+  - REQ: FR-RV-18, FR-RV-24, FR-RV-25, NFR-RV-02, NFR-RV-03
+  - ACEITE: existe `examples/RISCV32I/REPORT.md` com benchmarks e sua
+    justificativa, tabela A/B de ciclos/CPI/área, análise do trade-off e as
+    ressalvas metodológicas obrigatórias (células genéricas do Yosys não são
+    µm² nem LUTs; tempo de execução é estimativa);
+    `grep -c "MEDIDO\|ESTIMADO" examples/RISCV32I/REPORT.md` cobre todas as
+    linhas numéricas da tabela.
+    **Gate duro RV-5 -> RV-6:** nenhuma métrica entra sem o log da execução que
+    a produziu
+- [ ] TRV-6.3 — Documentar a reprodução completa da trilha, comando a comando
+  - REQ: FR-RV-20, NFR-RV-01, NFR-RV-02
+  - ACEITE: `examples/RISCV32I/README.md` traz a sequência exata para reproduzir
+    do zero — WSL Ubuntu, venv `~/venv-cocotb` (ADR-006), `pytest`, script de
+    síntese —, e uma execução limpa dessa sequência num diretório recém-clonado
+    termina com `pytest examples/RISCV32I/test/ -q` -> exit 0
