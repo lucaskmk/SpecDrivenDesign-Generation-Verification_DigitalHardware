@@ -99,6 +99,19 @@ async def run_program(dut):
         payload = metrics.as_dict()
         payload["name"] = name
         payload["rv32m_enable"] = spec.get("rv32m_enable")
+
+        # Despejo opcional da RAM. Usado pela comparação de eficiência para
+        # provar que as versões RV32I e RV32IM do MESMO benchmark produzem
+        # resultados idênticos -- sem isso, comparar ciclos de dois programas
+        # que calculam coisas diferentes não significaria nada (FR-RV-06).
+        dump = spec.get("dump_ram")
+        if dump:
+            start = int(dump["start"], 0) if isinstance(dump["start"], str) else int(dump["start"])
+            payload["ram_dump"] = {
+                hex(start + 4 * i): harness.read_ram_word(start + 4 * i)
+                for i in range(int(dump["count"]))
+            }
+        payload["registers"] = harness.read_all_regs()
         Path(out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         cocotb.log.info(f"métricas gravadas em {out}")
 
