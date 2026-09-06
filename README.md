@@ -1,5 +1,73 @@
 # SpecHDL
 
+Projeto de design de hardware digital dirigido por especificação, com **duas
+trilhas paralelas** que compartilham a mesma metodologia (spec antes de código,
+rastreabilidade requisito → bloco → código → teste, verificação real no GHDL) e
+o mesmo conjunto de documentos em [`specs/`](specs/).
+
+| | **Trilha A — SpecHDL genérico** | **Trilha B — CPU RISC-V** |
+|---|---|---|
+| Pergunta | "dado um formulário preenchido, gere o hardware" | "dada uma CPU que existe, meça e melhore" |
+| Entrada | formulário Streamlit (rubrica true/false + campos técnicos) | CPU RV32I já implementada, vendorizada |
+| Saída | VHDL + testbench + relatório de PPA gerados | RV32IM verificado, com comparação de eficiência medida |
+| Onde vive | [`src/spechdl/`](src/spechdl/) | [`examples/RISCV32I/`](examples/RISCV32I/) |
+| Estado | fase 1 (formulário) rodando; fases 2–7 em aberto | **concluída e medida** |
+
+As duas trilhas são independentes no código: nenhuma linha de
+`src/spechdl/` conhece RISC-V, e nenhuma linha de `examples/RISCV32I/` importa
+o pipeline. Ver [`specs/constitution.md`](specs/constitution.md), Emenda 1.
+
+---
+
+## Trilha B — CPU RISC-V: RV32I → RV32IM
+
+O foco atual. Parte de uma CPU RV32I de 5 estágios que já existe
+(`simple_RISCV_RV32I_vhdl`, de Morgan Demange, vendorizada no commit
+`f884a4e`), estabelece uma **baseline verificada**, estende para **RV32IM**
+(MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU) e **mede** o que a extensão
+custou e o que ela devolveu.
+
+Nada foi removido nem duplicado: as duas ISAs saem da **mesma árvore de
+fontes**, escolhidas pelo generic `RV32M_ENABLE`, o que torna a comparação um
+A/B honesto em vez de dois códigos que divergiram.
+
+**O que a extensão M devolveu** (execução real de GHDL, quatro benchmarks, o
+mesmo algoritmo nas duas ISAs, resultados na RAM conferidos idênticos antes de
+comparar qualquer número):
+
+| benchmark | ciclos RV32I | ciclos RV32IM | Δ |
+|---|---:|---:|---:|
+| `bench_div` | 3.125 | 52 | **−98,3 %** |
+| `bench_dotprod` | 1.013 | 153 | −84,9 % |
+| `bench_mul` | 1.037 | 39 | −96,2 % |
+| `bench_signs` | 1.286 | 33 | −97,4 % |
+| **total** | **6.461** | **277** | **−95,7 %** |
+
+**O que ela custou** (síntese real, `ghdl synth` + Yosys, a mesma árvore, só
+mudando o generic):
+
+| métrica | RV32I | RV32IM | Δ |
+|---|---:|---:|---:|
+| células de lógica do núcleo | 6.239 | 56.327 | **9,03×** |
+| profundidade lógica do bloco de EX (níveis) | 36 (ALU) | 631 (`mul_div_unit`) | **17,5×** |
+
+A leitura: a unidade M deste design é **combinacional**, de 1 ciclo — a escolha
+mais simples, e a que não exige tocar em nenhum registrador de pipeline nem na
+unidade de hazard. Ela não economiza ciclos *por instrução*; economiza
+*instruções*, trocando laços de emulação por uma instrução única. O preço é
+área e caminho crítico. Isso é exatamente o argumento a favor de uma unidade
+multiciclo iterativa, registrada como trabalho futuro com o custo já levantado
+([`specs/decisions.md`](specs/decisions.md), ADR-007).
+
+**Como reproduzir** — ver
+[`examples/RISCV32I/README.md`](examples/RISCV32I/README.md) e o relatório
+completo em
+[`examples/RISCV32I/RELATORIO.md`](examples/RISCV32I/RELATORIO.md).
+
+---
+
+## Trilha A — SpecHDL genérico
+
 Pipeline spec-driven que parte de um formulário web local (Streamlit,
 `spechdl web`) — o aluno responde perguntas true/false e campos técnicos
 (cache, estágios de pipeline, largura de palavra etc.), não escreve nada
