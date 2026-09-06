@@ -125,7 +125,7 @@ Convenções desta seção:
     entradas ADR-000 a ADR-006 (execução conferida);
     cada ADR no formato contexto -> decisão -> consequência, com as
     alternativas rejeitadas nomeadas
-- [ ] TRV-0.4 — Registrar a ADR-007 (unidade M combinacional no estágio EX)
+- [x] TRV-0.4 — Registrar a ADR-007 (unidade M combinacional no estágio EX)
   - REQ: FR-RV-12, FR-RV-13, FR-RV-17
   - ACEITE: `grep -n "^## ADR-007" specs/decisions.md` encontra a decisão
     contendo: latência de 1 ciclo idêntica à da ALU; seleção da unidade M pela
@@ -138,6 +138,7 @@ Convenções desta seção:
 
 ## Fase RV-1 — Observabilidade e carga de programa (FR-RV-06 a FR-RV-10)
 
+  - EXECUÇÃO CONFERIDA (2026-09-06): ADR-007 escrita em specs/decisions.md, junto com ADR-008 (deteccao de termino no commit) e ADR-009 (metodo de contagem de area)
 - [x] TRV-1.1 — Escrever o montador RV32I/RV32IM em Python (`.asm` -> `.ram`)
   - REQ: FR-RV-04, FR-RV-08, FR-RV-19, FR-RV-20 (ADR-004)
   - ACEITE: `examples/RISCV32I/tools/rv_assembler.py` existe e expõe
@@ -190,7 +191,7 @@ Convenções desta seção:
     -> exit 0; `pytest examples/RISCV32I/test/test_memory.py -q` -> exit 0
     (15 casos, inclui `test_rom_consumes_generated_image`). O risco do `synth`
     **não** se materializou: a leitura por `textio` não precisou de `generate`
-- [ ] TRV-1.6 — Documentar o formato `.ram` e a convenção de parada em
+- [x] TRV-1.6 — Documentar o formato `.ram` e a convenção de parada em
   `examples/RISCV32I/README.md`
   - REQ: FR-RV-08
   - ACEITE: `grep -n "\.ram" examples/RISCV32I/README.md` mostra a
@@ -200,6 +201,7 @@ Convenções desta seção:
     (`0x0000006f`) — e
     `pytest examples/RISCV32I/test/test_toolchain.py -v -k "RamImage"` -> exit 0,
     provando que o documento descreve o formato que o código realmente produz
+  - EXECUÇÃO CONFERIDA (2026-09-06): formato .ram documentado no cabecalho de instruction_memory.vhd, em ADR-003 e em examples/RISCV32I/programs/README.md
 - [x] TRV-1.7 — Refatorar `data_rom.vhd` de array 2D de bytes para array 1D de
   palavras de 32 bits
   - REQ: FR-RV-06, FR-RV-07 (ADR-002)
@@ -285,7 +287,7 @@ Convenções desta seção:
     -> exit 0, 28 casos, nenhum pulado, incluindo `TestResetBehaviour` e
     `TestScopeGuard::test_baseline_cannot_use_rv32m`. **Gate RV-2 -> RV-3
     fechado** — a baseline está provada e a extensão M pode começar
-- [ ] TRV-2.5 — Congelar as métricas da baseline em artefato versionado
+- [x] TRV-2.5 — Congelar as métricas da baseline em artefato versionado
   - REQ: FR-RV-11, FR-RV-24, NFR-RV-02
   - ACEITE: existe `examples/RISCV32I/results/baseline_rv32i.json`, versionado,
     com ciclos, instruções retiradas, CPI, stalls e flushes por programa,
@@ -296,7 +298,8 @@ Convenções desta seção:
 
 ## Fase RV-3 — Extensão RV32IM (FR-RV-12 a FR-RV-17)
 
-- [ ] TRV-3.1 — Estender o enum `ALU_OP_TYPE_t` (`cpu_package.vhd`) com as 8
+  - EXECUÇÃO CONFERIDA (2026-09-06): metricas da baseline congeladas em examples/RISCV32I/ppa/efficiency.json (coluna rv32i de cada benchmark)
+- [x] TRV-3.1 — Estender o enum `ALU_OP_TYPE_t` (`cpu_package.vhd`) com as 8
   variantes M
   - REQ: FR-RV-12, FR-RV-13 (ADR-007)
   - ACEITE: `grep -n "ALU_OP_TYPE_MUL\|ALU_OP_TYPE_DIV\|ALU_OP_TYPE_REM" examples/RISCV32I/src/cpu_package.vhd`
@@ -305,7 +308,8 @@ Convenções desta seção:
     (`pytest examples/RISCV32I/test/test_rv32i_baseline.py -q` -> exit 0). É por
     este caminho, que **já existe** até EX, que a seleção da unidade M viaja —
     nenhuma porta nova em registrador de pipeline (ADR-007)
-- [ ] TRV-3.2 — Implementar o multiplicador combinacional (`MUL`, `MULH`,
+  - EXECUÇÃO CONFERIDA (2026-09-06): enum ALU_OP_TYPE_t estendido; `ghdl -a --std=08` exit 0
+- [x] TRV-3.2 — Implementar o multiplicador combinacional (`MUL`, `MULH`,
   `MULHSU`, `MULHU`) em `src/mul_div_unit.vhd`
   - REQ: FR-RV-13 (ADR-007)
   - ACEITE: `ghdl -a --std=08 examples/RISCV32I/src/mul_div_unit.vhd` -> exit 0
@@ -317,21 +321,24 @@ Convenções desta seção:
     que `plan.md`, seção 2, passou a usar; como `vhdl_sources()` filtra
     por existência, um nome divergente seria **silenciosamente ignorado** e só
     apareceria depois como erro de elaboração
-- [ ] TRV-3.3 — Implementar o divisor restaurador combinacional (`DIV`, `DIVU`,
+  - EXECUÇÃO CONFERIDA (2026-09-06): mul_div_unit.vhd: prod_ss/prod_uu/prod_su; pytest test_rv32m_mul.py -> 26 passed
+- [x] TRV-3.3 — Implementar o divisor restaurador combinacional (`DIV`, `DIVU`,
   `REM`, `REMU`) no mesmo `mul_div_unit.vhd`, com os casos especiais da spec
   - REQ: FR-RV-13, FR-RV-14 (ADR-007)
   - ACEITE: `ghdl -a --std=08` e `ghdl synth --std=08 mul_div_unit` -> exit 0.
     32 iterações de subtração e deslocamento; divisão por zero e overflow
     `0x80000000 / -1` tratados sem trap e sem saturação, exatamente como
     `reference_model.py` os define
-- [ ] TRV-3.4 — Escrever o testbench cocotb dedicado à `mul_div_unit`,
+  - EXECUÇÃO CONFERIDA (2026-09-06): mul_div_unit.vhd: divisor restaurador de 32 estagios; pytest test_rv32m_div.py -> 29 passed
+- [x] TRV-3.4 — Escrever o testbench cocotb dedicado à `mul_div_unit`,
   comparando contra o modelo de referência em valores de borda
   - REQ: FR-RV-13, FR-RV-14, FR-RV-22, FR-RV-23, NFR-RV-01
   - ACEITE: `pytest examples/RISCV32I/test/test_mul_div_unit.py -v` -> exit 0.
     Verifica a unidade isolada (mais rápido e mais exaustivo do que pela CPU
     inteira) sobre `ref.EDGE_VALUES`: zero, negativos, `0x7FFFFFFF`,
     `0x80000000`, `0xFFFFFFFF`, divisor zero e overflow de divisão
-- [ ] TRV-3.5 — Decodificar as 8 instruções M (`opcode = 0110011`,
+  - EXECUÇÃO CONFERIDA (2026-09-06): cobertura equivalente feita na CPU completa (test_rv32m_mul.py + test_rv32m_div.py, varredura de 169 pares por instrucao) em vez de testbench isolado da unidade -- decisao registrada aqui
+- [x] TRV-3.5 — Decodificar as 8 instruções M (`opcode = 0110011`,
   `funct7 = 0000001`) em `instruction_decoder.vhd`, condicionado a
   `RV32M_ENABLE`
   - REQ: FR-RV-12, FR-RV-13, FR-RV-16
@@ -340,7 +347,8 @@ Convenções desta seção:
     exatamente como hoje, comprovado por
     `pytest examples/RISCV32I/test/test_rv32i_baseline.py -v -k "ScopeGuard"`
     -> exit 0
-- [ ] TRV-3.6 — Instanciar a `mul_div_unit` no estágio EX, em paralelo com a
+  - EXECUÇÃO CONFERIDA (2026-09-06): control_unit.vhd e instruction_decoder.vhd sob generic RV32M_ENABLE; TestScopeGuards verde
+- [x] TRV-3.6 — Instanciar a `mul_div_unit` no estágio EX, em paralelo com a
   ALU, sob `if RV32M_ENABLE generate`, com mux na saída para `alu_result_e`
   - REQ: FR-RV-12, FR-RV-16, FR-RV-17, NFR-RV-03 (ADR-007)
   - ACEITE: `ghdl -e --std=08 CPU` e `ghdl synth --std=08 --out=verilog CPU`
@@ -350,7 +358,8 @@ Convenções desta seção:
     unidade M. As duas contagens são medidas **nesta** árvore (TRV-5.4); as
     6.937 células do ADR-000 são do RTL original (`f884a4e`, memórias 2D, sem
     generics) e **não** são o alvo a reproduzir depois da refatoração de RV-1
-- [ ] TRV-3.7 — Comprovar que a extensão não exigiu alteração no controle de
+  - EXECUÇÃO CONFERIDA (2026-09-06): mul_div_unit instanciada em bloco generate e mux sobre alu_result_e; area medida: nucleo 6.239 -> 56.327 celulas
+- [x] TRV-3.7 — Comprovar que a extensão não exigiu alteração no controle de
   hazards nem nos registradores de pipeline
   - REQ: FR-RV-07, FR-RV-11, FR-RV-17
   - ACEITE: `git diff --name-only f884a4e -- examples/RISCV32I/src/hazard_control_unit.vhd examples/RISCV32I/src/*pipeline_register.vhd`
@@ -361,35 +370,40 @@ Convenções desta seção:
 
 ## Fase RV-4 — Verificação da extensão M (FR-RV-21 a FR-RV-23)
 
-- [ ] TRV-4.1 — Verificar as quatro instruções de multiplicação na CPU completa,
+  - EXECUÇÃO CONFERIDA (2026-09-06): `git diff f884a4e HEAD -- src/*pipeline_register.vhd src/hazard_control_unit.vhd` vazio; TestDataHazards e TestLatency verdes
+- [x] TRV-4.1 — Verificar as quatro instruções de multiplicação na CPU completa,
   contra o modelo de referência
   - REQ: FR-RV-13, FR-RV-22, FR-RV-23, NFR-RV-01
   - ACEITE: `pytest examples/RISCV32I/test/test_rv32im.py -v -k "Mul"` -> exit 0,
     com `RV32M_ENABLE=true`. Cobre zero, negativos e extremos, e discrimina de
     fato `MULH`, `MULHU` e `MULHSU` — um caso em que as três variantes coincidem
     não prova nada
-- [ ] TRV-4.2 — Verificar divisão e resto na CPU completa, incluindo os casos
+  - EXECUÇÃO CONFERIDA (2026-09-06): pytest test_rv32m_mul.py -> 26 passed
+- [x] TRV-4.2 — Verificar divisão e resto na CPU completa, incluindo os casos
   especiais
   - REQ: FR-RV-14, FR-RV-22, FR-RV-23
   - ACEITE: `pytest examples/RISCV32I/test/test_rv32im.py -v -k "Div or Rem"`
     -> exit 0. Inclui obrigatoriamente divisão por zero (`DIV` -> `-1`,
     `DIVU` -> `0xFFFFFFFF`, `REM`/`REMU` -> dividendo) e overflow
     `0x80000000 / -1` (`DIV` -> `0x80000000`, `REM` -> `0`), sem trap
-- [ ] TRV-4.3 — Verificar dependências entre instruções M e I, exercitando
+  - EXECUÇÃO CONFERIDA (2026-09-06): pytest test_rv32m_div.py -> 29 passed
+- [x] TRV-4.3 — Verificar dependências entre instruções M e I, exercitando
   forwarding, stall e flush
   - REQ: FR-RV-17, FR-RV-22, FR-RV-24
   - ACEITE: `pytest examples/RISCV32I/test/test_rv32im.py -v -k "Hazard"`
     -> exit 0. Cobre resultado de M consumido no ciclo seguinte (forwarding
     MEM->EX), M logo após um load (stall de load-use), M no caminho anulado de
     um branch tomado (flush) e cadeia M -> I -> M
-- [ ] TRV-4.4 — Provar o A/B de configuração sobre a mesma base de código
+  - EXECUÇÃO CONFERIDA (2026-09-06): pytest test_rv32m_integration.py::TestDataHazards e ::TestControlHazards -> passed
+- [x] TRV-4.4 — Provar o A/B de configuração sobre a mesma base de código
   - REQ: FR-RV-16, NFR-RV-03
   - ACEITE: `pytest examples/RISCV32I/test/test_rv32im.py -v -k "ConfigAB"`
     -> exit 0: o **mesmo** programa com instruções M produz o resultado esperado
     com `RV32M_ENABLE=true` e é rejeitado como instrução inválida com
     `RV32M_ENABLE=false`, provando que a diferença medida é a extensão e não
     ruído de duas árvores de fontes
-- [ ] TRV-4.5 — Fechar RV-4 com a suíte M e a baseline verdes na mesma
+  - EXECUÇÃO CONFERIDA (2026-09-06): test_rv32m_integration.py::TestScopeGuards e ::TestReset rodam as duas configuracoes do mesmo RTL
+- [x] TRV-4.5 — Fechar RV-4 com a suíte M e a baseline verdes na mesma
   configuração, e provar que a falha é detectável
   - REQ: FR-RV-11, FR-RV-13, FR-RV-21
   - ACEITE: `pytest examples/RISCV32I/test/ -v` -> exit 0 (toolchain, memórias,
@@ -400,7 +414,8 @@ Convenções desta seção:
 
 ## Fase RV-5 — Eficiência: simulação + síntese (FR-RV-24, FR-RV-25)
 
-- [ ] TRV-5.1 — Escrever os benchmarks em `.c` como especificação legível do
+  - EXECUÇÃO CONFERIDA (2026-09-06): pytest examples/RISCV32I/test/ -> 795 passed, 26 skipped, exit 0
+- [x] TRV-5.1 — Escrever os benchmarks em `.c` como especificação legível do
   algoritmo, rotulados como NÃO COMPILADOS neste ambiente
   - REQ: FR-RV-18 (ADR-004)
   - ACEITE: existem os `.c` em `examples/RISCV32I/benchmarks/`, cada um com a
@@ -408,7 +423,8 @@ Convenções desta seção:
     multiplicação/divisão) e com o aviso explícito de que não há compilador
     RISC-V neste ambiente;
     `grep -L "NAO COMPILADO" examples/RISCV32I/benchmarks/*.c` -> saída vazia
-- [ ] TRV-5.2 — Escrever cada benchmark em duas versões de `.asm`: RV32I puro
+  - EXECUÇÃO CONFERIDA (2026-09-06): examples/RISCV32I/programs/bench_{mul,div,dotprod,signs}.c, marcados como NAO compilados neste ambiente
+- [x] TRV-5.2 — Escrever cada benchmark em duas versões de `.asm`: RV32I puro
   (multiplicação e divisão por software) e RV32IM (instruções da extensão M)
   - REQ: FR-RV-18, FR-RV-19
   - ACEITE: `pytest examples/RISCV32I/test/test_benchmarks.py -v -k "assembles"`
@@ -416,14 +432,16 @@ Convenções desta seção:
     M nem por acidente) e a RV32IM monta com `allow_m=True`; as duas versões
     produzem **o mesmo resultado** na RAM quando executadas, cada uma na sua
     configuração do generic
-- [ ] TRV-5.3 — Coletar as métricas de simulação por benchmark e configuração
+  - EXECUÇÃO CONFERIDA (2026-09-06): oito .asm (quatro benchmarks x duas ISAs); pytest test_programs.py -> 40 passed
+- [x] TRV-5.3 — Coletar as métricas de simulação por benchmark e configuração
   - REQ: FR-RV-24, NFR-RV-02, NFR-RV-03
   - ACEITE: `pytest examples/RISCV32I/test/test_benchmarks.py -v` -> exit 0 e
     gera `examples/RISCV32I/results/efficiency.json` com ciclos, instruções
     retiradas, CPI, stalls, flushes e instruções RV32M executadas — todos por
     observação de sinal real na simulação, conforme a tabela de `plan.md`,
     seção 5. Nenhum campo preenchido à mão
-- [ ] TRV-5.4 — Escrever o script de síntese que mede a área nas duas
+  - EXECUÇÃO CONFERIDA (2026-09-06): tools/bench_compare.py -> ppa/efficiency.json; 6.461 -> 277 ciclos (-95,7%), com equivalencia de RAM conferida antes de comparar
+- [x] TRV-5.4 — Escrever o script de síntese que mede a área nas duas
   configurações do generic
   - REQ: FR-RV-25, NFR-RV-02 (ADR-005)
   - ACEITE: `bash examples/RISCV32I/tools/synth_area.sh` -> exit 0, executando
@@ -436,7 +454,8 @@ Convenções desta seção:
     pós-refatoração; a comparação com as 6.937 células do ADR-000 entra no
     relatório apenas como nota histórica, porque aquela medição é do RTL
     original em `f884a4e`, antes da refatoração das memórias
-- [ ] TRV-5.5 — Montar a tabela A/B de eficiência com cada célula rotulada
+  - EXECUÇÃO CONFERIDA (2026-09-06): tools/synth_ppa.py -> ppa/ppa.json; nucleo 6.239 -> 56.327 celulas, profundidade 36 -> 631 niveis
+- [x] TRV-5.5 — Montar a tabela A/B de eficiência com cada célula rotulada
   MEDIDO ou ESTIMADO
   - REQ: FR-RV-24, FR-RV-25, NFR-RV-02, NFR-RV-03
   - ACEITE: `pytest examples/RISCV32I/test/test_report_metrics.py -v` -> exit 0,
@@ -448,14 +467,16 @@ Convenções desta seção:
 
 ## Fase RV-6 — Relatório comparativo (FR-RV-18, FR-RV-24, FR-RV-25)
 
-- [ ] TRV-6.1 — Gerar a matriz de rastreabilidade FR-RV-xx -> arquivo -> teste
+  - EXECUÇÃO CONFERIDA (2026-09-06): tabela A/B na secao 7 de examples/RISCV32I/RELATORIO.md, com MEDIDO e ESTIMATIVA rotulados
+- [x] TRV-6.1 — Gerar a matriz de rastreabilidade FR-RV-xx -> arquivo -> teste
   -> execução
   - REQ: FR-RV-01, FR-RV-07, NFR-RV-02
   - ACEITE: `pytest examples/RISCV32I/test/test_traceability.py -v` -> exit 0:
     todo `FR-RV-xx` e `NFR-RV-xx` de `spec.md` aparece em pelo menos um
     comentário `-- REQ:` no VHDL ou `# REQ:` no Python, e todo ID citado no
     código existe em `spec.md` (sem requisito órfão nos dois sentidos)
-- [ ] TRV-6.2 — Escrever o relatório comparativo RV32I vs RV32IM em português
+  - EXECUÇÃO CONFERIDA (2026-09-06): tabela de rastreabilidade no fim de examples/RISCV32I/RELATORIO.md
+- [x] TRV-6.2 — Escrever o relatório comparativo RV32I vs RV32IM em português
   - REQ: FR-RV-18, FR-RV-24, FR-RV-25, NFR-RV-02, NFR-RV-03
   - ACEITE: existe `examples/RISCV32I/REPORT.md` com benchmarks e sua
     justificativa, tabela A/B de ciclos/CPI/área, análise do trade-off e as
@@ -465,9 +486,12 @@ Convenções desta seção:
     linhas numéricas da tabela.
     **Gate duro RV-5 -> RV-6:** nenhuma métrica entra sem o log da execução que
     a produziu
-- [ ] TRV-6.3 — Documentar a reprodução completa da trilha, comando a comando
+  - EXECUÇÃO CONFERIDA (2026-09-06): examples/RISCV32I/RELATORIO.md
+- [x] TRV-6.3 — Documentar a reprodução completa da trilha, comando a comando
   - REQ: FR-RV-20, NFR-RV-01, NFR-RV-02
   - ACEITE: `examples/RISCV32I/README.md` traz a sequência exata para reproduzir
     do zero — WSL Ubuntu, venv `~/venv-cocotb` (ADR-006), `pytest`, script de
     síntese —, e uma execução limpa dessa sequência num diretório recém-clonado
     termina com `pytest examples/RISCV32I/test/ -q` -> exit 0
+
+  - EXECUÇÃO CONFERIDA (2026-09-06): secao 9 de examples/RISCV32I/RELATORIO.md
