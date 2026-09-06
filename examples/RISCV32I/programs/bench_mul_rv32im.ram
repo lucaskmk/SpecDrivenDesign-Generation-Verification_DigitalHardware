@@ -1,0 +1,45 @@
+# programa: bench_mul_rv32im
+# fonte: examples/RISCV32I/programs/bench_mul_rv32im.asm
+# isa: RV32IM
+# palavras: 39   parada em: 0x98
+# gerado por examples/RISCV32I/tools/build_programs.py
+# formato: uma palavra de 32 bits por linha, 8 digitos hex, linha 0 = endereco 0x0 (ADR-003)
+00fc8937
+10090913
+00700513
+00600593
+02b50633
+00c92023
+07b00513
+1c800593
+02b50633
+00c92223
+ffd00513
+00500593
+02b50633
+00c92423
+ff900513
+ff800593
+02b50633
+00c92623
+00010537
+fff50513
+000105b7
+00158593
+02b50633
+00c92823
+80000537
+fff50513
+00200593
+02b50633
+00c92a23
+80000537
+00300593
+02b50633
+00c92c23
+00000513
+123455b7
+67858593
+02b50633
+00c92e23
+0000006f
