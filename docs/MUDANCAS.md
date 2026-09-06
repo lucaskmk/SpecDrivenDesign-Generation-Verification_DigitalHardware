@@ -7,6 +7,9 @@ commit `f884a4e` ("RISCV32I example"), que vendorizou a CPU. Ponto de chegada:
 Complementa o [`RELATORIO.md`](../examples/RISCV32I/RELATORIO.md), que responde
 "o que foi medido"; este arquivo responde **"o que foi mexido e o que não foi"**.
 
+> Versão visual, com o diagrama do datapath antes/depois:
+> [`mudancas-riscv.html`](mudancas-riscv.html).
+
 ---
 
 ## 1. Regra que governou todas as mudanças
