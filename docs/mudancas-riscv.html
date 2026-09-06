@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RV32I para RV32IM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Sistema de design herdado de docs/mapa-do-projeto.html:
+     IBM Plex Sans/Mono, fundo de papel milimetrado, paleta navy.
+     Semântica de cor desta página, que carrega informação e não decora:
+       --good   verde  = intacto        (não foi tocado)
+       --accent âmbar  = alterado/novo  (a mudança)
+       --bad    coral  = custo          (o que a mudança cobrou) */
+  :root {
+    --bg: #E9EDF4;
+    --sheet: #F8FAFC;
+    --ink: #16233A;
+    --muted: #5B6B84;
+    --line: #C9D2E0;
+    --grid: rgba(22,35,58,0.055);
+    --accent: #A8631E;
+    --accent-tint: rgba(168,99,30,0.09);
+    --good: #2F7D6B;
+    --good-tint: rgba(47,125,107,0.09);
+    --bad: #B84A3E;
+    --bad-tint: rgba(184,74,62,0.09);
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B1120;
+      --sheet: #111A2E;
+      --ink: #E7ECF6;
+      --muted: #93A4C4;
+      --line: #2B3752;
+      --grid: rgba(231,236,246,0.045);
+      --accent: #E3A75B;
+      --accent-tint: rgba(227,167,91,0.13);
+      --good: #5FBFA0;
+      --good-tint: rgba(95,191,160,0.13);
+      --bad: #E2776A;
+      --bad-tint: rgba(226,119,106,0.13);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B1120;
+    --sheet: #111A2E;
+    --ink: #E7ECF6;
+    --muted: #93A4C4;
+    --line: #2B3752;
+    --grid: rgba(231,236,246,0.045);
+    --accent: #E3A75B;
+    --accent-tint: rgba(227,167,91,0.13);
+    --good: #5FBFA0;
+    --good-tint: rgba(95,191,160,0.13);
+    --bad: #E2776A;
+    --bad-tint: rgba(226,119,106,0.13);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px 28px),
+      repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px 28px),
+      var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---- tipografia ---- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px);
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  h2 {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  .lede { font-size: 18px; color: var(--muted); max-width: 62ch; margin-bottom: 0; }
+  .note { font-size: 14px; color: var(--muted); }
+  code, .m { font-family: var(--mono); font-size: 0.88em; }
+  code {
+    background: var(--accent-tint);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  section { margin-top: 56px; }
+  .sec-head { margin-bottom: 22px; }
+
+  /* ---- placar do topo ---- */
+  .scoreboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-top: 32px;
+  }
+  .stat { background: var(--sheet); padding: 18px 20px; }
+  .stat .k {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 8px;
+  }
+  .stat .v {
+    font-family: var(--mono);
+    font-size: 27px;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: block;
+  }
+  .stat .sub { font-size: 12.5px; color: var(--muted); display: block; margin-top: 7px; }
+  .v.up { color: var(--bad); }
+  .v.down { color: var(--good); }
+
+  /* ---- livro-razão intacto / alterado ---- */
+  .ledger {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 18px;
+  }
+  .col { border-top: 2px solid var(--line); padding-top: 14px; }
+  .col.keep { border-top-color: var(--good); }
+  .col.change { border-top-color: var(--accent); }
+  .col > .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .col.keep > .tag { color: var(--good); }
+  .col.change > .tag { color: var(--accent); }
+  .col .count { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .filelist { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 12.5px; }
+  .filelist li { padding: 3px 0; border-bottom: 1px dotted var(--line); }
+  .filelist li:last-child { border-bottom: 0; }
+  .filelist .why { color: var(--muted); font-size: 11.5px; display: block; }
+
+  /* ---- figura ---- */
+  figure { margin: 0; }
+  .figbox {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 22px 18px 14px;
+    overflow-x: auto;
+  }
+  .figbox svg { display: block; max-width: 100%; height: auto; min-width: 620px; margin: 0 auto; }
+  figcaption {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin-top: 14px;
+    max-width: 74ch;
+  }
+  figcaption strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- tabelas ---- */
+  .tablebox { overflow-x: auto; border: 1px solid var(--line); background: var(--sheet); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+  thead th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tr.total td { font-weight: 600; background: var(--accent-tint); }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.name { font-family: var(--mono); font-size: 13px; }
+  .delta-good { color: var(--good); font-weight: 600; }
+  .delta-bad { color: var(--bad); font-weight: 600; }
+
+  /* ---- destaque / armadilha ---- */
+  .callout {
+    border-left: 3px solid var(--bad);
+    background: var(--bad-tint);
+    padding: 16px 20px;
+    margin: 22px 0;
+  }
+  .callout .tag {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bad);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  pre {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 0 0 14px;
+  }
+  pre .c { color: var(--muted); }
+  pre .hl { color: var(--accent); }
+
+  /* ---- passos ---- */
+  .steps { display: grid; gap: 14px; counter-reset: step; }
+  .step { display: grid; grid-template-columns: 30px 1fr; gap: 14px; align-items: start; }
+  .step .n {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    width: 26px; height: 26px;
+    display: grid; place-items: center;
+    margin-top: 2px;
+  }
+  .step p { margin: 0; font-size: 14.5px; }
+  .step p + p { margin-top: 5px; }
+
+  .links { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .links li { background: var(--sheet); padding: 12px 16px; font-size: 14px; }
+  .links .path { font-family: var(--mono); font-size: 12.5px; }
+  .links .what { color: var(--muted); font-size: 13px; }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">SpecHDL · Trilha B · commits f884a4e → 776d0c2</p>
+    <h1>RV32I para RV32IM</h1>
+    <p class="lede">O que mudou numa CPU RISC-V de 5 estágios que já existia, o que
+      deliberadamente não mudou, e o que a extensão M cobrou por isso.</p>
+
+    <div class="scoreboard">
+      <div class="stat">
+        <span class="k">Ciclos, 4 benchmarks</span>
+        <span class="v down">−95,7%</span>
+        <span class="sub">6.461 → 277 · simulação real no GHDL</span>
+      </div>
+      <div class="stat">
+        <span class="k">Lógica do núcleo</span>
+        <span class="v up">9,03×</span>
+        <span class="sub">6.239 → 56.327 células · síntese real</span>
+      </div>
+      <div class="stat">
+        <span class="k">Caminho crítico em EX</span>
+        <span class="v up">17,5×</span>
+        <span class="sub">36 → 631 níveis de lógica</span>
+      </div>
+      <div class="stat">
+        <span class="k">Verificação</span>
+        <span class="v">795</span>
+        <span class="sub">testes passando · exit code 0</span>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px">Nenhum número desta página é estimativa.
+      Cada um veio de uma execução de ferramenta cujo comando está no
+      <span class="m">RELATORIO.md</span>, seção 9.</p>
+  </header>
+
+  <!-- ================================================================= -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">01 · O princípio</p>
+      <h2>Nada foi removido</h2>
+    </div>
+    <p>A regra que governou todas as mudanças: <strong>evoluir por parametrização,
+      não por deleção nem duplicação.</strong> Na prática, todo <span class="m">generic</span>
+      novo tem valor padrão igual ao comportamento original — elaborar a CPU sem
+      passar parâmetro nenhum produz exatamente o RV32I do commit
+      <span class="m">f884a4e</span>.</p>
+
+<pre><span class="c">-- CPU.vhd</span>
+entity CPU is
+    generic(
+        ROM_INIT_FILE   : string  := <span class="hl">""</span>;     <span class="c">-- "" -&gt; constante VHDL original</span>
+        ROM_SIZE_WORDS  : integer := <span class="hl">0</span>;      <span class="c">--  0 -&gt; tamanho original</span>
+        RV32M_ENABLE    : boolean := <span class="hl">false</span>   <span class="c">-- false -&gt; RV32I original</span>
+    );
+    port( rst : in std_logic;  clk : in std_logic );
+end CPU;</pre>
+
+    <p>Isso não é promessa de commit. <span class="m">test_memory.py</span> extrai o
+      RTL antigo do git com <code>git show f884a4e:…</code>, elabora as duas árvores
+      sob o <em>mesmo</em> testbench e compara o PC final e os 32 registradores.</p>
+  </section>
+
+  <!-- ================================================================= -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">02 · O balanço</p>
+      <h2>11 dos 19 arquivos VHDL não mudaram uma linha</h2>
+    </div>
+    <p>E não por acaso — é consequência direta da decisão de projeto da seção 3.</p>
+
+    <div class="ledger">
+      <div class="col keep">
+        <span class="tag">Intacto</span>
+        <p class="count">11 arquivos · verificado por <span class="m">git diff --quiet</span> → exit 0</p>
+        <ul class="filelist">
+          <li>fetch_pipeline_register.vhd</li>
+          <li>decode_pipeline_register.vhd</li>
+          <li>execute_pipeline_register.vhd</li>
+          <li>mem_pipeline_register.vhd</li>
+          <li>hazard_control_unit.vhd</li>
+          <li>ALU.vhd <span class="why">o <span class="m">when others</span> final já cobria os valores novos</span></li>
+          <li>branching_unit.vhd</li>
+          <li>register_file.vhd</li>
+          <li>program_counter.vhd</li>
+          <li>extend_32.vhd</li>
+          <li>data_memory.vhd</li>
+        </ul>
+      </div>
+
+      <div class="col change">
+        <span class="tag">Alterado</span>
+        <p class="count">8 arquivos · +583 −86 linhas</p>
+        <ul class="filelist">
+          <li>memory_package.vhd <span class="why">tipos 2-D → 1-D</span></li>
+          <li>data_ram.vhd <span class="why">o VPI do GHDL não expõe arrays 2-D</span></li>
+          <li>data_rom.vhd <span class="why">idem</span></li>
+          <li>instruction_memory.vhd <span class="why">carga por imagem <span class="m">.ram</span></span></li>
+          <li>cpu_package.vhd <span class="why">8 valores no enum <span class="m">ALU_OP_TYPE_t</span></span></li>
+          <li>control_unit.vhd <span class="why">decodifica <span class="m">funct7 = 0000001</span></span></li>
+          <li>instruction_decoder.vhd <span class="why">deixa de marcar M como inválida</span></li>
+          <li>CPU.vhd <span class="why">instancia a unidade, mux, <span class="m">m_dispatch_e</span></span></li>
+        </ul>
+      </div>
+
+      <div class="col change">
+        <span class="tag">Novo</span>
+        <p class="count">1 arquivo VHDL</p>
+        <ul class="filelist">
+          <li>mul_div_unit.vhd
+            <span class="why">MUL · MULH · MULHSU · MULHU<br>DIV · DIVU · REM · REMU</span></li>
+        </ul>
+        <p class="count" style="margin-top:16px">Fora do RTL: montador, harness cocotb,
+          modelo de referência, 7 suítes de teste, 4 benchmarks, 10 ADRs.</p>
+      </div>
+    </div>
+
+    <p style="margin-top:22px" class="note">O app SpecHDL da trilha A
+      (<span class="m">src/spechdl/</span>, <span class="m">tests/</span>,
+      <span class="m">templates/</span>) está byte a byte idêntico. Nenhum commit.</p>
+  </section>
+
+  <!-- ================================================================= -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">03 · O mecanismo</p>
+      <h2>Como a unidade M entrou sem tocar no pipeline</h2>
+    </div>
+
+    <p>As oito operações M foram <strong>acrescentadas ao enum
+      <span class="m">ALU_OP_TYPE_t</span></strong> em vez de virarem um sinal de
+      controle novo. Esse campo <em>já</em> viajava de Decode para Execute pelo
+      <span class="m">decode_pipeline_register</span> — então o seletor da unidade M
+      chega em EX por um caminho que já existia, e nenhum registrador de pipeline
+      precisou de porta nova.</p>
+
+    <figure>
+      <div class="figbox">
+        <svg viewBox="0 0 900 620" role="img"
+             aria-label="Estágio Execute antes e depois. Antes: operandos entram na ALU, o resultado sai em alu_result_e para o registrador de pipeline, e o caminho de forwarding parte desse mesmo fio de volta para os operandos. Depois: a mul_div_unit fica em paralelo com a ALU, um mux selecionado por m_op_e escolhe entre as duas, e a saída volta a ser o mesmo fio alu_result_e, com o caminho de forwarding inalterado.">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+            </marker>
+            <marker id="ah-a" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"></path>
+            </marker>
+            <marker id="ah-g" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--good)"></path>
+            </marker>
+          </defs>
+
+          <g font-family="'IBM Plex Mono', monospace" fill="currentColor">
+
+            <!-- ============ PAINEL A — ANTES ============ -->
+            <text x="24" y="26" font-size="11.5" font-weight="600"
+                  letter-spacing="1.4" fill="var(--muted)">ANTES · RV32I</text>
+            <line x1="24" y1="38" x2="876" y2="38" stroke="var(--line)" stroke-width="1"></line>
+
+            <rect x="24" y="84" width="132" height="60" fill="none"
+                  stroke="currentColor" stroke-width="1.4"></rect>
+            <text x="90" y="108" font-size="12" text-anchor="middle">operandos</text>
+            <text x="90" y="126" font-size="9.5" text-anchor="middle" fill="var(--muted)">rs1_e rs2_e imm_e</text>
+
+            <line x1="156" y1="114" x2="230" y2="114" stroke="currentColor"
+                  stroke-width="1.4" marker-end="url(#ah)"></line>
+
+            <rect x="236" y="84" width="120" height="60" fill="none"
+                  stroke="currentColor" stroke-width="1.4"></rect>
+            <text x="296" y="119" font-size="13" text-anchor="middle">ALU</text>
+
+            <line x1="356" y1="114" x2="554" y2="114" stroke="currentColor"
+                  stroke-width="1.4" marker-end="url(#ah)"></line>
+            <text x="455" y="106" font-size="10.5" text-anchor="middle" fill="var(--muted)">alu_result_e</text>
+
+            <rect x="560" y="84" width="182" height="60" fill="none"
+                  stroke="currentColor" stroke-width="1.4"></rect>
+            <text x="651" y="110" font-size="10" text-anchor="middle">execute_</text>
+            <text x="651" y="126" font-size="10" text-anchor="middle">pipeline_register</text>
+
+            <!-- forwarding, painel A -->
+            <polyline points="470,114 470,178 90,178 90,148" fill="none"
+                      stroke="var(--good)" stroke-width="1.4"
+                      marker-end="url(#ah-g)"></polyline>
+            <circle cx="470" cy="114" r="3" fill="var(--good)"></circle>
+            <text x="280" y="194" font-size="10.5" fill="var(--good)">forwarding MEM→EX · WB→EX</text>
+
+            <!-- ============ PAINEL B — DEPOIS ============ -->
+            <text x="24" y="262" font-size="11.5" font-weight="600"
+                  letter-spacing="1.4" fill="var(--muted)">DEPOIS · RV32IM</text>
+            <line x1="24" y1="274" x2="876" y2="274" stroke="var(--line)" stroke-width="1"></line>
+
+            <rect x="24" y="336" width="132" height="60" fill="none"
+                  stroke="currentColor" stroke-width="1.4"></rect>
+            <text x="90" y="360" font-size="12" text-anchor="middle">operandos</text>
+            <text x="90" y="378" font-size="9.5" text-anchor="middle" fill="var(--muted)">rs1_e rs2_e imm_e</text>
+
+            <!-- fan-out para os dois blocos -->
+            <line x1="156" y1="366" x2="196" y2="366" stroke="currentColor" stroke-width="1.4"></line>
+            <polyline points="196,326 196,422" fill="none" stroke="currentColor" stroke-width="1.4"></polyline>
+            <line x1="196" y1="326" x2="230" y2="326" stroke="currentColor"
+                  stroke-width="1.4" marker-end="url(#ah)"></line>
+            <line x1="196" y1="422" x2="230" y2="422" stroke="var(--accent)"
+                  stroke-width="1.4" marker-end="url(#ah-a)"></line>
+
+            <rect x="236" y="300" width="120" height="52" fill="none"
+                  stroke="currentColor" stroke-width="1.4"></rect>
+            <text x="296" y="331" font-size="13" text-anchor="middle">ALU</text>
+
+            <rect x="236" y="396" width="120" height="52" fill="var(--accent-tint)"
+                  stroke="var(--accent)" stroke-width="1.8"></rect>
+            <text x="296" y="420" font-size="11" text-anchor="middle" fill="var(--accent)">mul_div_unit</text>
+            <text x="296" y="434" font-size="8.5" text-anchor="middle" fill="var(--accent)">NOVO · 1 ciclo</text>
+
+            <line x1="356" y1="326" x2="386" y2="326" stroke="currentColor" stroke-width="1.4"></line>
+            <line x1="356" y1="422" x2="386" y2="422" stroke="var(--accent)" stroke-width="1.4"></line>
+
+            <!-- mux -->
+            <polygon points="388,306 416,326 416,422 388,442" fill="var(--accent-tint)"
+                     stroke="var(--accent)" stroke-width="1.8"></polygon>
+            <text x="402" y="378" font-size="9" text-anchor="middle" fill="var(--accent)">mux</text>
+
+            <line x1="402" y1="496" x2="402" y2="446" stroke="var(--accent)"
+                  stroke-width="1.4" marker-end="url(#ah-a)"></line>
+            <text x="402" y="514" font-size="10" text-anchor="middle" fill="var(--accent)">m_op_e = is_rv32m_op(alu_op_type_e)</text>
+
+            <line x1="416" y1="374" x2="554" y2="374" stroke="currentColor"
+                  stroke-width="1.4" marker-end="url(#ah)"></line>
+            <text x="490" y="366" font-size="10.5" text-anchor="middle" fill="var(--muted)">alu_result_e</text>
+
+            <rect x="560" y="344" width="182" height="60" fill="none"
+                  stroke="currentColor" stroke-width="1.4"></rect>
+            <text x="651" y="370" font-size="10" text-anchor="middle">execute_</text>
+            <text x="651" y="386" font-size="10" text-anchor="middle">pipeline_register</text>
+
+            <!-- forwarding, painel B — mesma forma, mesmo fio -->
+            <polyline points="510,374 510,556 90,556 90,400" fill="none"
+                      stroke="var(--good)" stroke-width="1.4"
+                      marker-end="url(#ah-g)"></polyline>
+            <circle cx="510" cy="374" r="3" fill="var(--good)"></circle>
+            <text x="238" y="572" font-size="10.5" fill="var(--good)">forwarding MEM→EX · WB→EX — inalterado</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption><strong>O resultado da unidade M entra no mesmo fio
+        <span class="m">alu_result_e</span> de onde o forwarding já partia.</strong>
+        Por isso instruções M ganham forwarding MEM→EX e WB→EX sem uma linha de
+        código nova — e por isso a <span class="m">hazard_control_unit</span> e os
+        quatro registradores de pipeline não precisaram mudar. Em verde, o caminho
+        que se manteve idêntico nas duas versões; em âmbar, tudo o que foi
+        acrescentado.</figcaption>
+    </figure>
+
+    <p style="margin-top:26px">A unidade é <strong>combinacional</strong>: 1 ciclo,
+      igual à ALU. Como não introduz stall nenhum, não há nova condição de hazard a
+      tratar. O preço não é em ciclos — é em área e caminho crítico.</p>
+  </section>
+
+  <!-- ================================================================= -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">04 · O que ela devolveu</p>
+      <h2>−95,7% de ciclos</h2>
+    </div>
+    <p>Quatro benchmarks, o <em>mesmo algoritmo</em> nas duas ISAs. Antes de comparar
+      qualquer número, a ferramenta confere que as duas versões escreveram os mesmos
+      valores nos mesmos endereços de RAM — e se recusa a reportar se divergirem.</p>
+
+    <div class="tablebox">
+      <table>
+        <thead>
+          <tr>
+            <th>Benchmark</th>
+            <th class="num">Ciclos RV32I</th>
+            <th class="num">Ciclos RV32IM</th>
+            <th class="num">Δ</th>
+            <th class="num">Flushes I → IM</th>
+            <th class="num">Instr. M</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">bench_div</td><td class="num">3.125</td><td class="num">52</td>
+              <td class="num delta-good">−98,3%</td><td class="num">728 → 2</td><td class="num">16</td></tr>
+          <tr><td class="name">bench_dotprod</td><td class="num">1.013</td><td class="num">153</td>
+              <td class="num delta-good">−84,9%</td><td class="num">296 → 20</td><td class="num">8</td></tr>
+          <tr><td class="name">bench_mul</td><td class="num">1.037</td><td class="num">39</td>
+              <td class="num delta-good">−96,2%</td><td class="num">330 → 2</td><td class="num">8</td></tr>
+          <tr><td class="name">bench_signs</td><td class="num">1.286</td><td class="num">33</td>
+              <td class="num delta-good">−97,4%</td><td class="num">356 → 2</td><td class="num">5</td></tr>
+          <tr class="total"><td class="name">TOTAL</td><td class="num">6.461</td><td class="num">277</td>
+              <td class="num delta-good">−95,7%</td><td class="num">1.710 → 26</td><td class="num">37</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:18px">O ganho <strong>não</strong> vem de a instrução M ser
+      mais rápida — ela custa exatamente um ciclo, igual a um <span class="m">add</span>,
+      e há um teste que falha de propósito se isso mudar. Vem de eliminar os laços de
+      emulação: um <span class="m">mul</span> substitui 32 iterações de
+      deslocamento-e-soma, e cada iteração pagava flush de branch numa CPU
+      <em>always-not-taken</em>. É por isso que os flushes despencam de 728 para 2.</p>
+  </section>
+
+  <!-- ================================================================= -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">05 · O que ela cobrou</p>
+      <h2>9× mais lógica, caminho crítico 17,5× mais fundo</h2>
+    </div>
+    <p>Síntese real — <span class="m">ghdl synth</span> alimentando o Yosys — sobre a
+      mesma árvore de fontes, mudando só o generic.</p>
+
+    <div class="tablebox">
+      <table>
+        <thead>
+          <tr>
+            <th>Métrica medida</th>
+            <th class="num">RV32I</th>
+            <th class="num">RV32IM</th>
+            <th class="num">Δ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Células de lógica do núcleo <span class="note">(sem memórias)</span></td>
+              <td class="num">6.239</td><td class="num">56.327</td>
+              <td class="num delta-bad">9,03×</td></tr>
+          <tr><td>Células totais <span class="note">(com memórias)</span></td>
+              <td class="num">100.284</td><td class="num">150.372</td>
+              <td class="num delta-bad">1,50×</td></tr>
+          <tr><td>Só a <span class="m">mul_div_unit</span></td>
+              <td class="num">—</td><td class="num">49.824</td><td class="num">—</td></tr>
+          <tr><td>Profundidade lógica da ALU <span class="note">(níveis)</span></td>
+              <td class="num">36</td><td class="num">36</td><td class="num">0</td></tr>
+          <tr><td>Profundidade lógica da <span class="m">mul_div_unit</span></td>
+              <td class="num">—</td><td class="num">631</td>
+              <td class="num delta-bad">17,5× a ALU</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:18px">Numa síntese com restrição de tempo real, esse divisor
+      restaurador de 32 estágios <strong>ditaria o período de clock do processador
+      inteiro</strong> — parte do ganho de 23× em ciclos voltaria como perda de
+      frequência. É exatamente o argumento a favor de uma unidade iterativa
+      multiciclo, registrada como trabalho futuro com o custo já levantado: ela
+      exigiria porta <span class="m">stall</span> no
+      <span class="m">decode_pipeline_register</span> e reescrita da precedência na
+      unidade de hazard.</p>
+
+    <p class="note">Células genéricas do Yosys após <span class="m">techmap</span>.
+      Comparáveis entre as duas configurações no mesmo fluxo; não equivalem a área em
+      µm² de um PDK nem a LUTs de FPGA. Profundidade é
+      <span class="m">ltp -noff</span>: níveis de lógica, não nanossegundos.</p>
+  </section>
+
+  <!-- ================================================================= -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">06 · A armadilha</p>
+      <h2>Um bug que não era da CPU</h2>
+    </div>
+
+    <div class="callout">
+      <span class="tag">Resultado errado com hardware correto</span>
+      <p>O harness detectava fim de programa contando visitas do <strong>PC de
+        busca</strong> ao endereço do auto-laço. O teste “soma 1..10 = 55” parava na
+        4ª iteração e devolvia 6.</p>
+    </div>
+
+    <p>A CPU é <em>always-not-taken</em> e resolve saltos só em EX. Num laço, o
+      <span class="m">pc_f</span> busca especulativamente os dois endereços seguintes
+      ao salto antes de ele ser resolvido — e um deles é o endereço de parada:</p>
+
+<pre>loop:  bge  x6, x7, fim
+       ...
+       j    loop           <span class="c">◄── só resolvido em EX...</span>
+fim:   sw   x5, 0(x11)     <span class="c">◄── ...depois que pc_f JÁ buscou aqui</span>
+halt:  j    halt           <span class="c">◄── ...e AQUI, especulativamente</span></pre>
+
+    <p>Ou seja: <span class="m">pc_f</span> passa pelo endereço de parada
+      <strong>uma vez por iteração do laço</strong>. A correção foi detectar no
+      <em>commit</em>, não na busca — <code>pc_e == halt_pc and jump_e = '1'</code>.
+      O flush zera <span class="m">jump_out</span>, então uma bolha nunca satisfaz a
+      condição, e a detecção fica imune ao fetch especulativo.</p>
+
+    <p>A fórmula de contagem de instruções também estava errada, descontando duas
+      vezes os ciclos de stall de load-use:</p>
+
+<pre><span class="c">antes: </span> fetches − flush_d
+<span class="c">depois:</span> fetches − flush_f − (flush_d − stalls)</pre>
+  </section>
+
+  <!-- ================================================================= -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">07 · Uso</p>
+      <h2>Rodar e pôr seu próprio programa</h2>
+    </div>
+    <p>Tudo na WSL — GHDL, Yosys e cocotb estão lá. A ROM e a RAM já estão
+      instanciadas dentro da <span class="m">CPU.vhd</span>; não há top-level para
+      montar.</p>
+
+    <div class="steps">
+      <div class="step">
+        <span class="n">1</span>
+        <div>
+          <p>Suíte completa — 795 testes, cerca de 3 minutos.</p>
+<pre>cd /mnt/c/.../SpecDrivenDesign-Generation-Verification_DigitalHardware
+~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/ -o addopts= -q</pre>
+          <p class="note">O <span class="m">-o addopts=</span> é necessário: o
+            <span class="m">pyproject.toml</span> aponta o pytest para a trilha A.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="n">2</span>
+        <div>
+          <p>Seu programa vai em <span class="m">examples/RISCV32I/programs/</span>.
+            O nome decide a ISA e é obrigatório terminar em
+            <span class="m">_rv32i.asm</span> ou <span class="m">_rv32im.asm</span> —
+            o primeiro é montado com o montador recusando qualquer instrução M, o que
+            garante que a baseline não usa a extensão por acidente.</p>
+<pre>    li   x18, 0x00FC8100        <span class="c"># base da RAM de resultados</span>
+    li   x10, 111
+    li   x11, 3
+    mul  x12, x10, x11
+    sw   x12, 0(x18)
+halt:
+    j halt                      <span class="c"># auto-laço: obrigatório</span></pre>
+        </div>
+      </div>
+      <div class="step">
+        <span class="n">3</span>
+        <div>
+          <p>Gerar a imagem e rodar.</p>
+<pre>~/venv-cocotb/bin/python examples/RISCV32I/tools/build_programs.py
+~/venv-cocotb/bin/python examples/RISCV32I/tools/bench_compare.py   <span class="c"># eficiência</span>
+~/venv-cocotb/bin/python examples/RISCV32I/tools/synth_ppa.py       <span class="c"># área</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================= -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">08 · Onde ler o resto</p>
+      <h2>Documentos</h2>
+    </div>
+    <ul class="links">
+      <li><span class="path">examples/RISCV32I/RELATORIO.md</span>
+        <span class="what">— diagnóstico, resultado de cada teste, rastreabilidade, comandos de reprodução</span></li>
+      <li><span class="path">docs/MUDANCAS.md</span>
+        <span class="what">— a versão longa desta página</span></li>
+      <li><span class="path">docs/ESTADO-TRILHA-A.md</span>
+        <span class="what">— contexto do projeto original e o que ficou faltando nele</span></li>
+      <li><span class="path">specs/decisions.md</span>
+        <span class="what">— ADR-000 a ADR-009, cada decisão com o porquê e a alternativa rejeitada</span></li>
+      <li><span class="path">examples/RISCV32I/programs/README.md</span>
+        <span class="what">— os benchmarks e o formato <span class="m">.ram</span></span></li>
+      <li><span class="path">docs/mapa-do-projeto.html</span>
+        <span class="what">— <strong>desatualizado</strong>: cobre só as fases 0–7 da trilha A</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>SpecHDL · trilha RISC-V · GHDL 4.1.0 · cocotb 2.1.0 · Yosys 0.33 · WSL Ubuntu 24.04<br>
+      CPU base: <span class="m">simple_RISCV_RV32I_vhdl</span>, de Morgan Demange,
+      vendorizada no commit <span class="m">f884a4e</span>.</p>
+  </footer>
+
+</div>
+</body>
+</html>

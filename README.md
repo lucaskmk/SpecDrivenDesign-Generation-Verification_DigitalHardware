@@ -150,7 +150,8 @@ e as duas primeiras tarefas do pipeline já são código real e testado.
 
 | Documento | Responde |
 |---|---|
-| [`docs/MUDANCAS.md`](docs/MUDANCAS.md) | o que a trilha RISC-V mexeu no repositório — e o que deixou intacto |
+| [`docs/mudancas-riscv.html`](docs/mudancas-riscv.html) | **página visual**: o que mudou, o diagrama do datapath, e o que a extensão cobrou |
+| [`docs/MUDANCAS.md`](docs/MUDANCAS.md) | a mesma coisa em texto, com mais detalhe de arquivo por arquivo |
 | [`docs/ESTADO-TRILHA-A.md`](docs/ESTADO-TRILHA-A.md) | contexto da trilha A e o que ficou faltando nela |
 | [`examples/RISCV32I/RELATORIO.md`](examples/RISCV32I/RELATORIO.md) | o resultado medido da trilha RISC-V |
 | [`examples/RISCV32I/programs/README.md`](examples/RISCV32I/programs/README.md) | os benchmarks e o formato `.ram` |
