@@ -1,0 +1,83 @@
+# Manifesto de conformidade -- CPU RISC-V monociclo escrita do zero.
+#
+# REQ: FR-RV-03, FR-RV-05, FR-RV-06, FR-RV-09, FR-RV-15, FR-RV-16, FR-RV-21
+#
+# Este arquivo e a UNICA coisa que o validador precisa saber sobre esta CPU.
+# Compare-o com o manifesto da CPU pipeline (examples/RISCV32I/cpu.toml): as
+# diferencas estao todas em [halt] e [metrics], e cada uma delas decorre de um
+# fato real da microarquitetura, nao de gosto. Ver README.md deste diretorio.
+
+[design]
+name = "rv32i_monociclo"
+top  = "cpu_monocycle"
+std  = "08"
+
+# ORDEM DE ANALISE. As memorias e a unidade RV32M sao reaproveitadas por
+# caminho relativo a partir da CPU pipeline -- nao ha copia. O que e proprio
+# desta CPU sao os quatro ultimos arquivos: ALU, decodificador/controle, banco
+# de registradores e o top-level.
+sources = [
+    "../RISCV32I/src/cpu_package.vhd",
+    "../RISCV32I/src/memory_package.vhd",
+    "../RISCV32I/src/mul_div_unit.vhd",
+    "../RISCV32I/src/data_ram.vhd",
+    "../RISCV32I/src/data_rom.vhd",
+    "../RISCV32I/src/data_memory.vhd",
+    "../RISCV32I/src/instruction_memory.vhd",
+    "src/mono_alu.vhd",
+    "src/mono_control.vhd",
+    "src/mono_regfile.vhd",
+    "src/cpu_monocycle.vhd",
+]
+
+# [design.generics] ficaria aqui se esta configuracao tivesse generics FIXOS.
+# Ela nao tem: `RV32M_ENABLE` e justamente o parametro que o validador precisa
+# alternar para verificar RV32I e depois RV32IM na mesma CPU (FR-RV-16), e
+# fixa-lo aqui impediria a segunda etapa. Ver a nota (d) no README sobre a
+# lacuna do contrato: nao existe hoje um campo que diga ao validador QUAL
+# generic liga a extensao M.
+
+[clock]
+signal    = "clk"
+period_ns = 10
+
+[reset]
+signal = "rst"
+active = "high"       # rst assincrono, ativo em alto (FR-RV-15)
+cycles = 3
+
+[program]
+mode         = "rom_init_file"
+generic      = "ROM_INIT_FILE"
+size_generic = "ROM_SIZE_WORDS"
+size_words   = 1024
+
+[memory]
+ram_base  = 0x00FC8100
+ram_bytes = 512
+
+[observe]
+# Arrays 1-D obrigatoriamente: o VPI do GHDL nao expoe arrays 2-D ao cocotb
+# (specs/decisions.md, ADR-002).
+ram         = "data_memory.data_ram.memory"
+registers   = "register_file.registers"
+pc_fetch    = "pc"     # num monociclo o PC de busca e o de commit
+instr_fetch = "instr"  # instrucao buscada (diagnostico)
+
+[halt]
+# fetch_pc, e nao commit_pc: esta CPU resolve saltos e branches no MESMO ciclo
+# da busca, entao nao existe busca especulativa que passe pelo endereco de
+# parada antes da hora. No auto-laco `halt: j halt` o PC de busca fica
+# literalmente estacionario, e observa-lo basta.
+mode       = "fetch_pc"
+pc         = "pc"
+drain      = 2         # margem; o store anterior ao auto-laco ja comitou
+stationary = 2         # ciclos em que o PC precisa ficar parado para confirmar
+
+[metrics]
+# So existe o que existe. Um monociclo nao tem stall nem flush -- nao ha
+# `stall`, `flush_d` nem `flush_f` aqui, e o validador deve degradar
+# graciosamente e reportar apenas ciclos. `m_dispatch` e real: vale '1' no
+# ciclo em que uma instrucao RV32M de verdade executa, e vale '0' constante
+# quando RV32M_ENABLE = false.
+m_dispatch = "m_dispatch"

@@ -1,0 +1,126 @@
+# =====================================================================
+# Manifesto da CPU — copie esta pasta, preencha os TODO e rode:
+#
+#     python -m rvverify entregas/seu_nome
+#
+# O validador usa este arquivo para saber COMO exercitar a sua CPU:
+# como dar clock e reset, como pôr o programa nela, e onde ler o resultado.
+# Nada aqui é adivinhado — o que você não declarar, não é medido.
+# =====================================================================
+
+[design]
+name = "TODO_seu_nome"            # identificador curto, aparece no relatório
+top  = "TODO_top_level"           # entidade de topo entregue ao GHDL
+std  = "08"                       # --std= do GHDL
+
+# ORDEM DE ANÁLISE, não alfabética: em VHDL um pacote precisa ser analisado
+# antes de quem o usa. Os arquivos fornecidos vêm primeiro.
+sources = [
+  # --- fornecido: não reescreva ---------------------------------------
+  "../../examples/RISCV32I/src/cpu_package.vhd",
+  "../../examples/RISCV32I/src/memory_package.vhd",
+  "../../examples/RISCV32I/src/instruction_memory.vhd",
+  "../../examples/RISCV32I/src/data_ram.vhd",
+  "../../examples/RISCV32I/src/data_rom.vhd",
+  "../../examples/RISCV32I/src/data_memory.vhd",
+  "../../examples/RISCV32I/src/mul_div_unit.vhd",   # RV32M pronto, se você quiser usar
+
+  # --- seu ------------------------------------------------------------
+  # "src/alu.vhd",
+  # "src/register_file.vhd",
+  # "src/control.vhd",
+  # "src/cpu_core.vhd",
+  # "src/top.vhd",
+]
+
+# Generics fixos desta configuração. Opcional.
+# O validador sobrepõe RV32M_ENABLE caso a caso ao testar a extensão M.
+[design.generics]
+# RV32M_ENABLE = false
+
+# ---------------------------------------------------------------------
+[clock]
+signal    = "clk"
+period_ns = 10
+
+[reset]
+signal = "rst"
+active = "high"        # high | low
+cycles = 3             # ciclos com o reset assertado antes de soltar
+
+# ---------------------------------------------------------------------
+# Como o programa entra na CPU.
+#
+# Só existe um modo, e é de propósito: o cocotb NÃO consegue escrever em ROM
+# no GHDL (a escrita é silenciosamente ignorada), então o programa tem de
+# entrar na elaboração. Use a instruction_memory.vhd fornecida e repasse os
+# dois generics do seu top-level para ela.
+[program]
+mode         = "rom_init_file"
+generic      = "ROM_INIT_FILE"     # generic do SEU top-level que recebe o caminho
+size_generic = "ROM_SIZE_WORDS"    # opcional, mas recomendado
+size_words   = 1024
+
+# ---------------------------------------------------------------------
+[memory]
+ram_base  = 0x00FC8100     # DATA_RAM_BASE_ADDRESS do memory_package fornecido
+ram_bytes = 512
+
+# ---------------------------------------------------------------------
+# Onde o validador lê o resultado. Caminhos são relativos ao top-level,
+# separados por ponto, percorrendo a hierarquia de instâncias.
+#
+# LEMBRE: o VPI do GHDL não expõe arrays 2-D. Estes têm de ser
+# `array (0 to N) of std_logic_vector(31 downto 0)`.
+[observe]
+ram       = "TODO"     # ex.: "data_memory_inst.data_ram.memory"   OBRIGATÓRIO
+# registers = "TODO"   # ex.: "regfile_inst.registers"   opcional: array de 32 palavras
+# pc_fetch  = "TODO"   # ex.: "pc"                       opcional: PC de busca
+
+# ---------------------------------------------------------------------
+# Como o validador sabe que o programa terminou.
+#
+# Todo programa de teste termina num auto-laço (`halt: j halt`). O que muda é
+# como se detecta que a CPU chegou lá:
+#
+#   fetch_pc      o PC de busca fica ESTACIONÁRIO no auto-laço.
+#                 Certo para monociclo e multiciclo.
+#                 ERRADO para pipeline com busca especulativa — lá o PC passa
+#                 pelo endereço de parada uma vez por iteração de laço, muito
+#                 antes de o programa terminar (ver specs/decisions.md, ADR-008).
+#
+#   commit_pc     a instrução de salto que ESTÁ no endereço de parada chega ao
+#                 estágio de commit e é tomada. Imune ao fetch especulativo.
+#                 Exige expor dois sinais: o PC do estágio e o "salto tomado".
+#
+#   fixed_cycles  roda N ciclos e lê a RAM. Sempre funciona, não mede nada.
+#                 Use para destravar enquanto o resto não está pronto.
+[halt]
+mode   = "fetch_pc"
+settle = 4             # fetch_pc: ciclos consecutivos no endereço de parada.
+                       # Numa CPU multiciclo, use mais que a latência máxima de
+                       # uma instrução, senão uma instrução longa é confundida
+                       # com o auto-laço.
+drain  = 5             # ciclos extras após a parada, para escritas pendentes
+                       # em RAM concluírem. Não entram na contagem de ciclos.
+
+# Para mode = "commit_pc", troque as duas linhas acima por:
+# pc    = "pc_e"       # PC da instrução no estágio de commit
+# taken = "jump_e"     # '1' quando o salto é efetivamente tomado
+
+# Para mode = "fixed_cycles":
+# cycles = 2000
+
+# ---------------------------------------------------------------------
+# Métricas. TUDO opcional.
+#
+# O que você não declarar aqui não é medido, e sai como null no relatório com
+# o motivo — nunca como número estimado. Uma CPU monociclo legitimamente não
+# tem stall nem flush: deixe ausente em vez de inventar um sinal.
+[metrics]
+# stall      = "stall"
+# flush_d    = "flush_d"
+# flush_f    = "flush_f"
+# m_dispatch = "m_dispatch"    # '1' quando uma instrução RV32M REAL está
+                               # executando (não uma bolha), para contar
+                               # instruções da extensão M

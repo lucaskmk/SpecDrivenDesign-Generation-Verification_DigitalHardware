@@ -1,33 +1,37 @@
 #!/usr/bin/env python3
-"""Driver pytest: monta um programa, gera a imagem `.ram` e roda no GHDL.
+"""Adaptador: monta um programa e manda o `rvverify` roda-lo no GHDL.
 
-REQ: FR-RV-09 (imagem consumida pela ROM), FR-RV-21 (execução real com exit
-code), FR-RV-16 (seleção de RV32M por generic), NFR-RV-01 (GHDL + cocotb),
-NFR-RV-02 (nada é declarado como medido sem executar a ferramenta).
+REQ: FR-RV-09 (imagem consumida pela ROM), FR-RV-21 (execucao real com exit
+code), FR-RV-16 (selecao de RV32M por generic), NFR-RV-01 (GHDL + cocotb),
+NFR-RV-02 (nada e declarado como medido sem executar a ferramenta).
 
-Cada chamada de `run_program` dispara uma execução real de `ghdl -r` via
-`cocotb_tools.runner`. Se o GHDL falhar ou o testbench reprovar,
-`runner.test` levanta exceção e o pytest falha.
+O que MUDOU: a lista fixa de 20 arquivos VHDL, o mapa de memoria e a
+mecanica de compilar/elaborar sairam daqui. A lista de fontes agora e o
+campo `[design].sources` de `examples/RISCV32I/cpu.toml`; a compilacao com
+cache e a chamada ao GHDL sao `rvverify.builder`.
 
-Nota de desempenho: o GHDL aplica generics na ELABORAÇÃO, que no backend
-mcode acontece em `ghdl -r`. Por isso o design é compilado uma única vez por
-árvore de fontes (cache abaixo) e cada programa é apenas uma execução nova
-com `-gROM_INIT_FILE=...`. Sem esse cache, cada caso de teste recompilaria os
-19 arquivos VHDL.
+O que NAO mudou: a API publica que as suites usam -- `run_program`,
+`result_addr`, `RAM_BASE`, `run_builtin_snapshot`,
+`materialize_original_sources`, `design_has_generic`.
+
+Cada chamada de `run_program` dispara uma execucao real de `ghdl -r`. Se o
+GHDL falhar ou o testbench reprovar, a chamada levanta excecao e o pytest
+falha -- nenhum resultado e inferido do codigo gerado.
+
+Nota de desempenho: o GHDL aplica generics na ELABORACAO, que no backend
+mcode acontece em `ghdl -r`. Por isso o design e compilado uma unica vez por
+arvore de fontes (cache em `rvverify.builder`) e cada programa e apenas uma
+elaboracao nova com `-gROM_INIT_FILE=...`.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-
-from cocotb_tools.runner import VHDL, get_runner
 
 HERE = Path(__file__).resolve().parent
 EXAMPLE_ROOT = HERE.parent
@@ -36,6 +40,8 @@ SRC = EXAMPLE_ROOT / "src"
 TOOLS = EXAMPLE_ROOT / "tools"
 PROGRAMS = EXAMPLE_ROOT / "programs"
 
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(TOOLS))
 
 from rv_assembler import (  # noqa: E402
@@ -43,117 +49,79 @@ from rv_assembler import (  # noqa: E402
     find_halt_addresses,
     write_ram_image,
 )
+from rvverify.builder import (  # noqa: E402
+    build_design,
+    design_declares_generic,
+    run_simulation,
+)
+from rvverify.manifest import load_manifest  # noqa: E402
 
-# Ordem de análise respeitando as dependências de pacote do design original.
-VHDL_ORDER = [
-    "cpu_package.vhd",
-    "memory_package.vhd",
-    "ALU.vhd",
-    "mul_div_unit.vhd",
-    "branching_unit.vhd",
-    "control_unit.vhd",
-    "instruction_decoder.vhd",
-    "extend_32.vhd",
-    "program_counter.vhd",
-    "register_file.vhd",
-    "data_ram.vhd",
-    "data_rom.vhd",
-    "data_memory.vhd",
-    "instruction_memory.vhd",
-    "fetch_pipeline_register.vhd",
-    "decode_pipeline_register.vhd",
-    "execute_pipeline_register.vhd",
-    "mem_pipeline_register.vhd",
-    "hazard_control_unit.vhd",
-    "CPU.vhd",
-]
+MANIFEST_PATH = EXAMPLE_ROOT / "cpu.toml"
+MANIFEST = load_manifest(MANIFEST_PATH)
 
-# Endereços de RAM usados pelos programas de teste para publicar resultados.
-# DATA_RAM_BASE_ADDRESS = 0x00FC8100 (memory_package.vhd)
-RAM_BASE = 0x00FC8100
+# Ordem de analise, agora derivada do manifesto (so os nomes de arquivo).
+VHDL_ORDER = [Path(s).name for s in MANIFEST.design.sources]
+
+# Enderecos de RAM usados pelos programas de teste para publicar resultados.
+# Vem de [memory] do cpu.toml, que copia memory_package.vhd.
+RAM_BASE = MANIFEST.memory.ram_base
 RESULT_SLOT_0 = RAM_BASE
-DATA_RAM_SIZE_BYTES = 512
+DATA_RAM_SIZE_BYTES = MANIFEST.memory.ram_bytes
 STACK_TOP = RAM_BASE + DATA_RAM_SIZE_BYTES
 
-DEFAULT_ROM_SIZE_WORDS = 1024
+DEFAULT_ROM_SIZE_WORDS = MANIFEST.program.size_words or 1024
 
 ORIGINAL_REVISION = "f884a4e"
 """Commit que vendorizou o design RV32I original (ver decisions.md, ADR-000)."""
 
-# Raiz dos builds. Fica no filesystem do WSL de propósito: compilar dentro de
-# /mnt/c é significativamente mais lento.
-_BUILD_ROOT = Path(os.environ.get("RV_BUILD_ROOT", Path.home() / "rv32_build_cache"))
-_build_cache: dict[tuple[str, str], tuple[Path, object]] = {}
+
+def _manifest_for(src_dir: Path | None):
+    """Manifesto desta CPU, opcionalmente apontado para outra arvore de fontes.
+
+    O manifesto declara as fontes como `src/<arquivo>.vhd`, relativas ao
+    diretorio do exemplo. Uma arvore alternativa (o RTL ORIGINAL extraido do
+    git por `materialize_original_sources`) e PLANA, so com os `.vhd`. Por
+    isso, quando ha `src_dir`, os caminhos viram nomes de arquivo -- a ORDEM
+    de analise, que e o que realmente importa, e preservada.
+    """
+    if src_dir is None:
+        return MANIFEST
+    flat = tuple(Path(s).name for s in MANIFEST.design.sources)
+    return replace(MANIFEST, design=replace(MANIFEST.design, sources=flat))
 
 
 def vhdl_sources(src_dir: Path | None = None) -> list[Path]:
-    """Fontes existentes, na ordem de análise.
+    """Fontes existentes, na ordem de analise declarada no manifesto.
 
-    `src_dir` permite apontar para uma árvore alternativa — usada para
-    materializar o RTL ORIGINAL a partir do git e comparar comportamento
-    (FR-RV-07).
+    `src_dir` aponta para uma arvore alternativa -- usada para materializar o
+    RTL ORIGINAL a partir do git e comparar comportamento (FR-RV-07).
     """
-    d = src_dir or SRC
-    return [d / f for f in VHDL_ORDER if (d / f).exists()]
+    return _manifest_for(src_dir).source_paths(src_dir)
 
 
 def result_addr(slot: int) -> int:
-    """Endereço do slot de resultado `slot` (palavras de 32 bits)."""
+    """Endereco do slot de resultado `slot` (palavras de 32 bits)."""
     return RESULT_SLOT_0 + 4 * slot
 
 
 def design_has_generic(generic_name: str, src_dir: Path | None = None) -> bool:
-    """Descobre se `CPU.vhd` já declara o generic pedido."""
-    d = src_dir or SRC
-    text = (d / "CPU.vhd").read_text(encoding="utf-8", errors="replace")
-    head = text.split("end CPU", 1)[0]
-    return generic_name.lower() in head.lower()
-
-
-def _sources_stamp(sources: list[Path]) -> str:
-    h = hashlib.sha256()
-    for p in sources:
-        st = p.stat()
-        h.update(f"{p.name}:{st.st_size}:{st.st_mtime_ns}\n".encode())
-    return h.hexdigest()[:16]
+    """Descobre se a entidade de topo ja declara o generic pedido."""
+    return design_declares_generic(_manifest_for(src_dir), generic_name, src_dir)
 
 
 def ensure_build(src_dir: Path | None = None) -> tuple[Path, object]:
-    """Compila o design uma vez e devolve (diretório de build, runner).
+    """Compila o design uma vez e devolve (diretorio de build, runner).
 
-    O runner é reaproveitado porque `cocotb_tools.runner` guarda nele o
-    estado das fontes definido em `build()`, exigido depois por `test()`.
-    O cache é invalidado automaticamente quando qualquer fonte muda de
-    tamanho ou data de modificação.
+    Mantida por compatibilidade com quem ja chamava esta funcao; o cache e a
+    invalidacao por mudanca de fonte vivem em `rvverify.builder`.
     """
-    sources = vhdl_sources(src_dir)
-    if not sources:
-        raise RuntimeError(f"nenhum fonte VHDL encontrado em {src_dir or SRC}")
-
-    stamp = _sources_stamp(sources)
-    key = (str(src_dir or SRC), stamp)
-    cached = _build_cache.get(key)
-    if cached is not None and cached[0].exists():
-        return cached
-
-    build_dir = _BUILD_ROOT / f"build_{stamp}"
-    build_dir.mkdir(parents=True, exist_ok=True)
-
-    runner = get_runner("ghdl")
-    runner.build(
-        sources=[VHDL(p) for p in sources],
-        hdl_toplevel="cpu",
-        build_args=["--std=08"],
-        build_dir=build_dir,
-        always=True,
-    )
-    _build_cache[key] = (build_dir, runner)
-    return build_dir, runner
+    built = build_design(_manifest_for(src_dir), src_dir=src_dir)
+    return built.build_dir, built.runner
 
 
 @dataclass
 class ProgramRun:
-    """Resultado de uma execução real no GHDL."""
+    """Resultado de uma execucao real no GHDL."""
 
     name: str
     metrics: dict
@@ -182,13 +150,24 @@ def _run_dir(base: Path, name: str) -> Path:
     return d
 
 
-def _test_env(spec_path: Path) -> dict:
-    env = dict(os.environ)
-    env["RV_PROGRAM_SPEC"] = str(spec_path)
-    env["PYTHONPATH"] = os.pathsep.join(
-        [str(HERE), str(TOOLS), env.get("PYTHONPATH", "")]
-    )
-    return env
+def _rom_parameters(image: Path, rom_size_words: int, rv32m: bool,
+                    src_dir: Path | None) -> dict[str, object]:
+    """Generics de carga do programa e de configuracao, vindos do manifesto.
+
+    O nome de cada generic esta em [program] do cpu.toml -- nada e literal
+    aqui. `RV32M_ENABLE` so e passado se a arvore de fontes realmente o
+    declara: o RTL original (FR-RV-07) nao tem esse generic, e passa-lo faria
+    o GHDL recusar a elaboracao.
+    """
+    program = MANIFEST.program
+    parameters: dict[str, object] = {}
+    if program.generic:
+        parameters[program.generic] = str(image)
+    if program.size_generic:
+        parameters[program.size_generic] = rom_size_words
+    if design_has_generic("RV32M_ENABLE", src_dir):
+        parameters["RV32M_ENABLE"] = "true" if rv32m else "false"
+    return parameters
 
 
 def run_program(
@@ -210,12 +189,14 @@ def run_program(
 ) -> ProgramRun:
     """Monta `asm`, grava a imagem `.ram` e executa a CPU no GHDL.
 
-    `rv32m` seleciona o generic `RV32M_ENABLE` do design.
-    `allow_m` controla se o MONTADOR aceita instruções RV32M; por padrão
-    acompanha `rv32m`, de modo que um programa de baseline não consegue,
-    nem por acidente, usar a extensão M (FR-RV-19).
-    `dump_ram=(endereço, n_palavras)` faz o testbench devolver o conteúdo da
-    RAM em `metrics["ram_dump"]`, usado para provar que as versões RV32I e
+    `rv32m` seleciona o generic `RV32M_ENABLE` do design. Como o parametro da
+    CHAMADA vence o manifesto, uma suite pode alternar as duas configuracoes
+    caso a caso sem editar o `cpu.toml`.
+    `allow_m` controla se o MONTADOR aceita instrucoes RV32M; por padrao
+    acompanha `rv32m`, de modo que um programa de baseline nao consegue,
+    nem por acidente, usar a extensao M (FR-RV-19).
+    `dump_ram=(endereco, n_palavras)` faz o testbench devolver o conteudo da
+    RAM em `metrics["ram_dump"]`, usado para provar que as versoes RV32I e
     RV32IM de um mesmo benchmark calculam o mesmo resultado (FR-RV-06).
     """
     if allow_m is None:
@@ -228,15 +209,15 @@ def run_program(
             f"maior que ROM_SIZE_WORDS={rom_size_words}"
         )
 
-    # Endereços de término: instruções de auto-laço presentes na imagem.
-    # REQ: FR-RV-21 -- término determinístico, sem depender de PC estacionário
-    # (a CPU resolve saltos em EX, ver ADR-000).
+    # Enderecos de termino: instrucoes de auto-laco presentes na imagem.
+    # REQ: FR-RV-21 -- termino deterministico, sem depender de PC estacionario
+    # (a CPU resolve saltos em EX, ver ADR-000 e o campo [halt] do cpu.toml).
     halt_pcs = find_halt_addresses(words)
     if not halt_pcs:
         raise ValueError(
-            f"programa {name!r} não tem instrução de parada. Termine o "
-            f"programa com um auto-laço (`halt: j halt`), conforme a "
-            f"convenção do ADR-003."
+            f"programa {name!r} nao tem instrucao de parada. Termine o "
+            f"programa com um auto-laco (`halt: j halt`), conforme a "
+            f"convencao do ADR-003."
         )
 
     run_dir = _run_dir(tmp_path, name)
@@ -267,34 +248,24 @@ def run_program(
         "metrics_out": str(metrics_out),
     }
     if dump_ram is not None:
-        # (endereço inicial, quantidade de palavras) -- ver tb_program.py
+        # (endereco inicial, quantidade de palavras) -- ver tb_program.py
         spec["dump_ram"] = {"start": dump_ram[0], "count": dump_ram[1]}
     spec_path = run_dir / "spec.json"
     spec_path.write_text(json.dumps(spec, indent=2), encoding="utf-8")
 
-    build_dir, runner = ensure_build(src_dir)
-
-    parameters: dict[str, object] = {
-        "ROM_INIT_FILE": str(image),
-        "ROM_SIZE_WORDS": rom_size_words,
-    }
-    if design_has_generic("RV32M_ENABLE", src_dir):
-        parameters["RV32M_ENABLE"] = "true" if rv32m else "false"
-
-    runner.test(
-        hdl_toplevel="cpu",
-        hdl_toplevel_lang="vhdl",
+    built = build_design(_manifest_for(src_dir), src_dir=src_dir)
+    run_simulation(
+        built,
         test_module="tb_program",
-        test_args=["--std=08"],
-        build_dir=build_dir,
-        parameters=parameters,
-        extra_env=_test_env(spec_path),
+        parameters=_rom_parameters(image, rom_size_words, rv32m, src_dir),
+        extra_env={"RV_PROGRAM_SPEC": str(spec_path)},
+        python_paths=[HERE, TOOLS],
         waves=waves,
     )
 
     metrics = json.loads(metrics_out.read_text(encoding="utf-8"))
 
-    wave_src = build_dir / "cpu.ghw"
+    wave_src = built.build_dir / f"{built.toplevel}.ghw"
     wave_dst: Path | None = None
     if waves and wave_src.exists():
         wave_dst = run_dir / f"{name}.ghw"
@@ -320,15 +291,15 @@ def run_builtin_snapshot(
 ) -> dict:
     """Roda o programa COMPILADO NA CONSTANTE VHDL por N ciclos e devolve o estado.
 
-    REQ: FR-RV-07 (comprovar preservação de comportamento), FR-RV-10 (o
+    REQ: FR-RV-07 (comprovar preservacao de comportamento), FR-RV-10 (o
     caminho da constante continua funcionando).
 
-    Não informa `ROM_INIT_FILE`, ou seja, exercita exatamente o caminho
+    Nao informa `ROM_INIT_FILE`, ou seja, exercita exatamente o caminho
     original do design (`INSTRUCTION_MEMORY_CONTENT`).
 
-    `src_dir` permite rodar uma árvore de fontes alternativa (por exemplo o
-    RTL original extraído do git) com este mesmo harness, o que torna a
-    comparação de comportamento um A/B de verdade.
+    `src_dir` permite rodar uma arvore de fontes alternativa (por exemplo o
+    RTL original extraido do git) com este mesmo harness, o que torna a
+    comparacao de comportamento um A/B de verdade.
     """
     run_dir = _run_dir(tmp_path, name)
     snapshot_out = run_dir / "snapshot.json"
@@ -341,20 +312,17 @@ def run_builtin_snapshot(
     spec_path = run_dir / "spec.json"
     spec_path.write_text(json.dumps(spec, indent=2), encoding="utf-8")
 
-    build_dir, runner = ensure_build(src_dir)
-
     parameters: dict[str, object] = {}
     if design_has_generic("RV32M_ENABLE", src_dir):
         parameters["RV32M_ENABLE"] = "true" if rv32m else "false"
 
-    runner.test(
-        hdl_toplevel="cpu",
-        hdl_toplevel_lang="vhdl",
+    built = build_design(_manifest_for(src_dir), src_dir=src_dir)
+    run_simulation(
+        built,
         test_module="tb_snapshot",
-        test_args=["--std=08"],
-        build_dir=build_dir,
         parameters=parameters,
-        extra_env=_test_env(spec_path),
+        extra_env={"RV_PROGRAM_SPEC": str(spec_path)},
+        python_paths=[HERE, TOOLS],
         waves=False,
     )
 
@@ -363,20 +331,22 @@ def run_builtin_snapshot(
 
 def materialize_original_sources(dest: Path,
                                  revision: str = ORIGINAL_REVISION) -> Path:
-    """Extrai do git o RTL ORIGINAL, antes das alterações desta trilha.
+    """Extrai do git o RTL ORIGINAL, antes das alteracoes desta trilha.
 
     REQ: FR-RV-07, NFR-RV-03 -- permite comparar o comportamento do design
     refatorado contra o original sob o mesmo testbench, em vez de confiar num
-    snapshot anotado à mão.
+    snapshot anotado a mao. Os arquivos saem PLANOS em `dest`, e e por isso
+    que `_manifest_for` achata os caminhos das fontes.
     """
     dest.mkdir(parents=True, exist_ok=True)
-    for fname in VHDL_ORDER:
-        rel = f"examples/RISCV32I/src/{fname}"
+    prefix = EXAMPLE_ROOT.relative_to(REPO_ROOT).as_posix()
+    for source in MANIFEST.design.sources:
+        rel = f"{prefix}/{source}"
         proc = subprocess.run(
             ["git", "show", f"{revision}:{rel}"],
             cwd=REPO_ROOT, capture_output=True, text=True,
         )
         if proc.returncode != 0:
-            continue          # arquivo não existia no design original
-        (dest / fname).write_text(proc.stdout, encoding="utf-8")
+            continue          # arquivo nao existia no design original
+        (dest / Path(source).name).write_text(proc.stdout, encoding="utf-8")
     return dest
