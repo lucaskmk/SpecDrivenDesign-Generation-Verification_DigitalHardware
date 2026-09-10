@@ -1,0 +1,96 @@
+# Manifesto de validacao da CPU RV32I/RV32IM em pipeline de 5 estagios.
+# REQ: FR-RV-06, FR-RV-09, FR-RV-16, FR-RV-21, FR-RV-24, NFR-RV-02
+#
+# Este arquivo e o UNICO ponto em que o validador (pacote `rvverify/`) toca
+# em nomes internos deste design. Cada caminho abaixo foi conferido contra o
+# RTL em `src/`, nao contra a documentacao.
+
+[design]
+name    = "rv32i_pipeline"
+top     = "CPU"                        # entity CPU, em src/CPU.vhd
+std     = "08"
+# ORDEM DE ANALISE: respeita as dependencias de pacote do design original.
+sources = [
+    "src/cpu_package.vhd",
+    "src/memory_package.vhd",
+    "src/ALU.vhd",
+    "src/mul_div_unit.vhd",
+    "src/branching_unit.vhd",
+    "src/control_unit.vhd",
+    "src/instruction_decoder.vhd",
+    "src/extend_32.vhd",
+    "src/program_counter.vhd",
+    "src/register_file.vhd",
+    "src/data_ram.vhd",
+    "src/data_rom.vhd",
+    "src/data_memory.vhd",
+    "src/instruction_memory.vhd",
+    "src/fetch_pipeline_register.vhd",
+    "src/decode_pipeline_register.vhd",
+    "src/execute_pipeline_register.vhd",
+    "src/mem_pipeline_register.vhd",
+    "src/hazard_control_unit.vhd",
+    "src/CPU.vhd",
+]
+
+# [design.generics] fica DELIBERADAMENTE ausente.
+#
+# O generic RV32M_ENABLE existe (src/CPU.vhd) e vale `false` por default, que
+# e o comportamento original do design vendorizado. Fixa-lo aqui nao ajudaria
+# e atrapalharia: as suites alternam RV32I e RV32IM caso a caso, e o RTL
+# ORIGINAL extraido do git (FR-RV-07) nem declara esse generic -- passa-lo
+# naquela arvore faria o GHDL recusar a elaboracao. Quem chama decide, e o
+# parametro da chamada vence o manifesto.
+
+[clock]
+signal    = "clk"                      # port clk de CPU.vhd
+period_ns = 10                         # 100 MHz, mesmo periodo do CPU_tb.vhd
+
+[reset]
+signal = "rst"                         # port rst de CPU.vhd
+active = "high"                        # assincrono, ativo em nivel ALTO
+cycles = 3
+
+[program]
+# O cocotb nao consegue escrever em ROM no GHDL: a escrita e silenciosamente
+# ignorada. O programa entra na ELABORACAO, por generic (ADR-003).
+mode         = "rom_init_file"
+generic      = "ROM_INIT_FILE"
+size_generic = "ROM_SIZE_WORDS"
+size_words   = 1024
+
+[memory]
+# DATA_RAM_BASE_ADDRESS e DATA_RAM_MEMORY_SIZE_BYTES, de src/memory_package.vhd
+ram_base  = 0x00FC8100
+ram_bytes = 512
+
+[observe]
+# data_memory (label em CPU.vhd) -> data_ram (label em data_memory.vhd)
+# -> signal memory : DATA_RAM_MEMORY_ARRAY_t, array 1-D de palavras de 32 bits.
+# 1-D e obrigatorio: o VPI do GHDL nao expoe arrays 2-D ao cocotb (ADR-002).
+ram         = "data_memory.data_ram.memory"
+registers   = "register_file.registers"     # array 1-D de 32 palavras
+pc_fetch    = "pc_f"                        # PC de busca
+instr_fetch = "instr_f"                     # instrucao buscada (diagnostico)
+
+[halt]
+# commit_pc, e nao fetch_pc: esta CPU e always-not-taken e resolve saltos em
+# EX, entao o PC de BUSCA passa pelo endereco de parada uma vez por iteracao
+# de laco, muito antes do fim do programa. Observar a busca daria termino
+# antecipado e resultado errado -- ja causou bug real (ADR-008). A parada e
+# reconhecida no commit: pc_e == endereco_de_parada and jump_e == '1'.
+# O flush do decode_pipeline_register zera jump_out, logo uma bolha nunca
+# satisfaz a condicao.
+mode  = "commit_pc"
+pc    = "pc_e"                         # PC da instrucao no estagio EXECUTE
+taken = "jump_e"                       # '1' quando a instrucao em EX e JAL/JALR
+drain = 5                              # profundidade do pipeline, com folga
+
+[metrics]
+# Sinais da propria arquitetura de CPU.vhd. m_dispatch_e existe nas DUAS
+# configuracoes (vale 0 constante na baseline RV32I), entao a mesma metrica
+# e coletada dos dois lados da comparacao, sem caminho de codigo condicional.
+stall      = "stall_pc"
+flush_d    = "flush_d"
+flush_f    = "flush_f"
+m_dispatch = "m_dispatch_e"

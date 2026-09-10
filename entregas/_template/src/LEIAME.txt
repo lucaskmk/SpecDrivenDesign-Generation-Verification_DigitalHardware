@@ -1,0 +1,1 @@
+Escreva os arquivos VHDL do seu nucleo aqui, e liste-os em sources no cpu.toml.
