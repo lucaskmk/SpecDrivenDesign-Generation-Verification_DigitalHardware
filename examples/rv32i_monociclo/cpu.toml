@@ -12,6 +12,10 @@ name = "rv32i_monociclo"
 top  = "cpu_monocycle"
 std  = "08"
 
+# Qual generic liga a extensao M. A suite de conformidade alterna este generic
+# para verificar a mesma CPU como RV32I e depois como RV32IM (FR-RV-16).
+rv32m_generic = "RV32M_ENABLE"
+
 # ORDEM DE ANALISE. As memorias e a unidade RV32M sao reaproveitadas por
 # caminho relativo a partir da CPU pipeline -- nao ha copia. O que e proprio
 # desta CPU sao os quatro ultimos arquivos: ALU, decodificador/controle, banco

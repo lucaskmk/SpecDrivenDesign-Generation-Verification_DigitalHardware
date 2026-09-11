@@ -143,6 +143,17 @@ class DesignSpec:
     sources: tuple[str, ...]
     generics: dict[str, Any] = field(default_factory=dict)
 
+    # Qual generic do top-level liga a extensao M.
+    #
+    # A suite de conformidade verifica a MESMA CPU duas vezes -- primeiro como
+    # RV32I puro, depois como RV32IM -- e para isso precisa saber qual generic
+    # alternar (FR-RV-16). Sem este campo o validador so consegue exercitar a
+    # configuracao que o manifesto fixou, e a segunda etapa fica inacessivel.
+    #
+    # Ausente => a CPU nao implementa RV32M; a etapa da extensao e PULADA e
+    # reportada como pulada, nunca como aprovada.
+    rv32m_generic: str | None = None
+
 
 @dataclass(frozen=True)
 class ClockSpec:
@@ -434,6 +445,8 @@ def _parse_design(raw: dict, where: str) -> DesignSpec:
         std=str(d.get("std", "08")),
         sources=tuple(sources),
         generics=dict(generics),
+        rv32m_generic=(_as_str(d["rv32m_generic"], "rv32m_generic", "design", where)
+                       if d.get("rv32m_generic") is not None else None),
     )
 
 
