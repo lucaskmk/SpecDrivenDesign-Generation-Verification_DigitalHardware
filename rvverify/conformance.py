@@ -504,6 +504,24 @@ def run_conformance(manifest_path: str | Path, workdir: Path,
             results.append(_run_case(manifest, case, workdir,
                                      rv32m=(stage == "rv32m")))
 
+    # Agregacao por REQUISITO -- e o que transforma "3 casos falharam" em
+    # "FR-RV-14 nao atendido". Um requisito so conta como atendido quando TODOS
+    # os casos que o exercitam passam; um unico caso reprovado derruba o
+    # requisito inteiro, porque cobertura parcial de um requisito nao e
+    # atendimento dele.
+    por_requisito: dict[str, dict] = {}
+    for r in results:
+        for req in r.requirements:
+            e = por_requisito.setdefault(
+                req, {"total": 0, "passou": 0, "casos_falhos": []})
+            e["total"] += 1
+            if r.passed:
+                e["passou"] += 1
+            else:
+                e["casos_falhos"].append(r.name)
+    for req, e in por_requisito.items():
+        e["atendido"] = not e["casos_falhos"]
+
     por_etapa = {}
     for stage in stages:
         rs = [r for r in results if r.stage == stage]
@@ -519,6 +537,7 @@ def run_conformance(manifest_path: str | Path, workdir: Path,
         "manifest": str(manifest.path),
         "aprovado": bool(results) and all(r.passed for r in results) and not skipped,
         "por_etapa": por_etapa,
+        "por_requisito": dict(sorted(por_requisito.items())),
         "pulado": skipped,
         "casos": [vars(r) for r in results],
     }
