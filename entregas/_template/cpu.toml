@@ -13,6 +13,13 @@ name = "TODO_seu_nome"            # identificador curto, aparece no relatório
 top  = "TODO_top_level"           # entidade de topo entregue ao GHDL
 std  = "08"                       # --std= do GHDL
 
+# Qual generic do SEU top-level liga a extensao M.
+# A suite verifica a mesma CPU duas vezes: primeiro como RV32I puro, depois
+# como RV32IM. Sem este campo a segunda etapa e PULADA (e reportada como
+# pulada, nunca como aprovada).
+# Deixe comentado enquanto a sua CPU ainda nao implementa RV32M.
+# rv32m_generic = "RV32M_ENABLE"
+
 # ORDEM DE ANÁLISE, não alfabética: em VHDL um pacote precisa ser analisado
 # antes de quem o usa. Os arquivos fornecidos vêm primeiro.
 sources = [

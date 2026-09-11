@@ -28,11 +28,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from cocotb_tools.runner import VHDL, get_runner
+from cocotb_tools.runner import VHDL, get_results, get_runner
 
 from .manifest import CpuManifest
 
 __all__ = [
+    "SimulationFailed",
     "BuiltDesign",
     "build_design",
     "run_simulation",
@@ -135,15 +136,31 @@ def _pythonpath(extra: list[Path]) -> str:
     return os.pathsep.join(parts)
 
 
+class SimulationFailed(AssertionError):
+    """A simulacao rodou e REPROVOU. Distinta de um erro de ferramenta."""
+
+
 def run_simulation(built: BuiltDesign, *, test_module: str,
                    parameters: dict[str, Any] | None = None,
                    extra_env: dict[str, str] | None = None,
                    python_paths: list[Path] | None = None,
-                   waves: bool = False) -> None:
+                   waves: bool = False) -> Path:
     """Elabora e executa o design. Levanta excecao se o GHDL ou o teste falhar.
 
     `parameters` sao os generics da CHAMADA; eles VENCEM os declarados em
     [design.generics] (uma suite alterna configuracao caso a caso).
+
+    ATENCAO -- por que a checagem do resultado e feita aqui, na mao:
+
+    `cocotb_tools.runner.test()` so confere o XML de resultados quando detecta
+    que esta rodando SOB PYTEST (ele olha a variavel de ambiente
+    PYTEST_CURRENT_TEST). Fora do pytest -- que e exatamente o caso de
+    `python -m rvverify` -- ele devolve o caminho do XML sem olhar, e uma
+    simulacao REPROVADA retorna normalmente.
+
+    Sem a checagem explicita abaixo, o validador aprovaria qualquer CPU cujo
+    GHDL apenas nao travasse. Isso foi encontrado por teste de mutacao: SRA
+    trocado por deslocamento logico passava com 15/15. Ver NFR-RV-02.
     """
     manifest = built.manifest
     env = dict(os.environ)
@@ -151,16 +168,45 @@ def run_simulation(built: BuiltDesign, *, test_module: str,
     repo_paths = [Path(__file__).resolve().parent.parent]
     env["PYTHONPATH"] = _pythonpath((python_paths or []) + repo_paths)
 
-    built.runner.test(
-        hdl_toplevel=built.toplevel,
-        hdl_toplevel_lang="vhdl",
-        test_module=test_module,
-        test_args=[f"--std={manifest.design.std}"],
-        build_dir=built.build_dir,
-        parameters=manifest.generics_for(parameters),
-        extra_env=env,
-        waves=waves,
-    )
+    try:
+        results = built.runner.test(
+            hdl_toplevel=built.toplevel,
+            hdl_toplevel_lang="vhdl",
+            test_module=test_module,
+            test_args=[f"--std={manifest.design.std}"],
+            build_dir=built.build_dir,
+            parameters=manifest.generics_for(parameters),
+            extra_env=env,
+            waves=waves,
+        )
+    except SystemExit as e:
+        # SOB PYTEST o runner ja confere o XML e chama sys.exit(codigo).
+        # FORA do pytest ele nao confere nada (ver docstring). Traduzir aqui
+        # da um unico tipo de excecao para o mesmo evento nos dois contextos --
+        # sem isto, quem chama precisaria tratar SystemExit em um caso e
+        # SimulationFailed no outro, e esquecer um dos dois volta a produzir
+        # aprovacao em vazio.
+        raise SimulationFailed(
+            f"a simulacao reprovou (exit code {e.code}); "
+            f"ver o log do GHDL acima"
+        ) from e
+
+    # Sob pytest o runner ja teria saido com sys.exit; chegar aqui com falhas
+    # so acontece fora do pytest, e e justamente o caminho do `python -m`.
+    results_path = Path(results) if results else None
+    if results_path is None or not results_path.exists():
+        raise SimulationFailed(
+            f"a simulacao nao produziu arquivo de resultados "
+            f"({results_path}); trate como reprovacao, nunca como aprovacao"
+        )
+
+    total, failed = get_results(results_path)
+    if failed:
+        raise SimulationFailed(
+            f"{failed} de {total} teste(s) reprovaram na simulacao "
+            f"(resultados em {results_path})"
+        )
+    return results_path
 
 
 # --------------------------------------------------------------------------

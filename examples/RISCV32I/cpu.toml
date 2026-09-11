@@ -9,6 +9,10 @@
 name    = "rv32i_pipeline"
 top     = "CPU"                        # entity CPU, em src/CPU.vhd
 std     = "08"
+
+# Qual generic liga a extensao M. A suite de conformidade alterna este generic
+# para verificar a mesma CPU como RV32I e depois como RV32IM (FR-RV-16).
+rv32m_generic = "RV32M_ENABLE"
 # ORDEM DE ANALISE: respeita as dependencias de pacote do design original.
 sources = [
     "src/cpu_package.vhd",
