@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 import reference_model as ref  # noqa: E402
 from rv_assembler import AssemblyError, assemble  # noqa: E402
 from rv_build import RAM_BASE, result_addr, run_program  # noqa: E402
+from rvverify.builder import SimulationFailed  # noqa: E402
 from rv_m_cases import HALT, sig  # noqa: E402
 
 
@@ -549,9 +550,14 @@ class TestObservability:
         A cadeia de propagação é: o harness levanta `CpuTimeout`, o testbench
         cocotb o converte em `AssertionError` apontando FR-RV-21, o cocotb
         reprova a simulação, o GHDL termina com exit code != 0 e o runner
-        chama `sys.exit(<codigo>)` -- que é o que chega aqui como `SystemExit`
-        com código diferente de zero. É essa última etapa que cumpre
-        literalmente "retornar exit code diferente de zero".
+        termina com exit code != 0. `rvverify.builder.run_simulation` traduz
+        isso em `SimulationFailed`, que é o que chega aqui.
+
+        Por que `SimulationFailed` e não `SystemExit`: o runner do cocotb chama
+        `sys.exit()` quando roda SOB PYTEST e não confere nada fora dele. O
+        validador normaliza os dois casos num tipo único, para que quem chama
+        trate UM. `SimulationFailed` herda de `AssertionError`, então continua
+        sendo reprovação de teste, e carrega o exit code na mensagem.
         """
         asm = f"""
         # REQ: FR-RV-21 -- deteccao de travamento
@@ -564,11 +570,11 @@ class TestObservability:
         halt:
             j    halt
         """
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(SimulationFailed) as exc:
             run_program(tmp_path, "hang", asm, rv32m=True, max_cycles=300,
                         requirements=["FR-RV-21"])
-        assert exc.value.code not in (0, None), (
-            f"travamento tem de sair com codigo != 0, saiu com {exc.value.code}"
+        assert "exit code" in str(exc.value), (
+            f"a reprovacao tem de reportar o exit code; veio: {exc.value}"
         )
 
     def test_a_wrong_result_also_fails_with_a_nonzero_exit_code(self, tmp_path):
@@ -588,10 +594,10 @@ class TestObservability:
             sw   x12, 0(x18)
         {HALT}
         """
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(SimulationFailed) as exc:
             run_program(tmp_path, "wrong_expect", asm, rv32m=True,
                         expect_ram={result_addr(0): 43},   # errado de proposito
                         max_cycles=300, requirements=["FR-RV-21"])
-        assert exc.value.code not in (0, None), (
-            f"resultado errado tem de sair com codigo != 0, saiu com {exc.value.code}"
+        assert "exit code" in str(exc.value), (
+            f"a reprovacao tem de reportar o exit code; veio: {exc.value}"
         )
