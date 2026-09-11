@@ -69,6 +69,21 @@ def imprimir_relatorio(rel: dict, cor: bool) -> None:
                   else _cor(f"{n['falhou']} falhou(ram)", VERMELHO, cor))
         print(f"  {rotulo:<20} {n['passou']:>3}/{n['total']:<3} {estado}")
 
+    # Veredito por REQUISITO -- e o que o aluno precisa ler para saber o que
+    # corrigir. "3 casos falharam" nao diz nada; "FR-RV-14 nao atendido" diz.
+    # Requisito atendido some da lista: so o que falta aparece.
+    por_req = rel.get("por_requisito", {})
+    if por_req:
+        pendentes = {r: e for r, e in por_req.items() if not e["atendido"]}
+        atendidos = len(por_req) - len(pendentes)
+        rotulo = _cor("Requisitos:", CINZA, cor)
+        print(f"\n  {rotulo} {atendidos}/{len(por_req)} atendidos")
+        for r, e in pendentes.items():
+            casos = ", ".join(e["casos_falhos"])
+            marca = _cor("X", VERMELHO, cor)
+            contagem = _cor(f"({e['passou']}/{e['total']} casos)", CINZA, cor)
+            print(f"    {marca} {r}  {contagem}  -> {casos}")
+
     falhas = [c for c in rel["casos"] if not c["passed"]]
     if falhas:
         print(f"\n  {_cor('Casos reprovados:', VERMELHO, cor)}")
