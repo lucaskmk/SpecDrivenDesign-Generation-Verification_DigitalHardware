@@ -320,3 +320,119 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   código, alternando somente o generic `RV32M_ENABLE` (ADR-001), sem duplicar a
   árvore de fontes — de modo que a diferença medida entre as duas configurações
   seja atribuível à extensão M, e não a divergência entre cópias.
+
+---
+
+## Validador de entregas e interface (FR-RV-26 a FR-RV-33, NFR-RV-04)
+
+> Acrescentado em 2026-09-17. A trilha deixa de validar só a CPU de
+> `examples/RISCV32I/`: qualquer CPU descrita por um `cpu.toml` — a CPU
+> existente modificada pelo aluno, ou uma escrita do zero — passa pela mesma
+> suíte. O validador de linha de comando (`python -m rvverify`) já existia
+> quando esta seção foi escrita; FR-RV-26 e FR-RV-27 registram o comportamento
+> dele, e os demais requisitos especificam a interface web e o que ela exige do
+> validador (ver `plan.md`, seção 7, e ADR-010/ADR-011).
+
+- **FR-RV-26**: FOR EACH diretório que contenha um `cpu.toml` — os exemplos em
+  `examples/` e as entregas em `entregas/<nome>/` —, THE SYSTEM SHALL validar a
+  CPU descrita usando somente o que o manifesto declara (fontes na ordem de
+  análise, clock, reset, generic de carga de programa, caminhos observáveis e
+  modo de parada), sem conhecer o RTL, rodando a suíte de conformidade em duas
+  etapas — RV32I com a extensão desligada e RV32IM com o generic de
+  `[design].rv32m_generic` ligado —; WHERE o manifesto não declara
+  `rv32m_generic`, THE SYSTEM SHALL pular a segunda etapa e reportá-la como
+  pulada, nunca como aprovada; IF a etapa RV32I reprovar, THEN THE SYSTEM SHALL
+  pular a etapa RV32IM pelo motivo de FR-RV-11.
+- **FR-RV-27**: THE SYSTEM SHALL reportar o resultado de cada caso, de cada
+  etapa e de cada requisito exercitado — um requisito só conta como atendido
+  quando todos os casos que o exercitam passam — e um veredito único, igual na
+  linha de comando e na interface, entre quatro estados:
+  - **APROVADO** — a suíte completa (as duas etapas, todos os casos) rodou e
+    todo caso executado passou;
+  - **REPROVADO** — ao menos um caso executado falhou;
+  - **INCOMPLETO** — nenhum caso falhou, mas alguma etapa foi pulada;
+  - **PARCIAL** — nenhum caso falhou e nada foi pulado, mas o usuário
+    selecionou só parte da suíte; o relatório diz quantos casos da suíte
+    ficaram de fora e não trata o resultado como aprovação;
+
+  e THE SYSTEM SHALL terminar a linha de comando com exit code diferente de
+  zero sempre que algum caso executado falhar ou alguma etapa for pulada.
+- **FR-RV-28**: FOR EACH caso reprovado, THE SYSTEM SHALL reportar um
+  diagnóstico estruturado com:
+  - o tipo da falha — valor divergente, travamento, caminho de observação
+    inexistente, erro de compilação, programa maior que a ROM ou erro interno;
+  - para valor divergente, cada posição de RAM com endereço, entrada que a
+    produziu, valor esperado e valor obtido, em hexadecimal e em decimal com
+    sinal;
+  - para erro de compilação, as linhas de erro do GHDL com arquivo, linha e
+    coluna;
+  - o caminho do log da simulação daquele caso;
+  - uma orientação sobre o bloco de hardware a revisar, derivada do caso e do
+    requisito;
+  - WHERE todos os valores obtidos coincidem com o resultado de outra
+    instrução da mesma etapa segundo o modelo de referência, a indicação dessa
+    instrução, porque é o sintoma típico de decodificação trocada (por exemplo,
+    SRA executando como SRL).
+
+  O diagnóstico só aponta o que a execução observou: a orientação é rotulada
+  como sugestão e não altera o veredito.
+- **FR-RV-29**: WHILE a validação executa, THE SYSTEM SHALL emitir, quando
+  pedido (`--eventos`), um evento legível por máquina por linha de saída — o
+  plano de itens a executar, o início e o fim da compilação, o início e o fim
+  de cada item com o seu resultado e duração, cada etapa pulada com o motivo e
+  o relatório final —, de modo que outro processo acompanhe a execução em
+  tempo real sem interpretar o log do GHDL; e THE SYSTEM SHALL gravar a saída
+  do GHDL de cada caso em um arquivo de log próprio, fora da saída principal.
+- **FR-RV-30**: THE SYSTEM SHALL oferecer uma interface web local
+  (`python -m rvverify.web`) em que o usuário:
+  - vê as CPUs disponíveis (exemplos e entregas), cada uma com o estado do
+    manifesto e, se inválido, o erro exato;
+  - envia uma entrega (FR-RV-31);
+  - escolhe as etapas e os casos a executar, e se inclui a comparação de
+    eficiência (FR-RV-32) e a medição de área (FR-RV-33);
+  - acompanha a execução com cada item passando de pendente para executando e
+    depois para aprovado, reprovado ou pulado assim que o GHDL termina aquele
+    item, com contagem, barra de progresso e tempo decorrido;
+  - lê o resumo — veredito de FR-RV-27, etapas, requisitos e métricas
+    observadas — e o diagnóstico de FR-RV-28 de cada caso reprovado, incluindo
+    o log da simulação do caso;
+  - cancela a execução em andamento, encerrando também os processos do GHDL;
+  - baixa o relatório completo em JSON.
+
+  Ao recarregar a página durante uma execução, a interface SHALL retomar o
+  acompanhamento sem perder os resultados já emitidos.
+- **FR-RV-31**: WHEN o usuário envia uma pasta ou um arquivo `.zip` pela
+  interface, THE SYSTEM SHALL gravar o conteúdo em `entregas/<nome>/`, com
+  `<nome>` restrito a letras minúsculas, dígitos, `_` e `-`; IF algum caminho
+  enviado for absoluto, contiver `..` ou exceder os limites de tamanho e de
+  quantidade de arquivos, THEN THE SYSTEM SHALL recusar o envio inteiro sem
+  gravar nada; IF já existir uma entrega com o mesmo nome, THEN THE SYSTEM
+  SHALL exigir confirmação explícita antes de substituí-la; IF o nome for
+  reservado (`_template`), THEN THE SYSTEM SHALL recusar o envio; e THE SYSTEM
+  SHALL validar o `cpu.toml` imediatamente após gravar, mostrando o erro de
+  manifesto ou de fonte ausente antes de qualquer simulação.
+- **FR-RV-32**: WHERE o usuário pede a comparação de eficiência, THE SYSTEM
+  SHALL executar cada benchmark de `examples/RISCV32I/programs/` nas duas
+  versões — `*_rv32i` com a extensão desligada e `*_rv32im` com a extensão
+  ligada —, conferir os resultados na RAM contra valores derivados do modelo de
+  referência (FR-RV-23) e só então tabular, lado a lado, ciclos, instruções,
+  CPI, stalls, flushes e instruções RV32M, na medida em que o manifesto torne
+  cada métrica observável (NFR-RV-02); IF o mapa de memória do manifesto não
+  for o mapa fornecido (`0x00FC8100`, 512 bytes) ou o manifesto não declarar
+  `rv32m_generic`, THEN THE SYSTEM SHALL pular a comparação, ou a versão
+  RV32IM, com o motivo escrito.
+- **FR-RV-33**: WHERE o usuário pede a medição de área, THE SYSTEM SHALL
+  sintetizar as fontes do manifesto nas duas configurações do generic
+  `rv32m_generic` pelo fluxo do ADR-009 (`ghdl synth --out=verilog` + Yosys
+  com hierarquia preservada e `techmap`), reportando por bloco e no total as
+  células contadas pelo `stat`, o total sem as memórias fornecidas
+  (`instruction_memory`, `data_ram`, `data_rom`) e a profundidade lógica
+  medida por `ltp` onde ela for obtida; IF a síntese falhar, THEN THE SYSTEM
+  SHALL mostrar o erro da ferramenta e marcar a área como não medida, sem
+  alterar o veredito funcional.
+- **NFR-RV-04**: THE SYSTEM SHALL servir a interface apenas em `127.0.0.1` por
+  padrão, recusando requisições cujo cabeçalho `Host` não seja o endereço
+  local servido, e SHALL implementá-la só com a biblioteca padrão do Python e
+  com HTML, CSS e JavaScript próprios, sem dependência instalada a mais e sem
+  recurso carregado da internet — o ambiente de referência (ADR-006) não tem
+  framework web e a interface precisa funcionar offline.

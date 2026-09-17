@@ -408,3 +408,81 @@ período nominal de 10 ns), porque o período realmente atingível não foi medi
 receita antiga. Não são comparáveis com os números acima e não devem ser usadas
 como alvo; a referência válida é a coluna RV32I desta mesma árvore, remedida
 pelo mesmo script que mede a coluna RV32IM.
+
+---
+
+## ADR-010 — Interface web com `http.server` e Server-Sent Events, não Streamlit
+
+**Contexto.** A validação de uma CPU leva cerca de um minuto (26 casos, cerca
+de 2,4 s cada, medido na monociclo em 2026-09-17), e a síntese das duas
+configurações leva mais 68 s. Pela linha de comando isso aparece como 1.576
+linhas de log, das quais 805 são avisos `metavalue detected` do GHDL. O
+usuário pediu uma interface para enviar a CPU, escolher testes e ver o que
+passa e o que falha **enquanto** roda (FR-RV-30).
+
+**Verificado no ambiente (ADR-006).** O venv `~/venv-cocotb` (Python 3.12.3)
+não tem FastAPI, Flask, Starlette, uvicorn, Streamlit nem `python-multipart`.
+O módulo `cgi` ainda existe, mas está obsoleto desde o 3.11 e foi removido no
+3.13.
+
+**Decisão.** Servidor com `http.server.ThreadingHTTPServer` da biblioteca
+padrão, página única com HTML, CSS e JavaScript próprios, e resultados
+empurrados ao navegador por **Server-Sent Events** (`EventSource`). O envio de
+arquivos é JSON com o conteúdo em base64, e o `.zip` é aberto com `zipfile`.
+Assim nada depende de `cgi` nem de multipart.
+
+**Alternativas rejeitadas.**
+- *Streamlit* — já está no stack da trilha A, mas não está instalado neste
+  venv. Além disso, o modelo de reexecutar o script a cada interação torna
+  desajeitados o acompanhamento contínuo, o cancelamento e a retomada depois
+  de recarregar a página. Seria uma dependência nova para um resultado pior.
+- *FastAPI + WebSocket* — duas dependências novas para um fluxo que é de mão
+  única (servidor → navegador). SSE cobre esse fluxo com reconexão automática.
+- *Página estática que lê um JSON gravado no fim* — não mostra nada em tempo
+  real, que é o pedido.
+
+**Consequência.** Nenhuma instalação nova (NFR-RV-04). A interface funciona
+offline e só em `127.0.0.1`. O custo é escrever à mão o roteamento e a
+validação de entrada, o que é cercado por testes em
+`rvverify/tests/test_web.py`.
+
+---
+
+## ADR-011 — Validação em subprocesso, com eventos JSON Lines e log do GHDL por caso
+
+**Contexto.** A interface precisa de três coisas que a linha de comando não
+dava: saber quando cada caso começa e termina, cancelar uma execução e
+mostrar o log de um caso sem misturá-lo com o dos outros.
+
+**Decisão.**
+1. O servidor roda `python -m rvverify <cpu> --eventos --workdir <dir>` como
+   **subprocesso**, em um grupo de processos próprio. Cancelar é enviar
+   `SIGTERM` ao grupo (e `SIGKILL` 3 s depois, se preciso), o que leva junto
+   os `ghdl` filhos. Uma thread Python não pode ser interrompida no meio de um
+   `subprocess.run`, então rodar a validação dentro do servidor não permitiria
+   cancelar.
+2. `--eventos` imprime uma linha `@rvverify <json>` por evento (plano,
+   compilação, início e fim de item, etapa pulada, relatório, fim). O prefixo
+   separa evento de log sem exigir um segundo descritor de arquivo.
+3. `rvverify.builder.run_simulation` e `build_design` aceitam `log_file`, que
+   o `cocotb_tools.runner` já suporta. A suíte de conformidade grava a saída
+   do GHDL de cada caso em `<caso>/sim.log`. A saída principal fica só com o
+   progresso legível, o que também resolve o excesso de log da linha de
+   comando. As suítes pytest existentes não passam `log_file` e se comportam
+   como antes.
+4. O testbench genérico passa a gravar `report.json` **também quando o caso
+   falha**, com as divergências estruturadas (`falhas`) e o erro (`erro`), e é
+   daí que sai o diagnóstico de FR-RV-28, em vez de interpretar a mensagem de
+   exceção.
+
+**Alternativas rejeitadas.**
+- *Validação em thread dentro do servidor* — sem cancelamento (item 1), e um
+  `sys.exit` do runner do cocotb derrubaria o servidor.
+- *Extrair resultados do log do GHDL com expressões regulares* — frágil, e é
+  exatamente o tipo de inferência que NFR-RV-02 proíbe quando existe um
+  relatório estruturado.
+
+**Consequência.** A linha de comando ganha `--eventos`, `--workdir`,
+`--casos`, `--listar`, `--eficiencia` e `--area`. A interface é só um cliente
+dela, e qualquer coisa que a interface mostra também sai por
+`python -m rvverify --json`.

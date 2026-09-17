@@ -495,3 +495,73 @@ Convenções desta seção:
     termina com `pytest examples/RISCV32I/test/ -q` -> exit 0
 
   - EXECUÇÃO CONFERIDA (2026-09-06): secao 9 de examples/RISCV32I/RELATORIO.md
+## Fase RV-7 — Validador de entregas e interface web (FR-RV-26 a FR-RV-33, NFR-RV-04)
+
+Arquitetura em `plan.md`, seção 7; decisões em ADR-010 e ADR-011. O gate da
+fase é a interface rodando de verdade contra as duas CPUs de referência e
+contra uma entrega com defeito injetado, com o diagnóstico conferido na tela.
+
+- [x] TRV-7.1 — Especificar o validador e a interface antes do código
+  - REQ: FR-RV-26 a FR-RV-33, NFR-RV-04
+  - ACEITE: `grep -c "FR-RV-2[6-9]\|FR-RV-3[0-3]\|NFR-RV-04" specs/spec.md`
+    encontra os nove requisitos; `grep -n "^## ADR-01[01]" specs/decisions.md`
+    encontra as duas decisões; `plan.md` tem a seção 7 com processos,
+    protocolo de eventos, API e tela
+- [ ] TRV-7.2 — Diagnóstico estruturado de falha e log do GHDL por caso
+  - REQ: FR-RV-28, FR-RV-29, NFR-RV-02
+  - ACEITE: `pytest rvverify/tests/test_feedback.py rvverify/tests/test_diagnostico.py -q`
+    -> exit 0. Os testes sem GHDL cobrem as orientações e a detecção de
+    instrução trocada. O teste com GHDL injeta SRA -> SRL numa cópia da CPU
+    monociclo e exige: caso `sra` reprovado, tipo `valor`, cada divergência
+    com endereço/entrada/esperado/obtido, `confusao == "srl"`, `sim.log`
+    existente, e os outros nove casos RV32I aprovados
+- [ ] TRV-7.3 — Veredito de quatro estados, seleção de casos e catálogo
+  - REQ: FR-RV-27
+  - ACEITE: `pytest rvverify/tests/test_veredito.py -q` -> exit 0 (APROVADO,
+    REPROVADO, INCOMPLETO e PARCIAL, e o exit code de cada um);
+    `python -m rvverify --listar` -> exit 0 listando os 26 casos com etapa e
+    requisitos; `python -m rvverify examples/rv32i_monociclo --casos nao_existe`
+    -> exit 2 com a lista de nomes válidos
+- [ ] TRV-7.4 — Eventos JSON Lines e diretório de trabalho da linha de comando
+  - REQ: FR-RV-29
+  - ACEITE: `pytest rvverify/tests/test_eventos.py -q` -> exit 0: com
+    `--eventos --casos add,mul` na monociclo, a sequência é `inicio`, `plano`,
+    `compilacao` (inicio, ok), `item` rodando/passou para cada caso,
+    `relatorio` e `fim`, com o veredito PARCIAL e o `sim.log` de cada caso
+    dentro de `--workdir`
+- [ ] TRV-7.5 — Comparação de eficiência RV32I x RV32IM por manifesto
+  - REQ: FR-RV-32, FR-RV-23, FR-RV-24, NFR-RV-02
+  - ACEITE: `pytest rvverify/tests/test_eficiencia.py -q` -> exit 0. Sem GHDL:
+    os valores esperados dos quatro benchmarks, derivados do modelo de
+    referência, coincidem com a RAM registrada em
+    `examples/RISCV32I/ppa/efficiency.json`. Com GHDL: a CPU pipeline reproduz
+    os ciclos de cada benchmark registrados nesse mesmo arquivo, e a monociclo
+    passa com instruções e CPI marcados como não observáveis
+- [ ] TRV-7.6 — Medição de área por manifesto
+  - REQ: FR-RV-33, FR-RV-25, NFR-RV-02
+  - ACEITE: `pytest rvverify/tests/test_area.py -q` -> exit 0: a síntese da
+    CPU pipeline pelo manifesto reproduz o total de células das duas
+    configurações registrado em `examples/RISCV32I/ppa/ppa.json`, e uma fonte
+    que não sintetiza produz `medido: false` com o erro da ferramenta, sem
+    exceção
+- [ ] TRV-7.7 — Servidor da interface: CPUs, envio, execuções, SSE e cancelamento
+  - REQ: FR-RV-30, FR-RV-31, NFR-RV-04
+  - ACEITE: `pytest rvverify/tests/test_web.py -q` -> exit 0, cobrindo:
+    recusa de `Host` estranho e de POST sem JSON; envio recusado por `..`,
+    caminho absoluto, nome reservado e excesso de tamanho, sem gravar nada;
+    substituição só com confirmação; `.zip` com pasta raiz achatada; manifesto
+    inválido reportado logo após o envio; uma execução real com eventos
+    reenviados a um segundo cliente SSE; cancelamento que encerra o grupo de
+    processos
+- [ ] TRV-7.8 — Página da interface
+  - REQ: FR-RV-30, NFR-RV-04
+  - ACEITE: `node --check rvverify/web/static/app.js` -> exit 0; nenhuma URL
+    externa no HTML, CSS ou JS (`grep -c "http" ...` só encontra
+    comentários); captura do Chrome headless durante uma execução real mostra
+    itens executando e já concluídos; captura ao final mostra veredito,
+    requisitos e o diagnóstico de uma entrega com defeito injetado
+- [ ] TRV-7.9 — Documentação e atalho de inicialização
+  - REQ: FR-RV-30
+  - ACEITE: `README.md` e `entregas/README.md` explicam como abrir a interface;
+    `validador-ui.cmd`, executado no Windows, sobe o servidor na WSL, e
+    `Invoke-WebRequest http://127.0.0.1:8765/api/estado` responde 200

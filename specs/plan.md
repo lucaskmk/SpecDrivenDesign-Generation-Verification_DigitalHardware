@@ -464,3 +464,105 @@ Gates de bloqueio duro, que não admitem negociação:
 - **RV-5 -> RV-6:** nenhuma métrica entra no relatório sem o log da execução
   que a produziu, e toda estimativa entra rotulada como estimativa
   (NFR-RV-02).
+
+## 7. Validador de entregas e interface web (RV-7)
+
+Requisitos: FR-RV-26 a FR-RV-33, NFR-RV-04. Decisões: ADR-010 (servidor da
+biblioteca padrão + Server-Sent Events) e ADR-011 (validação em subprocesso
+com eventos JSON Lines).
+
+### 7.1 Processos
+
+```
+navegador ──HTTP/SSE──> python -m rvverify.web  (127.0.0.1:8765)
+                             │ subprocess, uma execução por vez
+                             ▼
+                        python -m rvverify <cpu> --eventos --workdir <dir>
+                             │ cocotb_tools.runner
+                             ▼
+                        ghdl -r ...   (log em <dir>/<cpu>/<caso>/sim.log)
+```
+
+- O servidor **não** importa o cocotb nem roda GHDL no próprio processo: ele
+  dispara a linha de comando do validador, lê a saída linha a linha e
+  repassa os eventos ao navegador. Cancelar é encerrar o grupo de processos do
+  subprocesso, o que leva junto os `ghdl` filhos.
+- Uma execução por vez. Duas simulações escrevendo na mesma biblioteca do GHDL
+  a corrompem (`rvverify/builder.py`); a interface usa uma raiz de build
+  própria (`~/.cache/rvverify/ui-build`), separada da usada pelo pytest.
+- Os artefatos de cada execução (imagens `.ram`, `spec.json`, `report.json`,
+  `sim.log`, `relatorio.json`) ficam em `~/.cache/rvverify/ui-runs/<id>/`, no
+  sistema de arquivos da WSL. O servidor guarda as 20 execuções mais recentes.
+
+### 7.2 Protocolo de eventos (`--eventos`)
+
+Cada evento é uma linha `@rvverify <json>` na saída padrão. Linhas sem esse
+prefixo são log legível e aparecem na aba de log.
+
+| `tipo` | quando | campos principais |
+|---|---|---|
+| `inicio` | uma vez | `cpus`, `etapas`, `opcoes` |
+| `plano` | por CPU, antes de simular | `design`, `manifest`, `itens` (`id`, `grupo`, `etapa`, `nome`, `requisitos`, `descricao`) |
+| `compilacao` | antes do primeiro caso | `estado` (`inicio`/`ok`/`erro`), `segundos`, `erros` |
+| `item` | início e fim de cada item | `id`, `estado` (`rodando`/`passou`/`falhou`/`pulado`), `duracao_s`, `resultado`, `motivo` |
+| `relatorio` | por CPU, ao final | o relatório completo (mesmo JSON de `--json`) |
+| `fim` | uma vez | `aprovadas`, `total`, `codigo` |
+
+Identificador de item: `<etapa>/<caso>` para a conformidade (`rv32i/sra`),
+`eficiencia/<benchmark>` e `area/<config>`.
+
+### 7.3 API HTTP
+
+| método e caminho | faz |
+|---|---|
+| `GET /` | a página (HTML, CSS e JS próprios, sem CDN) |
+| `GET /api/estado` | versões de GHDL/Yosys e a execução ativa |
+| `GET /api/cpus` | CPUs descobertas, com o manifesto já validado |
+| `GET /api/cpus/manifesto?cpu=<chave>` | o `cpu.toml` da CPU, para leitura |
+| `GET /api/catalogo` | casos, benchmarks e configurações de área, com descrição e requisitos |
+| `GET /api/modelo` | o `cpu.toml` de `entregas/_template/` para download |
+| `POST /api/entregas` | envio de entrega (JSON com os arquivos em base64) |
+| `POST /api/execucoes` | inicia uma execução |
+| `GET /api/execucoes` | execuções recentes |
+| `GET /api/execucoes/<id>/eventos` | stream SSE: reenvia os eventos já emitidos e segue com os novos |
+| `POST /api/execucoes/<id>/cancelar` | cancela |
+| `GET /api/execucoes/<id>/relatorio` | relatório JSON para download |
+| `GET /api/execucoes/<id>/log?item=<id>` | log do GHDL de um item |
+
+A CPU é identificada pela sua **chave** — o caminho relativo à raiz do
+repositório de uma pasta descoberta —, nunca por um caminho livre vindo do
+navegador.
+
+Segurança (NFR-RV-04): o servidor escuta em `127.0.0.1`, recusa `Host` que não
+seja o endereço servido (proteção contra *DNS rebinding*) e só aceita `POST`
+com `Content-Type: application/json`, o que obriga uma página de outra origem
+a passar por *preflight* CORS, que o servidor não autoriza. Os caminhos
+enviados passam por normalização e são recusados se forem absolutos, se
+contiverem `..` ou se excederem 20 MB no total ou 500 arquivos.
+
+### 7.4 Tela
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│ rvverify · validador RISC-V            GHDL 4.1.0 ●  Yosys 0.33 ●      │
+├──────────────────────┬────────────────────────────────────────────────┤
+│ CPU                  │ rv32i_pipeline            REPROVADO  01:12     │
+│ ○ rv32i_pipeline     │ ███████████████░░░░░░  18/26  ✓17  ✕1          │
+│ ● rv32i_monociclo    │ ─────────────────────────────────────────────  │
+│ ○ joao (entrega)     │ Resultados | Requisitos | Eficiência | Área | Log│
+│ [ enviar entrega ]   │  RV32I                                        │
+│                      │  ✓ add      64 pares de borda   1,2 s  312 cic │
+│ Testes               │  ✕ sra      ...                               │
+│ ☑ RV32I (15)         │     RAM[0x00fc811c] sra(0x80000000, 1)        │
+│ ☑ RV32IM (11)        │     esperado 0xc0000000  obtido 0x40000000    │
+│ ☐ Eficiência (4)     │     Parece SRL: confira o funct7 ...          │
+│ ☐ Área (lento)       │  ◌ sltu     executando…                       │
+│ [ Executar ]         │  · x0_imutavel                                │
+└──────────────────────┴────────────────────────────────────────────────┘
+```
+
+### 7.5 Tarefas
+
+Fase RV-7 de `tasks.md` (TRV-7.1 a TRV-7.8). O gate da fase é a execução real
+da interface contra as duas CPUs de referência e contra uma entrega com
+defeito injetado, com o diagnóstico conferido.
