@@ -40,7 +40,7 @@ cpus/rv32i_monociclo/      CPU de referência monociclo
 entregas/_modelo/          manifesto inicial para copiar
 entregas/<nome>/           CPU avaliada
 specs/                     requisitos, decisões, plano e backlog
-src/ e examples/           trilha genérica antiga e smoke tests
+legado/                    trilha genérica antiga (SpecHDL Streamlit) e smoke tests
 ```
 
 Os arquivos de referência em `cpus/` não são a entrega do aluno. A suíte usa

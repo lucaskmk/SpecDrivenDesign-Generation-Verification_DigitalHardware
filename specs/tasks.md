@@ -553,7 +553,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - ACEITE: `git status --short` mostra só renames mais os arquivos de texto
     editados; `src/spechdl/`, `templates/`, `tests/`, `scripts/`,
     `.streamlit/` e `abrir_formulario.bat` não existem mais na raiz
-- [ ] TRV-7.7.3 — Mover os exemplos remanescentes e esvaziar `examples/`
+- [x] TRV-7.7.3 — Mover os exemplos remanescentes e esvaziar `examples/`
   - REQ: ADR-013
   - ACEITE: `git ls-files examples/` devolve vazio e o workflow
     `toolchain-smoketest.yml` aponta para `legado/toolchain_smoketest/`

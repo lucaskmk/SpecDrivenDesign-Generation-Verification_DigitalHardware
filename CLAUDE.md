@@ -60,7 +60,7 @@ qualquer coisa, leia, nesta ordem:
   escrito em Python, dirigindo o DUT VHDL através do GHDL como simulador
   (fluxo `make SIM=ghdl`; ver `specs/plan.md`, fase 3/4). Ambiente de
   referência: imagem Docker `rafaelcorsi/pl-descomp-cocotb`, usada também no
-  smoke test de `examples/toolchain_smoketest/`
+  smoke test de `legado/toolchain_smoketest/`
 - GTKWave para inspeção visual do waveform (`.vcd`) na triagem manual de
   falha (ver `specs/plan.md`, fase 3/4)
 - Yosys + ghdl-yosys-plugin para a análise PPA (ver `specs/plan.md`, fase 5)
