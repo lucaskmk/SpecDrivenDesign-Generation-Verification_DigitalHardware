@@ -1,0 +1,13 @@
+# Revisao rv32im_a9r -- RV32M_ENABLE = true, device 5CEFA9F23C7, roteamento agressivo.
+# Identica a rv32im_a9, MAIS a opcao que o proprio Quartus recomenda quando
+# reprova por roteamento (Critical Warning 188026, visto de verdade em
+# quartus_output_rv32im_a9/compilation/compile.log):
+#   "You may be able get this design to route by [...] enabling the Fitter
+#    Aggressive Routability Optimizations logic option."
+# E opcao de FERRAMENTA, nao mudanca de design: o RTL e bit a bit o mesmo.
+set_global_assignment -name SOURCE_TCL_SCRIPT_FILE common.tcl
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CEFA9F23C7
+set_global_assignment -name ROUTER_TIMING_OPTIMIZATION_LEVEL MAXIMUM
+set_global_assignment -name FITTER_AGGRESSIVE_ROUTABILITY_OPTIMIZATION ALWAYS
+set_parameter -name RV32M_ENABLE true

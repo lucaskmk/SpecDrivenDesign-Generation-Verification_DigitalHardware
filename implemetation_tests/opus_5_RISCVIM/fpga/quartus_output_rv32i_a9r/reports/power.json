@@ -1,0 +1,10 @@
+{
+  "device": "5CEFA9F23C7",
+  "status": "Successful",
+  "total_mw": 3462.41,
+  "core_dynamic_mw": 2863.81,
+  "core_static_mw": 580.17,
+  "io_mw": 18.44,
+  "confidence": "Low: user provided insufficient toggle rate data",
+  "estimate": true
+}

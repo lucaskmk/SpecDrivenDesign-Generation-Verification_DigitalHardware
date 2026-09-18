@@ -1,0 +1,24 @@
+# Artefatos de compilacao do Quartus: sao regenerados por `analyze` e pesam
+# centenas de MB. O que vale como EVIDENCIA (constituicao, principio 10) fica
+# em quartus_output_*/, que NAO esta ignorado aqui.
+db/
+incremental_db/
+output_files/
+*.qws
+*.rpt.bak
+
+# O .sof e preservado em disco pelo wrapper (repo:FR-RV-41) e continua ali
+# depois de rodar `analyze`; fora do Git so por tamanho (12 MB de binario
+# regeneravel). `summary.json` registra bitstream.preserved e o caminho.
+quartus_output_*/bitstream/*.sof
+
+# Lixo que o Quartus deixa ao lado do projeto: um .qpf por revisao (o projeto
+# tem UM .qpf, rv32im_sc.qpf, com as seis revisoes dentro) e o dump do modelo
+# de pinos do Cyclone V.
+rv32i_a9r.qpf
+rv32im_a9.qpf
+rv32im_a9r.qpf
+rv32i_a9.qpf
+rv32im.qpf
+rv32i.qpf
+c5_pin_model_dump.txt

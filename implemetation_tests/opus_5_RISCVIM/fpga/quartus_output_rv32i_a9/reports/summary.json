@@ -1,0 +1,16 @@
+{
+  "project": "rv32im_sc",
+  "revision": "rv32i_a9",
+  "device": null,
+  "compilation": {
+    "success": false,
+    "log": "quartus_output_rv32i_a9/compilation/compile.log"
+  },
+  "fit": null,
+  "timing": null,
+  "power": null,
+  "bitstream": {
+    "preserved": false,
+    "path": null
+  }
+}

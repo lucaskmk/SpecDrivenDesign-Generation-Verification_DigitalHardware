@@ -809,3 +809,44 @@ por leitura de código ou por o Dockerfile "parecer certo".
     reais; resultado registrado em `docs/` com o comando exato e os números
     obtidos, cada um com a execução que o produziu — nenhum número entra no
     relatório sem o log correspondente (mesmo princípio de NFR-RV-02)
+- [x] TRV-8.9 — Rodar o fluxo completo contra a CPU gerada
+  `implemetation_tests/opus_5_RISCVIM` e fechar as lacunas de NFR-02/NFR-03
+  do relatório dela
+  - REQ: FR-RV-36, FR-RV-37, FR-RV-38, FR-RV-39, FR-RV-41
+  - ACEITE: `analyze` rodado contra um projeto Quartus daquela CPU (já
+    aprovada em RV-7, 35/35) produz `summary.json` com fit, timing e potência
+    reais; o `RELATORIO.md` dela deixa de dizer "não medido" para frequência
+    e potência, e cada número novo aponta para o log que o produziu
+  - EXECUÇÃO CONFERIDA (2026-09-18): projeto em
+    `implemetation_tests/opus_5_RISCVIM/fpga/` com **seis revisões** sobre a
+    mesma árvore de fontes (`common.tcl` compartilhado; só generic, device e
+    esforço de roteamento mudam). Evidência por revisão em
+    `fpga/quartus_output_<rev>/`. O que cada execução deu, toda ela real:
+    * `rv32i` e `rv32im` no alvo default `5CEBA4F23C7` — **não coube**:
+      `Error (170012): Fitter requires 2424 LABs [...] only 1848`
+      (2448 com M), 23 693 / 23 786 ALM contra 18 480 (128 % / 129 %). O
+      wrapper parou aí e gravou `fit`/`timing`/`power` em `null`, exatamente
+      o comportamento que FR-RV-41 exige — confirmando o caminho de falha
+      num design real, e não só no `does_not_exist` de TRV-8.7
+    * `rv32i_a9` no `5CEFA9F23C7` (mesma família/pacote/speed grade, die
+      maior) — **não roteou** com 27 % de ocupação:
+      `Critical Warning (188026): The Fitter failed to successfully route`
+    * `rv32i_a9r` / `rv32im_a9r`, mesmo device com
+      `FITTER_AGGRESSIVE_ROUTABILITY_OPTIMIZATION` (a opção que a própria
+      mensagem 188026 recomenda; RTL idêntico) — **compilação completa**:
+      Fmax **36,73 MHz** (RV32I) e **10,01 MHz** (RV32IM) sob `.sdc` de
+      50 MHz, potência estimada **3 462,41 mW** e **3 722,23 mW** contra
+      orçamento de 500 mW, `.sof` preservado
+    * `rv32im_a9` (roteamento default) compilou completo também, e ficou
+      como execução independente: é a que provou primeiro que o fluxo fecha
+      ponta a ponta numa CPU de verdade
+  - ACHADO QUE MUDOU O DIAGNÓSTICO DA CPU: `Total block memory bits : 0`. A
+    `data_ram` tem leitura assíncrona — exigida por FR-10/`repo:FR-RV-26`
+    para o cocotb indexá-la, e por FR-05 para CPI 1 — e M10K é síncrona,
+    então ela virou 32 768 flip-flops mais um mux 1024:1 orçado em 17 050
+    LEs. A fase 5 (Yosys) culpava a extensão M pela área; no device real a
+    extensão M custa +0,4 % de ALM (ou −26 % no par A/B casado, com 9 DSPs
+    absorvendo os multiplicadores) e quem não cabe é o baseline. Registrado
+    em `implemetation_tests/opus_5_RISCVIM/RELATORIO.md`, fase 5b
+  - NÃO fecha TRV-8.8: aquela tarefa é contra `cpus/rv32i_pipeline`, outra
+    CPU e outro projeto Quartus, e continua aberta

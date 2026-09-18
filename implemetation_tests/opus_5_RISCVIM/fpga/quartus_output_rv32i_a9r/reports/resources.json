@@ -1,0 +1,18 @@
+{
+  "device": "5CEFA9F23C7",
+  "status": "Successful",
+  "logic_alms_used": 29653,
+  "logic_alms_total": 113560,
+  "logic_utilization_percent": 26.0,
+  "logic_utilization_percent_qualifier": null,
+  "registers": 33857,
+  "pins_used": 67,
+  "pins_total": 224,
+  "block_memory_bits_used": 0,
+  "block_memory_bits_total": 12492800,
+  "dsp_blocks_used": 0,
+  "dsp_blocks_total": 342,
+  "plls_used": 0,
+  "plls_total": 8,
+  "fits": true
+}

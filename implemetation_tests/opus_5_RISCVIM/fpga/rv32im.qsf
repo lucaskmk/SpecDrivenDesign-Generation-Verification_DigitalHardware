@@ -1,0 +1,11 @@
+# Revisao rv32im -- RV32M_ENABLE = true, device 5CEBA4F23C7.
+# Alvo DEFAULT do projeto (FR-RV-37) -- e este que da o veredito.
+# Tudo o mais vem de common.tcl: fontes, .sdc e assinalamentos globais sao os
+# mesmos nas seis revisoes.
+set_global_assignment -name SOURCE_TCL_SCRIPT_FILE common.tcl
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CEBA4F23C7
+# ROM_INIT_FILE fica no default ("", imagem do rom_image_pkg gerado -- FR-13):
+# o Quartus rejeita `set_parameter` com string vazia (Error 125042), e o
+# default do proprio VHDL ja e o caminho que a fase 5 sintetiza.
+set_parameter -name RV32M_ENABLE true

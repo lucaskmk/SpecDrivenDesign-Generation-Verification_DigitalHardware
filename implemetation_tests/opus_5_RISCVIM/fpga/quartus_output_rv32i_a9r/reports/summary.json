@@ -1,0 +1,52 @@
+{
+  "project": "rv32im_sc",
+  "revision": "rv32i_a9r",
+  "device": "5CEFA9F23C7",
+  "compilation": {
+    "success": true,
+    "log": "quartus_output_rv32i_a9r/compilation/compile.log"
+  },
+  "fit": {
+    "device": "5CEFA9F23C7",
+    "status": "Successful",
+    "logic_alms_used": 29653,
+    "logic_alms_total": 113560,
+    "logic_utilization_percent": 26.0,
+    "logic_utilization_percent_qualifier": null,
+    "registers": 33857,
+    "pins_used": 67,
+    "pins_total": 224,
+    "block_memory_bits_used": 0,
+    "block_memory_bits_total": 12492800,
+    "dsp_blocks_used": 0,
+    "dsp_blocks_total": 342,
+    "plls_used": 0,
+    "plls_total": 8,
+    "fits": true
+  },
+  "timing": {
+    "constrained": true,
+    "reliable": true,
+    "worst_setup_slack_ns": -7.228,
+    "worst_hold_slack_ns": 0.171,
+    "closure": false,
+    "fmax_mhz": 36.73,
+    "restricted_fmax_mhz": 36.73,
+    "clock": "clk",
+    "log": "quartus_output_rv32i_a9r/compilation/fmax.log"
+  },
+  "power": {
+    "device": "5CEFA9F23C7",
+    "status": "Successful",
+    "total_mw": 3462.41,
+    "core_dynamic_mw": 2863.81,
+    "core_static_mw": 580.17,
+    "io_mw": 18.44,
+    "confidence": "Low: user provided insufficient toggle rate data",
+    "estimate": true
+  },
+  "bitstream": {
+    "preserved": true,
+    "path": "quartus_output_rv32i_a9r/bitstream/rv32i_a9r.sof"
+  }
+}
