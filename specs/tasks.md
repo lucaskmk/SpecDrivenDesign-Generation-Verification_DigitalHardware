@@ -572,7 +572,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - ACEITE: `grep -rn "rv_assembler\.py\|reference_model\.py"` sem sobras em
     `.md`/`.vhd`/`.py`; `pytest cpus/rv32i_monociclo/test -q` rodado de
     verdade com exit code 0
-- [ ] TRV-7.7.5 — Especificar `NFR-RV-05`, oráculo de montagem real
+- [x] TRV-7.7.5 — Especificar `NFR-RV-05`, oráculo de montagem real
   - REQ: NFR-RV-05
   - ACEITE: `specs/spec.md` traz `NFR-RV-05` no mesmo formato EARS de
     `NFR-RV-01..04`, exigindo imagem de container com binutils RISC-V e
