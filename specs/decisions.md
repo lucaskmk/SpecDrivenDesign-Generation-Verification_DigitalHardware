@@ -579,3 +579,88 @@ apagar os exercícios de ULA (princípio 8).
 caminho citado em spec, plano, tarefas, decisões, README e manifestos foi
 atualizado no mesmo commit da mudança, e a suíte inteira roda depois dela para
 provar que nada ficou apontando para o lugar antigo.
+
+---
+
+## ADR-014 — Conclusão da ADR-013 e adoção do oráculo Docker do montador
+
+**Contexto.** A ADR-013 decidiu cinco pastas de topo, mas o commit `2091e0d`
+executou só metade dela: renomeou `examples/RISCV32I/` → `cpus/rv32i_pipeline/`
+e `examples/rv32i_monociclo/` → `cpus/rv32i_monociclo/`, sem criar `legado/` e
+sem promover o montador e o modelo de referência para `rvverify/`. A
+*Consequência* registrada na ADR-013 — "todo caminho citado em spec, plano,
+tarefas, decisões, README e manifestos foi atualizado no mesmo commit da
+mudança, e a suíte inteira roda depois dela" — **não se cumpriu**. Três
+caminhos ficaram para trás em código Python executável, e as três suítes
+reprovavam na `main`:
+
+| arquivo | sintoma |
+|---|---|
+| `rvverify/tests/test_manifest.py` | apontava para `examples/RISCV32I/cpu.toml`; 5 testes reprovando |
+| `cpus/rv32i_monociclo/test/test_monociclo.py` | `sys.path` derivado de `EXAMPLES/RISCV32I`; módulo inteiro falhava na coleta |
+| `cpus/rv32i_pipeline/test/rv_build.py` | montava o prefixo do `git show` a partir do caminho de HOJE, então a extração do RTL original (commit `f884a4e`, onde o design estava em `examples/RISCV32I/`) voltava vazia e o A/B de FR-RV-07 reprovava |
+
+Em paralelo, um plano de merge antigo e nunca executado
+(`hey-claude-please-plan-jolly-bird.md`) continha uma peça que ainda valia: uma
+imagem Docker com `binutils` RISC-V cruzado real, útil como oráculo do montador
+Python da ADR-004. O `Dockerfile` daquele branch citava `NFR-05`/`T0.6`, IDs que
+não existem nesta `main`.
+
+**Decisão.**
+
+1. **Concluir a ADR-013 como decidida**, em commits pequenos e verificados
+   (`TRV-7.7.0` a `TRV-7.7.12`): criar `legado/` e mover para lá a trilha A
+   inteira; esvaziar `examples/`, que deixa de existir; promover
+   `rv_assembler.py` → `rvverify/asm.py` e `reference_model.py` →
+   `rvverify/reference.py`; reapontar todo importador, documento, comentário
+   de VHDL e comando de copiar-colar. Tudo por `git mv`.
+2. **Restaurar as suítes antes de qualquer outra coisa** (`TRV-7.7.0`). Um
+   gate de "suíte verde" não significa nada partindo de uma suíte vermelha. Em
+   `rv_build.py`, o prefixo histórico virou a constante `ORIGINAL_PREFIX`,
+   justamente para não voltar a acompanhar reorganizações da árvore.
+3. **Manter `testpaths` do `pyproject.toml` sem `legado/`.** Não há um único
+   teste na trilha A (`docs/ESTADO-TRILHA-A.md`), então incluí-la só daria a
+   impressão de cobertura onde não há nenhuma.
+4. **Trazer o oráculo Docker formalizado como `NFR-RV-05` antes do código**
+   (`TRV-7.7.5` antes de `TRV-7.7.6`/`TRV-7.7.7`), em vez de copiar o
+   `Dockerfile` citando um requisito inexistente. A ADR-004 ganhou um bloco
+   *Revisão*: o binutils real é cross-check, não substituto.
+5. **Arquivar, não apagar, o plano de merge antigo**, com nota no topo
+   separando o que foi aproveitado do que foi superado.
+6. **Publicar `REPO_MAP.md`** na raiz, com o lembrete de mantê-lo atualizado.
+
+**Alternativas rejeitadas.**
+
+- *Mover `cpus/` de volta para dentro de `examples/`* — foi o pedido inicial
+  do usuário, checado contra a ADR-013 e revertido: aquela pasta misturava
+  exercícios da trilha A com as CPUs de referência, e `RISCV32I` em caixa alta
+  não sinalizava que era o alvo editável do aluno. A ADR-013 já havia decidido
+  isso, com justificativa registrada.
+- *Adotar o binutils real como montador principal* — quebraria a
+  autocontenção que a ADR-004 buscava: o montador Python roda sem Docker e é
+  testável por pytest instrução a instrução, o que um binário externo não é.
+- *Corrigir os três caminhos quebrados junto com os commits de conteúdo* —
+  misturaria "restaurar o que estava quebrado" com "mudar de lugar", e a
+  bissecção deixaria de distinguir as duas coisas.
+- *Reescrever os documentos históricos* (`docs/MUDANCAS.md`,
+  `mudancas-riscv.html`, `RELATORIO.md`) para refletir a estrutura nova —
+  rejeitado pelo princípio 8. Corrigiram-se links quebrados e comandos de
+  copiar-colar; a prosa histórica ficou, com nota. A única exceção,
+  deliberada, está registrada no commit do `TRV-7.7.8`: uma nota do HTML
+  afirmava que o `pyproject.toml` apontava o pytest para a trilha A, o que a
+  ADR-013 tornou falso, e deixar instrução errada ao lado de um comando para
+  copiar seria pior do que corrigi-la.
+
+**Consequência.** `examples/` não existe mais e `git ls-files examples/`
+devolve vazio. `git log --follow` segue cada arquivo movido, inclusive o plano
+arquivado. A direção de dependência ficou certa: `rvverify` não importa nada de
+`cpus/`. Diferente da ADR-013, esta decisão foi verificada por execução real, e
+não por leitura: `pytest rvverify/tests`, `pytest cpus/rv32i_pipeline/test` e
+`pytest cpus/rv32i_monociclo/test` rodaram com GHDL 2.0.0 e cocotb 2.0.0 (imagem
+`rafaelcorsi/pl-descomp-cocotb`) e terminaram em exit code 0; `docker build` da
+imagem nova e a conferência dos três executáveis também. O oráculo comparou 490
+palavras sem divergência, e que ele não passa a vazio foi provado por mutação
+(`SRA` codificado como `SRL` reprova a suíte). Fica pendente, por não ser
+verificável localmente: o workflow `toolchain-smoketest.yml` teve os caminhos
+reapontados para `legado/`, mas só um push real ou `workflow_dispatch` confirma
+que os filtros de `on.push.paths` disparam.
