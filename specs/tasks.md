@@ -601,7 +601,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - REQ: ADR-013
   - ACEITE: `git log --follow docs/archive/hey-claude-please-plan-jolly-bird.md`
     mostra histórico contínuo e o arquivo movido diz o que foi aproveitado
-- [ ] TRV-7.7.11 — Publicar `REPO_MAP.md` com a estrutura final
+- [x] TRV-7.7.11 — Publicar `REPO_MAP.md` com a estrutura final
   - REQ: ADR-013
   - ACEITE: todo caminho citado em `REPO_MAP.md` aparece em `git ls-files`
 - [ ] TRV-7.7.12 — Registrar a ADR-014
