@@ -577,7 +577,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - ACEITE: `specs/spec.md` traz `NFR-RV-05` no mesmo formato EARS de
     `NFR-RV-01..04`, exigindo imagem de container com binutils RISC-V e
     Yosys e tornando a conferência opcional, nunca bloqueante
-- [ ] TRV-7.7.6 — Trazer a imagem Docker do toolchain RISC-V
+- [x] TRV-7.7.6 — Trazer a imagem Docker do toolchain RISC-V
   - REQ: NFR-RV-05
   - ACEITE: `docker build -t spechdl-toolchain -f docker/Dockerfile docker`
     executado de verdade e `docker run --rm spechdl-toolchain bash -lc
