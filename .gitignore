@@ -29,3 +29,13 @@ results.xml
 
 # Relatorios do validador
 /entregas/*/report/
+
+# Instaladores Quartus baixados manualmente (ADR-015, ver
+# docker/quartus_installers/README.md) — binarios de GB sob licenca Altera,
+# nunca versionados
+/docker/quartus_installers/*.run
+/docker/quartus_installers/*.qdz
+/docker/quartus_installers/SHA256SUMS
+
+# Saida da analise Quartus/FPGA (RV-8, ver specs/plan.md secao 8)
+/quartus_output/

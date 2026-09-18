@@ -538,3 +538,78 @@ do que não medir. Por isso:
 Fase RV-7 de `tasks.md`. O gate da fase é: as duas CPUs de referência
 aprovadas, toda mutação da lista reprovada, e o relatório de terminal revisado
 com o professor.
+
+## 8. Análise de viabilidade FPGA via Quartus (RV-8)
+
+Requisitos: FR-RV-36 a FR-RV-42, NFR-RV-06. Decisão: ADR-015. Plano de
+implementação detalhado, mantido à parte por ser específico de ferramenta de
+terceiro: `docker/quartus-docker-fpga-analysis-plan.md`.
+
+### 8.1 Onde isso entra no fluxo
+
+RV-8 roda **depois** de RV-7 fechar para a CPU em questão — ou seja, depois
+que `python -m rvverify entregas/<nome>` já deu veredito (FR-RV-27) —, nunca
+antes e nunca no lugar. É uma etapa **aditiva e opcional**: mede se a CPU
+*que já passou* na suíte comportamental também cabe, atinge o clock alvo e
+tem potência estimada razoável num FPGA real. Uma CPU que reprova RV-7 não
+ganha nada rodando RV-8 — o contrato de comportamento não foi provado, então
+uma síntese "bonita" não significa nada. `NFR-RV-06` fixa isso: a ausência da
+imagem do Quartus nunca pula nem reprova a suíte de conformidade em si,
+exatamente como `NFR-RV-05` já faz para o oráculo do montador.
+
+```
+entregas/<nome>/cpu.toml ──► rvverify (RV-7) ──► veredito
+                                                     │
+                                        (opcional, se aprovado/parcial)
+                                                     ▼
+                                    docker run quartus-analyzer analyze
+                                                     │
+                              synth ──► fit ──► timing ──► power
+                                                     │
+                                                     ▼
+                                    quartus_output/reports/summary.json
+```
+
+### 8.2 Por que uma imagem Docker separada, e por quê ela não builda sozinha
+
+`docker/Quartus_Dockerfile` nunca compartilha base nem se funde com
+`docker/Dockerfile` (o oráculo do montador, NFR-RV-05) — decisão fixada em
+ADR-015, por pedido explícito e porque as duas têm ciclo de vida e peso
+completamente diferentes (o oráculo é ~200 MB e roda em toda execução de
+`pytest rvverify/tests`; o Quartus Prime Lite sozinho passa de 2 GB e só
+interessa a quem pediu análise de FPGA).
+
+A imagem também **não baixa nada sozinha**: o CDN de download da Altera
+exige uma sessão de navegador de verdade (mitigação de bot da Akamai mais o
+aceite de licença na própria página), e isso bloqueia igualmente um `curl`
+manual e um `RUN curl` dentro de `docker build` — verificado por execução
+real em 2026-09-18 (ADR-015). Por isso o Dockerfile espera o instalador e os
+`.qdz` já em `docker/quartus_installers/` (pasta local, fora do Git), com o
+passo a passo do download manual documentado no `README.md` daquela pasta e
+no cabeçalho do próprio Dockerfile.
+
+### 8.3 O que o wrapper `analyze` faz
+
+Descrito em detalhe em `docker/quartus-docker-fpga-analysis-plan.md`; em
+resumo, dado um projeto Quartus (`.qpf`) e o device alvo, a sequência é
+síntese → fitter → TimeQuest → Power Analyzer → coleta de relatórios →
+`summary.json`, preservando o `.sof` só quando a compilação termina bem
+(FR-RV-41). Cada saída tem seu requisito próprio: cabe no device (FR-RV-37),
+timing/Fmax condicionado a `.sdc` de verdade (FR-RV-38, nunca um Fmax "de
+graça" sem restrição), potência sempre rotulada estimativa (FR-RV-39,
+paralelo direto à regra de MEDIDO/ESTIMADO de NFR-RV-02 e da seção 5), e
+netlist/RTL preservado mesmo se a exportação gráfica não for viável
+(FR-RV-40).
+
+### 8.4 Por que nada disto está implementado ainda
+
+Todas as tarefas de RV-8 em `tasks.md` estão com o checkbox em aberto, de
+propósito: princípio 1 da constitution proíbe código antes de spec aprovada,
+e o princípio de "nunca declarar simulação como passou sem rodar de verdade"
+se aplica igual aqui — não há como testar o wrapper contra o Quartus real
+sem a imagem construída, e a imagem depende do download manual (seção 8.2)
+que só o usuário pode completar. Adicionalmente, RV-7 — a fase que roda
+**antes** desta (seção 8.1) — ainda não fechou (`TRV-7.2` a `TRV-7.6` seguem
+em aberto em `tasks.md`). O gate da seção 6 vale para RV-8 como vale para
+qualquer RV-n: esta seção é a spec aprovável; a implementação começa só
+depois de confirmação explícita do usuário.

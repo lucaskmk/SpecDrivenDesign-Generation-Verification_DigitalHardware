@@ -613,3 +613,102 @@ montagem por toolchain real que estava no plano de merge antigo.
   - REQ: ADR-013
   - ACEITE: `grep -n "examples/" specs/constitution.md` vazio e o argumento
     do princípio 7 continua o mesmo, só com os referentes atualizados
+
+## Fase RV-8 — Análise de viabilidade FPGA via Quartus (FR-RV-36 a FR-RV-42, NFR-RV-06)
+
+Arquitetura em `plan.md`, seção 8; plano de implementação detalhado em
+`docker/quartus-docker-fpga-analysis-plan.md`; decisão de infraestrutura em
+ADR-015. Roda **depois** de RV-7 fechar pra uma CPU dada (`plan.md`, seção
+8.1) — nunca antes, nunca no lugar. **Gate de entrada duplo, sem exceção:**
+nenhuma tarefa desta fase é marcada (a) antes de `TRV-7.2` a `TRV-7.6`
+fecharem, nem (b) sem a execução real correspondente — nada aqui é marcado
+por leitura de código ou por o Dockerfile "parecer certo".
+
+- [x] TRV-8.1 — Corrigir o host de download morto e remover os checksums não
+  verificáveis do rascunho do `Quartus_Dockerfile`
+  - REQ: NFR-RV-06 (ADR-015)
+  - ACEITE: `grep -n "downloads.intel.com" docker/Quartus_Dockerfile` vazio;
+    `grep -n "sha1sum" docker/Quartus_Dockerfile` vazio; o cabeçalho do
+    arquivo documenta `download.altera.com` como host vivo e explica, com a
+    evidência de execução (HTTP 403 do Akamai, redirecionamento morto do
+    host antigo), por que o download deixou de ser automático
+  - EXECUÇÃO CONFERIDA (2026-09-18): `curl -I` contra
+    `downloads.intel.com/akdlm/.../QuartusLiteSetup-25.1std.0.1129-linux.run`
+    -> HTTP 301 para `corpredirect.intel.com/.../404Redirector.aspx?404;...`
+    (host morto, testado também com a versão 24.1std/1077, mesmo resultado);
+    `download.altera.com` no mesmo caminho devolveu
+    `Content-Disposition: attachment; filename="cyclonev-25.1std.0.1129.qdz"`
+    de um `AkamaiGHost` real (arquivo existe, nome e versão corretos), mas
+    HTTP 403 em toda tentativa de baixar de fato — mitigação de bot mais
+    aceite de licença que exige sessão de navegador, sem contorno por
+    script (ver ADR-015). `docker/Quartus_Dockerfile` reescrito para copiar
+    de `docker/quartus_installers/` em vez de `curl`
+- [x] TRV-8.2 — Baixar manualmente o instalador e o `.qdz` do Cyclone V, e
+  buildar a imagem pela primeira vez
+  - REQ: NFR-RV-06 (ADR-015)
+  - ACEITE: `docker/quartus_installers/QuartusLiteSetup-25.1std.0.1129-linux.run`
+    e `docker/quartus_installers/cyclonev-25.1std.0.1129.qdz` presentes
+    (baixados manualmente pelo usuário, ver
+    `docker/quartus_installers/README.md`); `docker build -f
+    docker/Quartus_Dockerfile -t quartus-lite:25.1 docker` -> exit 0;
+    `docker run --rm quartus-lite:25.1 --version` -> exit 0 e imprime a
+    versão 25.1std.0.1129 (não `quartus_sh --version` — o `ENTRYPOINT` já é
+    `quartus_sh`, então o argumento certo é só `--version`; a redação
+    original desta tarefa tinha esse comando errado)
+  - EXECUÇÃO CONFERIDA (2026-09-18): usuário baixou os dois arquivos
+    (1.982.715.698 e 1.443.834.466 bytes, confirmados em
+    `docker/quartus_installers/`) e buildou a imagem
+    (`quartus-lite:25.1`, 22.4 GB, id `388f52918972`);
+    `docker run --rm quartus-lite:25.1 --version` -> exit 0, saída:
+    "Quartus Prime Shell / Version 25.1std.0 Build 1129 10/21/2025 SC Lite
+    Edition" — build e versão batem com o que a ADR-015 previu. Observação
+    não bloqueante: aviso de locale
+    (`setlocale: LC_CTYPE: cannot change locale (en_US.UTF-8)`) no stderr,
+    inofensivo (exit 0, saída correta) — registrado aqui para não
+    surpreender quem for parsear stdout/stderr em TRV-8.7
+- [ ] TRV-8.3 — Projeto Quartus mínimo de fumaça: compilar um bloco trivial
+  (não a CPU inteira) contra `5CEBA4F23C7N` e confirmar o fluxo completo
+  - REQ: FR-RV-36, FR-RV-37, FR-RV-42
+  - ACEITE: um `.qpf`/`.qsf` mínimo (ex.: um único flip-flop ou a
+    `mul_div_unit` isolada) compila dentro do container com
+    `quartus_map`/`quartus_fit` -> exit 0 contra o device
+    `5CEBA4F23C7N`; o relatório do Fitter mostra utilização de recursos
+    (FR-RV-37); prova de que a imagem builda **e** compila antes de apontar
+    o fluxo pra CPU inteira, que é bem mais pesada
+- [ ] TRV-8.4 — Escrever `.sdc` de restrição de clock e extrair timing real
+  - REQ: FR-RV-38
+  - ACEITE: `.sdc` com `create_clock` no projeto de fumaça de TRV-8.3;
+    `quartus_sta` -> exit 0 dentro do container; slack de setup/hold, Fmax e
+    fechamento de timing extraídos do relatório do TimeQuest; rodar o mesmo
+    fluxo **sem** `.sdc` e confirmar que o Fmax sai marcado como não
+    confiável no relatório (FR-RV-38 exige a ressalva, não só o número)
+- [ ] TRV-8.5 — Extrair potência estimada
+  - REQ: FR-RV-39
+  - ACEITE: `quartus_pow` -> exit 0 dentro do container sobre o projeto de
+    TRV-8.3/8.4; potência estática, dinâmica, de E/S e total aparecem no
+    relatório, cada uma explicitamente rotulada estimativa, nunca medição
+- [ ] TRV-8.6 — Investigar exportação headless de RTL/netlist
+  - REQ: FR-RV-40
+  - ACEITE: documentado (com execução real, sucesso ou falha) se o Quartus
+    consegue exportar o RTL Viewer como PNG/SVG/PDF sem GUI interativa; se
+    não conseguir dentro do prazo, os dados brutos de síntese continuam
+    preservados em `quartus_output/netlist/` e a ausência da imagem não
+    bloqueia os demais relatórios (FR-RV-40 é explícito sobre isso)
+- [ ] TRV-8.7 — Escrever o wrapper `analyze` e o `summary.json`
+  - REQ: FR-RV-41, FR-RV-42
+  - ACEITE: `docker run --rm -v "$PWD:/workspace" quartus-lite:25.1 analyze
+    --project <projeto>.qpf` roda síntese, fit, timing e potência em
+    sequência de verdade, detecta falha de etapa sem prosseguir quando a
+    falha impede análise, grava
+    `quartus_output/{compilation,reports,netlist,bitstream}/` e
+    `quartus_output/reports/summary.json` com o esquema de
+    `docker/quartus-docker-fpga-analysis-plan.md`; `.sof` preservado só
+    quando a compilação termina bem
+- [ ] TRV-8.8 — Rodar o fluxo completo contra `cpus/rv32i_pipeline` de
+  verdade e documentar
+  - REQ: FR-RV-36, FR-RV-41
+  - ACEITE: `analyze` rodado contra o projeto Quartus da CPU de referência
+    (já aprovada em RV-7) produz `summary.json` com fit, timing e potência
+    reais; resultado registrado em `docs/` com o comando exato e os números
+    obtidos, cada um com a execução que o produziu — nenhum número entra no
+    relatório sem o log correspondente (mesmo princípio de NFR-RV-02)

@@ -1,5 +1,13 @@
 # Quartus Docker FPGA Analysis --- Implementation Notes
 
+> **Status (2026-09-18):** formalized as RV-8 in `specs/plan.md` (section 8),
+> `specs/spec.md` (FR-RV-36 to FR-RV-42, NFR-RV-06) and `specs/decisions.md`
+> (ADR-015). This document remains the detailed, tool-specific implementation
+> notes; the spec files are the source of truth for acceptance criteria and
+> task tracking (`specs/tasks.md`, Fase RV-8). Nothing below has been run for
+> real yet — see ADR-015 for why (the download step is manual, and RV-7 has
+> to close first).
+
 ## Goal
 
 Create a Docker image containing **Quartus Prime Lite** that can compile

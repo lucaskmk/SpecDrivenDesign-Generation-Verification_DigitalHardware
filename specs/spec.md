@@ -483,3 +483,68 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   depender apenas da biblioteca padrão do Python somada ao GHDL e ao cocotb
   já exigidos por NFR-RV-01 — o ambiente de referência (ADR-006) não tem
   framework web instalado, e o fluxo do professor é o terminal.
+
+---
+
+## Análise de viabilidade FPGA via Quartus (FR-RV-36 a FR-RV-42, NFR-RV-06)
+
+> Acrescentado em 2026-09-18. Roda **depois** da suíte de conformidade da
+> RV-7 (FR-RV-26/FR-RV-27) — é uma etapa adicional e opcional sobre uma CPU
+> já validada, não um substituto nem um pré-requisito dela; não altera o
+> veredito de FR-RV-27. Detalhe de arquitetura em `plan.md`, seção 8; plano
+> de implementação em `docker/quartus-docker-fpga-analysis-plan.md`; decisão
+> de infraestrutura em `decisions.md`, ADR-015. Nenhum requisito desta seção
+> foi verificado por execução real ainda — a imagem Docker de que eles
+> dependem não foi construída (ADR-015, Consequência) — e nenhuma tarefa de
+> `tasks.md` que os implementa está marcada até que seja.
+
+- **FR-RV-36**: WHERE o usuário pede a análise de viabilidade FPGA de uma
+  entrega já validada por FR-RV-26, THE SYSTEM SHALL rodar o Quartus Prime
+  Lite (imagem `docker/Quartus_Dockerfile`, ADR-015) sobre as mesmas fontes
+  VHDL declaradas no `cpu.toml` daquela entrega, sem gerar nem inferir
+  nenhuma fonte nova.
+- **FR-RV-37**: THE SYSTEM SHALL rodar o Fitter do Quartus contra o device
+  alvo (`5CEBA4F23C7N`, família Cyclone V, por padrão) e reportar utilização
+  de recursos — lógica/ALM, registradores, memória embarcada, DSP, PLLs,
+  pinos de E/S — em valor absoluto e percentual, e SHALL reportar se o
+  design coube no device como um campo booleano detectável por outro
+  programa, nunca só como texto solto de log.
+- **FR-RV-38**: WHERE o projeto Quartus traz um arquivo `.sdc` com
+  restrições de clock, THE SYSTEM SHALL rodar o TimeQuest Timing Analyzer e
+  reportar slack de setup e hold, o caminho crítico, o Fmax estimado e se o
+  clock alvo foi atendido; IF o projeto não tiver `.sdc` ou a restrição de
+  clock estiver ausente, THEN THE SYSTEM SHALL rodar mesmo assim, mas
+  marcar qualquer número de Fmax como não confiável no relatório — sem
+  restrição de clock, o número não significa nada, e apresentá-lo sem essa
+  ressalva seria enganoso.
+- **FR-RV-39**: THE SYSTEM SHALL rodar o Power Analyzer do Quartus e
+  reportar potência estática, dinâmica, de E/S e total estimadas, sempre
+  rotuladas como **estimativa**, nunca como medição — potência real de FPGA
+  só existe medindo a placa física, o que está fora do escopo desta etapa.
+- **FR-RV-40**: THE SYSTEM SHALL preservar os artefatos de síntese/netlist
+  produzidos pelo Quartus para inspeção posterior; WHERE for viável extrair
+  o RTL/netlist sintetizado como imagem (PNG/SVG/PDF) sem depender da GUI
+  interativa do Quartus, THE SYSTEM SHALL gerá-la; IF não for viável dentro
+  do prazo, THEN a ausência da imagem SHALL NOT bloquear os demais relatórios
+  desta seção, e os dados brutos de síntese continuam preservados.
+- **FR-RV-41**: THE SYSTEM SHALL expor um único comando wrapper (`analyze`)
+  que recebe um projeto Quartus e um device, roda síntese, fitter, timing e
+  potência em sequência, detecta falha em qualquer etapa sem prosseguir para
+  a seguinte quando a falha impede análise, e grava os resultados na
+  estrutura `quartus_output/{compilation,reports,netlist,bitstream}/`
+  descrita em `docker/quartus-docker-fpga-analysis-plan.md`, incluindo um
+  `summary.json` machine-readable consolidando os campos de FR-RV-37 a
+  FR-RV-39 mais o veredito de compilação; IF a compilação for bem-sucedida,
+  THEN THE SYSTEM SHALL preservar o arquivo de gravação (`.sof`) gerado.
+- **FR-RV-42**: THE SYSTEM SHALL manter o suporte a família de device
+  modular: Cyclone V habilitado por padrão (`DEVICE_SUPPORT=cyclonev`,
+  cobrindo `5CEBA4F23C7N`), e outras famílias adicionáveis só via argumento
+  de build da imagem (`--build-arg DEVICE_SUPPORT=...`), sem inflar a imagem
+  padrão com pacotes de device não usados por este projeto.
+- **NFR-RV-06**: THE SYSTEM SHALL manter a imagem Docker do Quartus
+  (`docker/Quartus_Dockerfile`) permanentemente separada da imagem do
+  oráculo do montador (`docker/Dockerfile`, NFR-RV-05, ADR-015) — nunca
+  compartilhar `FROM`, nunca virar um único Dockerfile — e SHALL manter a
+  execução default de `rvverify` (FR-RV-26/27) independente da imagem do
+  Quartus estar presente ou não: a análise desta seção é aditiva, e sua
+  ausência nunca é motivo para pular ou reprovar a suíte de conformidade.

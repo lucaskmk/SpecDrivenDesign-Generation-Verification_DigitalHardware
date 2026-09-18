@@ -1,14 +1,46 @@
 # Quartus Prime Lite container with modular Intel/Altera FPGA device support.
 # Default target: Cyclone V, including 5CEBA4F23C7N.
 #
-# Build:
-#   docker build -t quartus-lite:25.1 --build-arg DEVICE_SUPPORT="cyclonev" .
+# DELIBERATELY SEPARATE FROM docker/Dockerfile FOREVER (specs/decisions.md,
+# ADR-015). That image is the lightweight RISC-V toolchain oracle (binutils +
+# Yosys, NFR-RV-05) used on every rvverify run; this one is a multi-GB FPGA
+# vendor toolchain used only for the optional, post-hoc analysis of RV-8
+# (specs/plan.md, secao 8; specs/spec.md, NFR-RV-06). Never give them a
+# shared FROM, never merge them into one Dockerfile, never make rvverify's
+# default run depend on this image being present.
 #
-# Multiple families can be added at build time:
-#   docker build -t quartus-lite:25.1-multi \
-#     --build-arg DEVICE_SUPPORT="cyclonev cyclone10lp max10" .
+# ACQUIRING THE INSTALLER -- READ THIS FIRST
+# Intel/Altera's download CDN (download.altera.com/akdlm/...) sits behind
+# Akamai bot mitigation and an EULA click-through on the download page.
+# Both require a real browser session; unattended curl/wget gets HTTP 403
+# even with a spoofed browser User-Agent and Referer (verified 2026-09-18,
+# see ADR-015), and that includes a `RUN curl` inside `docker build` -- it is
+# not a matter of who runs the build. There is no scripted workaround here,
+# and this Dockerfile does not attempt one. Download the files by hand, once:
 #
-# Add another family by adding one entry to the case statement below.
+#   1. Open, in a real browser, and accept the license:
+#      https://www.altera.com/downloads/fpga-development-tools/quartus-prime-lite-edition-design-software-version-25-1-linux
+#   2. Download:
+#        - QuartusLiteSetup-${QUARTUS_VERSION}-linux.run  (~2 GB, base installer)
+#        - <family>-${QUARTUS_VERSION}.qdz for each family in DEVICE_SUPPORT
+#          (cyclonev-${QUARTUS_VERSION}.qdz for the default Cyclone V target)
+#   3. Place them, unmodified, in docker/quartus_installers/ next to this
+#      Dockerfile (gitignored -- see docker/quartus_installers/README.md).
+#
+# Build (context is docker/, same convention as docker/Dockerfile):
+#   docker build -f docker/Quartus_Dockerfile -t quartus-lite:25.1 \
+#     --build-arg DEVICE_SUPPORT="cyclonev" docker
+#
+# Multiple families can be added at build time (each needs its .qdz present
+# in docker/quartus_installers/ too):
+#   docker build -f docker/Quartus_Dockerfile -t quartus-lite:25.1-multi \
+#     --build-arg DEVICE_SUPPORT="cyclonev cyclone10lp max10" docker
+#
+# Add another family by adding one entry to the case statement below. Only
+# "cyclonev" has had its filename pattern cross-checked against a live
+# response from download.altera.com (Content-Disposition header, see
+# ADR-015); the others were inherited from an earlier draft of this file and
+# are unverified -- confirm the real filename before relying on them.
 
 FROM ubuntu:22.04
 
@@ -23,7 +55,6 @@ ENV QUARTUS_ROOTDIR=/opt/altera_lite/25.1std/quartus \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    curl \
     file \
     gzip \
     libc6 \
@@ -57,46 +88,52 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /tmp/quartus-installer
 
-# Intel/Altera publishes the 25.1 Lite Linux installer and individual .qdz
-# device-support packages separately. The qdz files must be present beside
-# QuartusLiteSetup before the installer is run.
+# The installer and device-support .qdz files are NOT fetched here (see the
+# header comment above): copy in whatever the manual download step placed in
+# docker/quartus_installers/, then fail loudly and precisely below if what
+# DEVICE_SUPPORT needs isn't among them, instead of a confusing failure deep
+# inside the unattended installer.
+COPY quartus_installers/ ./
+
 RUN set -eux; \
-    base_url="https://downloads.intel.com/akdlm/software/acdsinst/25.1std/1129/ib_installers"; \
-    curl -fsSL -o QuartusLiteSetup-${QUARTUS_VERSION}-linux.run \
-        "${base_url}/QuartusLiteSetup-${QUARTUS_VERSION}-linux.run"; \
-    echo "ce0773469eacab5b7035c175484625f4ec3737d1  QuartusLiteSetup-${QUARTUS_VERSION}-linux.run" | sha1sum -c -; \
-    chmod +x QuartusLiteSetup-${QUARTUS_VERSION}-linux.run; \
+    installer="QuartusLiteSetup-${QUARTUS_VERSION}-linux.run"; \
+    test -f "${installer}" || { \
+        echo "Missing ${installer} in docker/quartus_installers/." >&2; \
+        echo "See the header of docker/Quartus_Dockerfile for the manual download steps." >&2; \
+        exit 3; \
+    }; \
+    chmod +x "${installer}"; \
     for family in ${DEVICE_SUPPORT}; do \
         case "${family}" in \
-            cyclonev) \
-                file="cyclonev-${QUARTUS_VERSION}.qdz"; \
-                sha1="a7225ec1bd36ccfd6826ea6273df5d21dd95633b"; \
-                ;; \
-            cycloneiv) \
-                file="cyclone-${QUARTUS_VERSION}.qdz"; \
-                sha1="835d2b1732549294eed625b692d044135499b5e8"; \
-                ;; \
-            cyclone10lp) \
-                file="cyclone10lp-${QUARTUS_VERSION}.qdz"; \
-                sha1="b3cc2ca1b2e1b225407968e2f380e596dff5b80d"; \
-                ;; \
-            max10) \
-                file="max10-${QUARTUS_VERSION}.qdz"; \
-                sha1="8936dac1b092853f3b49a67fef22968ec10f8087"; \
-                ;; \
-            max) \
-                file="max-${QUARTUS_VERSION}.qdz"; \
-                sha1="a3bc065b42a9d005f8d27fe45525411b49c13c43"; \
-                ;; \
+            cyclonev)     file="cyclonev-${QUARTUS_VERSION}.qdz" ;; \
+            cycloneiv)    file="cyclone-${QUARTUS_VERSION}.qdz" ;; \
+            cyclone10lp)  file="cyclone10lp-${QUARTUS_VERSION}.qdz" ;; \
+            max10)        file="max10-${QUARTUS_VERSION}.qdz" ;; \
+            max)          file="max-${QUARTUS_VERSION}.qdz" ;; \
             *) \
                 echo "Unsupported DEVICE_SUPPORT family: ${family}" >&2; \
                 echo "Supported: cyclonev cycloneiv cyclone10lp max10 max" >&2; \
                 exit 2; \
                 ;; \
         esac; \
-        curl -fsSL -o "${file}" "${base_url}/${file}"; \
-        echo "${sha1}  ${file}" | sha1sum -c -; \
-    done
+        test -f "${file}" || { \
+            echo "Missing ${file} in docker/quartus_installers/ for DEVICE_SUPPORT=${family}." >&2; \
+            echo "See the header of docker/Quartus_Dockerfile for the manual download steps." >&2; \
+            exit 3; \
+        }; \
+    done; \
+    echo "== sha256 of the files this build actually used (for your own reproducibility log, nothing verified against it) =="; \
+    sha256sum "${installer}" $(for family in ${DEVICE_SUPPORT}; do case "${family}" in \
+        cyclonev) echo "cyclonev-${QUARTUS_VERSION}.qdz" ;; \
+        cycloneiv) echo "cyclone-${QUARTUS_VERSION}.qdz" ;; \
+        cyclone10lp) echo "cyclone10lp-${QUARTUS_VERSION}.qdz" ;; \
+        max10) echo "max10-${QUARTUS_VERSION}.qdz" ;; \
+        max) echo "max-${QUARTUS_VERSION}.qdz" ;; \
+    esac; done); \
+    if [ -f SHA256SUMS ]; then \
+        echo "== SHA256SUMS present, verifying =="; \
+        sha256sum -c SHA256SUMS; \
+    fi
 
 # Quartus installers support unattended installation. The device .qdz files
 # beside the installer are discovered and installed into the same tree.
