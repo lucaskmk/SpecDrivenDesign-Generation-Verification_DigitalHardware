@@ -604,7 +604,7 @@ montagem por toolchain real que estava no plano de merge antigo.
 - [x] TRV-7.7.11 — Publicar `REPO_MAP.md` com a estrutura final
   - REQ: ADR-013
   - ACEITE: todo caminho citado em `REPO_MAP.md` aparece em `git ls-files`
-- [ ] TRV-7.7.12 — Registrar a ADR-014
+- [x] TRV-7.7.12 — Registrar a ADR-014
   - REQ: ADR-013, NFR-RV-05
   - ACEITE: `specs/decisions.md` traz a ADR-014 no formato
     Contexto/Decisão/Alternativas rejeitadas/Consequência, sem editar a
