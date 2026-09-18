@@ -1,0 +1,14 @@
+
+/golden/build/program.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00000000 l    d  .text	00000000 .text
+00000274 l    d  .rodata	00000000 .rodata
+00000000 l    df *ABS*	00000000 program.o
+00000274 l       .rodata	00000000 const_a
+00000278 l       .rodata	00000000 const_b
+0000024c l       .text	00000000 add_double
+00000248 l       .text	00000000 done
+00000000 g       .text	00000000 _start
+
+

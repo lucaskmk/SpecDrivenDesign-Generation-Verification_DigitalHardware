@@ -1,0 +1,79 @@
+
+/job/software/ext_m_test/build/program.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00000000 <_start>:
+   0:	00fc81b7          	lui	x3,0xfc8
+   4:	00fc9137          	lui	x2,0xfc9
+   8:	ff010113          	addi	x2,x2,-16 # fc8ff0 <done+0xfc8edc>
+   c:	12345237          	lui	x4,0x12345
+  10:	67820213          	addi	x4,x4,1656 # 12345678 <done+0x12345564>
+  14:	01000293          	addi	x5,x0,16
+  18:	00010337          	lui	x6,0x10
+  1c:	00130313          	addi	x6,x6,1 # 10001 <done+0xfeed>
+  20:	fff00393          	addi	x7,x0,-1
+  24:	80000437          	lui	x8,0x80000
+  28:	400004b7          	lui	x9,0x40000
+  2c:	c0000537          	lui	x10,0xc0000
+  30:	06400593          	addi	x11,x0,100
+  34:	00700613          	addi	x12,x0,7
+  38:	f9c00693          	addi	x13,x0,-100
+  3c:	ff900713          	addi	x14,x0,-7
+  40:	025207b3          	mul	x15,x4,x5
+  44:	00f1a023          	sw	x15,0(x3) # fc8000 <done+0xfc7eec>
+  48:	026307b3          	mul	x15,x6,x6
+  4c:	00f1a223          	sw	x15,4(x3)
+  50:	028387b3          	mul	x15,x7,x8
+  54:	00f1a423          	sw	x15,8(x3)
+  58:	029497b3          	mulh	x15,x9,x9
+  5c:	00f1a623          	sw	x15,12(x3)
+  60:	02a517b3          	mulh	x15,x10,x10
+  64:	00f1a823          	sw	x15,16(x3)
+  68:	028397b3          	mulh	x15,x7,x8
+  6c:	00f1aa23          	sw	x15,20(x3)
+  70:	02a537b3          	mulhu	x15,x10,x10
+  74:	00f1ac23          	sw	x15,24(x3)
+  78:	0283b7b3          	mulhu	x15,x7,x8
+  7c:	00f1ae23          	sw	x15,28(x3)
+  80:	0283a7b3          	mulhsu	x15,x7,x8
+  84:	02f1a023          	sw	x15,32(x3)
+  88:	02a4a7b3          	mulhsu	x15,x9,x10
+  8c:	02f1a223          	sw	x15,36(x3)
+  90:	0253c7b3          	div	x15,x7,x5
+  94:	02f1a423          	sw	x15,40(x3)
+  98:	02c6c7b3          	div	x15,x13,x12
+  9c:	02f1a623          	sw	x15,44(x3)
+  a0:	02e5c7b3          	div	x15,x11,x14
+  a4:	02f1a823          	sw	x15,48(x3)
+  a8:	0205c7b3          	div	x15,x11,x0
+  ac:	02f1aa23          	sw	x15,52(x3)
+  b0:	027447b3          	div	x15,x8,x7
+  b4:	02f1ac23          	sw	x15,56(x3)
+  b8:	0253d7b3          	divu	x15,x7,x5
+  bc:	02f1ae23          	sw	x15,60(x3)
+  c0:	0205d7b3          	divu	x15,x11,x0
+  c4:	04f1a023          	sw	x15,64(x3)
+  c8:	0253e7b3          	rem	x15,x7,x5
+  cc:	04f1a223          	sw	x15,68(x3)
+  d0:	02c6e7b3          	rem	x15,x13,x12
+  d4:	04f1a423          	sw	x15,72(x3)
+  d8:	02e5e7b3          	rem	x15,x11,x14
+  dc:	04f1a623          	sw	x15,76(x3)
+  e0:	0205e7b3          	rem	x15,x11,x0
+  e4:	04f1a823          	sw	x15,80(x3)
+  e8:	027467b3          	rem	x15,x8,x7
+  ec:	04f1aa23          	sw	x15,84(x3)
+  f0:	0253f7b3          	remu	x15,x7,x5
+  f4:	04f1ac23          	sw	x15,88(x3)
+  f8:	0205f7b3          	remu	x15,x11,x0
+  fc:	04f1ae23          	sw	x15,92(x3)
+ 100:	00fc9e37          	lui	x28,0xfc9
+ 104:	ffce0e13          	addi	x28,x28,-4 # fc8ffc <done+0xfc8ee8>
+ 108:	c0fffeb7          	lui	x29,0xc0fff
+ 10c:	e00e8e93          	addi	x29,x29,-512 # c0ffee00 <done+0xc0ffecec>
+ 110:	01de2023          	sw	x29,0(x28)
+
+00000114 <done>:
+ 114:	0000006f          	jal	x0,114 <done>

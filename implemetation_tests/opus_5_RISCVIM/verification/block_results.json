@@ -1,0 +1,513 @@
+{
+  "design": "rv32im_sc",
+  "phase": "4",
+  "blocks": {
+    "alu": {
+      "block": "alu",
+      "vhdl_path": "src/alu.vhd",
+      "testbench_path": "test/alu/test_alu.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/alu/Makefile",
+      "satisfies": [
+        "FR-03",
+        "FR-12"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 4,
+        "passed": 4,
+        "cases": [
+          {
+            "name": "test_edge_values",
+            "passed": true
+          },
+          {
+            "name": "test_random",
+            "passed": true
+          },
+          {
+            "name": "test_shift_amount_is_five_bits",
+            "passed": true
+          },
+          {
+            "name": "test_unknown_opcode_is_zero",
+            "passed": true
+          }
+        ],
+        "log_path": "test/alu/results.xml",
+        "waveform_path": "test/alu/alu.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 2291,
+        "cells_rv32im": 2291,
+        "logic_depth_levels_rv32i": 33,
+        "logic_depth_levels_rv32im": 33,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "branch_unit": {
+      "block": "branch_unit",
+      "vhdl_path": "src/branch_unit.vhd",
+      "testbench_path": "test/branch_unit/test_branch_unit.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/branch_unit/Makefile",
+      "satisfies": [
+        "FR-03",
+        "FR-08"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 5,
+        "passed": 5,
+        "cases": [
+          {
+            "name": "test_edge_values",
+            "passed": true
+          },
+          {
+            "name": "test_signed_vs_unsigned",
+            "passed": true
+          },
+          {
+            "name": "test_not_a_branch_never_taken",
+            "passed": true
+          },
+          {
+            "name": "test_reserved_funct3_never_taken",
+            "passed": true
+          },
+          {
+            "name": "test_random",
+            "passed": true
+          }
+        ],
+        "log_path": "test/branch_unit/results.xml",
+        "waveform_path": "test/branch_unit/branch_unit.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 1554,
+        "cells_rv32im": 1554,
+        "logic_depth_levels_rv32i": 32,
+        "logic_depth_levels_rv32im": 32,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "control_unit": {
+      "block": "control_unit",
+      "vhdl_path": "src/control_unit.vhd",
+      "testbench_path": "test/control_unit/test_control_unit.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/control_unit/Makefile",
+      "satisfies": [
+        "FR-03",
+        "FR-04",
+        "FR-05",
+        "FR-14",
+        "FR-15"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 4,
+        "passed": 4,
+        "cases": [
+          {
+            "name": "test_all_declared_instructions",
+            "passed": true
+          },
+          {
+            "name": "test_out_of_scope_instructions_are_illegal",
+            "passed": true
+          },
+          {
+            "name": "test_reserved_encodings_are_illegal",
+            "passed": true
+          },
+          {
+            "name": "test_m_extension_md_op_is_funct3",
+            "passed": true
+          }
+        ],
+        "log_path": "test/control_unit/results.xml",
+        "waveform_path": "test/control_unit/control_unit.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 1311,
+        "cells_rv32im": 1425,
+        "logic_depth_levels_rv32i": 16,
+        "logic_depth_levels_rv32im": 16,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "data_ram": {
+      "block": "data_ram",
+      "vhdl_path": "src/data_ram.vhd",
+      "testbench_path": "test/data_ram/test_data_ram.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/data_ram/Makefile",
+      "satisfies": [
+        "FR-06",
+        "FR-07",
+        "FR-10"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 5,
+        "passed": 5,
+        "cases": [
+          {
+            "name": "test_word_write_read",
+            "passed": true
+          },
+          {
+            "name": "test_byte_enables",
+            "passed": true
+          },
+          {
+            "name": "test_addr_valid_flag",
+            "passed": true
+          },
+          {
+            "name": "test_out_of_range_write_is_discarded",
+            "passed": true
+          },
+          {
+            "name": "test_memory_signal_is_readable",
+            "passed": true
+          }
+        ],
+        "log_path": "test/data_ram/results.xml",
+        "waveform_path": "test/data_ram/data_ram.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 154,
+        "cells_rv32im": 154,
+        "logic_depth_levels_rv32i": 11,
+        "logic_depth_levels_rv32im": 11,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "immediate_generator": {
+      "block": "immediate_generator",
+      "vhdl_path": "src/immediate_generator.vhd",
+      "testbench_path": "test/immediate_generator/test_immediate_generator.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/immediate_generator/Makefile",
+      "satisfies": [
+        "FR-03",
+        "FR-08"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 5,
+        "passed": 5,
+        "cases": [
+          {
+            "name": "test_random_words",
+            "passed": true
+          },
+          {
+            "name": "test_all_ones_and_zeros",
+            "passed": true
+          },
+          {
+            "name": "test_known_encodings",
+            "passed": true
+          },
+          {
+            "name": "test_no_format_is_zero",
+            "passed": true
+          },
+          {
+            "name": "test_branch_and_jump_are_even",
+            "passed": true
+          }
+        ],
+        "log_path": "test/immediate_generator/results.xml",
+        "waveform_path": "test/immediate_generator/immediate_generator.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 187,
+        "cells_rv32im": 187,
+        "logic_depth_levels_rv32i": 9,
+        "logic_depth_levels_rv32im": 9,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "instruction_rom": {
+      "block": "instruction_rom",
+      "vhdl_path": "src/instruction_rom.vhd",
+      "testbench_path": "test/instruction_rom/test_instruction_rom.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/instruction_rom/Makefile",
+      "satisfies": [
+        "FR-06",
+        "FR-07",
+        "FR-13"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 5,
+        "passed": 5,
+        "cases": [
+          {
+            "name": "test_image_matches_rm",
+            "passed": true
+          },
+          {
+            "name": "test_image_matches_objdump",
+            "passed": true
+          },
+          {
+            "name": "test_rodata_port",
+            "passed": true
+          },
+          {
+            "name": "test_out_of_range",
+            "passed": true
+          },
+          {
+            "name": "test_ports_are_independent",
+            "passed": true
+          }
+        ],
+        "log_path": "test/instruction_rom/results.xml",
+        "waveform_path": "test/instruction_rom/instruction_rom.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 247,
+        "cells_rv32im": 247,
+        "logic_depth_levels_rv32i": 14,
+        "logic_depth_levels_rv32im": 14,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "load_store_unit": {
+      "block": "load_store_unit",
+      "vhdl_path": "src/load_store_unit.vhd",
+      "testbench_path": "test/load_store_unit/test_load_store_unit.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/load_store_unit/Makefile",
+      "satisfies": [
+        "FR-06",
+        "FR-07"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 7,
+        "passed": 7,
+        "cases": [
+          {
+            "name": "test_loads_from_ram",
+            "passed": true
+          },
+          {
+            "name": "test_loads_from_rom",
+            "passed": true
+          },
+          {
+            "name": "test_out_of_range_load",
+            "passed": true
+          },
+          {
+            "name": "test_misaligned_load",
+            "passed": true
+          },
+          {
+            "name": "test_stores",
+            "passed": true
+          },
+          {
+            "name": "test_store_outside_ram_is_blocked",
+            "passed": true
+          },
+          {
+            "name": "test_misaligned_store_is_blocked",
+            "passed": true
+          }
+        ],
+        "log_path": "test/load_store_unit/results.xml",
+        "waveform_path": "test/load_store_unit/load_store_unit.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 1447,
+        "cells_rv32im": 1447,
+        "logic_depth_levels_rv32i": 14,
+        "logic_depth_levels_rv32im": 14,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "mul_div_unit": {
+      "block": "mul_div_unit",
+      "vhdl_path": "src/mul_div_unit.vhd",
+      "testbench_path": "test/mul_div_unit/test_mul_div_unit.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/mul_div_unit/Makefile",
+      "satisfies": [
+        "FR-04",
+        "FR-11"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 4,
+        "passed": 4,
+        "cases": [
+          {
+            "name": "test_edge_values",
+            "passed": true
+          },
+          {
+            "name": "test_division_by_zero",
+            "passed": true
+          },
+          {
+            "name": "test_signed_overflow",
+            "passed": true
+          },
+          {
+            "name": "test_random",
+            "passed": true
+          }
+        ],
+        "log_path": "test/mul_div_unit/results.xml",
+        "waveform_path": "test/mul_div_unit/mul_div_unit.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": null,
+        "cells_rv32im": 209379,
+        "logic_depth_levels_rv32i": null,
+        "logic_depth_levels_rv32im": 785,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "program_counter": {
+      "block": "program_counter",
+      "vhdl_path": "src/program_counter.vhd",
+      "testbench_path": "test/program_counter/test_program_counter.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/program_counter/Makefile",
+      "satisfies": [
+        "FR-05",
+        "FR-09"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 3,
+        "passed": 3,
+        "cases": [
+          {
+            "name": "test_reset_loads_vector",
+            "passed": true
+          },
+          {
+            "name": "test_reset_is_synchronous",
+            "passed": true
+          },
+          {
+            "name": "test_loads_next_pc_every_edge",
+            "passed": true
+          }
+        ],
+        "log_path": "test/program_counter/results.xml",
+        "waveform_path": "test/program_counter/program_counter.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 64,
+        "cells_rv32im": 64,
+        "logic_depth_levels_rv32i": 1,
+        "logic_depth_levels_rv32im": 1,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    },
+    "register_file": {
+      "block": "register_file",
+      "vhdl_path": "src/register_file.vhd",
+      "testbench_path": "test/register_file/test_register_file.py",
+      "testbench_framework": "cocotb",
+      "makefile_path": "test/register_file/Makefile",
+      "satisfies": [
+        "FR-02",
+        "FR-05"
+      ],
+      "simulation": {
+        "status": "pass",
+        "tests": 6,
+        "passed": 6,
+        "cases": [
+          {
+            "name": "test_write_then_read_back",
+            "passed": true
+          },
+          {
+            "name": "test_x0_is_hardwired_zero",
+            "passed": true
+          },
+          {
+            "name": "test_two_read_ports_are_independent",
+            "passed": true
+          },
+          {
+            "name": "test_write_enable_gates",
+            "passed": true
+          },
+          {
+            "name": "test_reset_clears",
+            "passed": true
+          },
+          {
+            "name": "test_random_traffic",
+            "passed": true
+          }
+        ],
+        "log_path": "test/register_file/results.xml",
+        "waveform_path": "test/register_file/register_file.vcd",
+        "failed_requirement": null,
+        "failure_class": null,
+        "simulator": "GHDL 2.0.0 (mcode) via cocotb 2.0.0, imagem spechdl-toolchain"
+      },
+      "ppa": {
+        "cells_rv32i": 8889,
+        "cells_rv32im": 8889,
+        "logic_depth_levels_rv32i": 19,
+        "logic_depth_levels_rv32im": 19,
+        "method": "synthesis",
+        "tool": "ghdl synth --out=verilog + yosys stat (ADR-005)"
+      }
+    }
+  }
+}

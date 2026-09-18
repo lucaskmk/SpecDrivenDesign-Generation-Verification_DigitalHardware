@@ -1,0 +1,181 @@
+{
+  "design": "rv32im_sc",
+  "source_spec": "specs/spec.json",
+  "style": "single-cycle Harvard datapath with hardwired combinational control",
+  "packages": [
+    {
+      "name": "cpu_pkg",
+      "path": "src/cpu_pkg.vhd",
+      "responsibility": "Tipos e constantes compartilhados: mapa de memoria (FR-06), tamanhos de ROM/RAM, codigos de operacao da ALU e da unidade mul/div, tipo do array de RAM e da imagem de ROM.",
+      "satisfies": ["FR-06", "NFR-01"],
+      "design_rationale": "Centralizar o mapa de memoria em constantes evita numero magico repetido em decode de endereco (principio 7 do pipeline: nada hardcoded espalhado) e permite mudar o tamanho da RAM sem tocar em logica."
+    },
+    {
+      "name": "rom_image_pkg",
+      "path": "software/<programa>/rom_image_pkg.vhd",
+      "responsibility": "Array constante com a imagem de ROM do programa, gerado a partir do .rm pela fase 3b. Um por programa de teste, nunca editado a mao.",
+      "satisfies": ["FR-13"],
+      "design_rationale": "Pacote gerado em vez de leitura de arquivo com std.textio na elaboracao: ROM com I/O de arquivo nao passa pela sintese do Yosys, e a fase 5 precisa sintetizar o mesmo design que foi verificado (plan.md, formato do .rm)."
+    }
+  ],
+  "blocks": [
+    {
+      "name": "program_counter",
+      "path": "src/program_counter.vhd",
+      "inputs": ["clk", "rst", "next_pc[31:0]"],
+      "outputs": ["pc[31:0]"],
+      "responsibility": "Registrador de PC com reset sincrono ativo em alto para o vetor 0x00000000.",
+      "satisfies": ["FR-09", "FR-05"],
+      "design_rationale": "Unico elemento de estado do controle de fluxo. Reset sincrono (rubrica) elimina o caminho assincrono de reset e o custo de rota de reset global dedicada (NFR-03)."
+    },
+    {
+      "name": "instruction_rom",
+      "path": "src/instruction_rom.vhd",
+      "inputs": ["instr_addr[31:0]", "data_addr[31:0]"],
+      "outputs": ["instr_out[31:0]", "data_out[31:0]", "data_addr_valid"],
+      "responsibility": "ROM de 1024 palavras com duas portas de leitura assincronas: uma para o fetch e outra para load de constante em .rodata. Sinaliza se o endereco de dados cai na faixa da ROM.",
+      "satisfies": ["FR-06", "FR-07", "FR-13"],
+      "design_rationale": "Duas portas de leitura em vez de duas instancias de ROM: a mesma imagem serve .text e .rodata, e duplicar a instancia dobraria a area de ROM sem beneficio (NFR-01). Leitura assincrona e o que permite CPI 1 no monociclo (NFR-02)."
+    },
+    {
+      "name": "data_ram",
+      "path": "src/data_ram.vhd",
+      "inputs": ["clk", "addr[31:0]", "write_enable", "byte_enable[3:0]", "data_in[31:0]"],
+      "outputs": ["data_out[31:0]", "addr_valid"],
+      "responsibility": "RAM de dados de 1024 palavras de 32 bits, leitura assincrona e escrita sincrona com byte enables; expoe o array como signal memory.",
+      "satisfies": ["FR-06", "FR-07", "FR-10"],
+      "design_rationale": "Array unidimensional de palavras de 32 bits com byte enable (em vez do array 2D de bytes da referencia cpus/rv32i_pipeline): e a forma que o cocotb le por VHPI como ArrayObject indexavel, que e o contrato de leitura de RAM do repo:FR-RV-26. Precisa ser signal, nao variable, porque o VHPI do GHDL nao expoe variavel de processo."
+    },
+    {
+      "name": "register_file",
+      "path": "src/register_file.vhd",
+      "inputs": ["clk", "rst", "rs1_addr[4:0]", "rs2_addr[4:0]", "rd_addr[4:0]", "rd_data[31:0]", "write_enable"],
+      "outputs": ["rs1_data[31:0]", "rs2_data[31:0]"],
+      "responsibility": "32 registradores de 32 bits, x0 fixo em zero, duas leituras assincronas e uma escrita sincrona.",
+      "satisfies": ["FR-02", "FR-05"],
+      "design_rationale": "Duas portas de leitura e uma de escrita e o minimo que sustenta uma instrucao tipo R por ciclo (rubrica: 2 leituras, 1 escrita); mais portas so serviriam a superescalar, que a rubrica descarta, e custariam area (NFR-01)."
+    },
+    {
+      "name": "immediate_generator",
+      "path": "src/immediate_generator.vhd",
+      "inputs": ["instr[31:0]", "imm_format"],
+      "outputs": ["imm[31:0]"],
+      "responsibility": "Extrai e estende com sinal o imediato nos formatos I, S, B, U e J.",
+      "satisfies": ["FR-03", "FR-08"],
+      "design_rationale": "Bloco puramente combinacional de reordenacao de bits: custa fios e nenhum somador, e concentra num lugar a parte mais propensa a erro do decode do RISC-V (imediato de B e J tem bits fora de ordem)."
+    },
+    {
+      "name": "alu",
+      "path": "src/alu.vhd",
+      "inputs": ["a[31:0]", "b[31:0]", "alu_op[3:0]"],
+      "outputs": ["result[31:0]"],
+      "responsibility": "Operacoes inteiras do RV32I: add, sub, and, or, xor, sll, srl, sra, slt, sltu, passthrough de b (para lui).",
+      "satisfies": ["FR-03", "FR-12"],
+      "design_rationale": "Uma unica ALU combinacional (rubrica: num_alus considera ALU + mul/div). Barrel shifter em um ciclo atende FR-12 e a rubrica; shifter iterativo economizaria area mas quebraria CPI 1 (NFR-02)."
+    },
+    {
+      "name": "mul_div_unit",
+      "path": "src/mul_div_unit.vhd",
+      "inputs": ["a[31:0]", "b[31:0]", "md_op[2:0]"],
+      "outputs": ["result[31:0]"],
+      "responsibility": "Extensao M: mul, mulh, mulhsu, mulhu, div, divu, rem, remu, incluindo os casos de divisao por zero e overflow.",
+      "satisfies": ["FR-04", "FR-11"],
+      "design_rationale": "Unidade separada da ALU porque so ela precisa dos operandos de 64 bits do produto; manter isso fora da ALU evita alargar o caminho de todas as instrucoes inteiras (NFR-02). Implementacao combinacional para preservar CPI 1 (NFR-02) ao custo de caminho critico e area (NFR-01) - trade-off registrado em alternatives."
+    },
+    {
+      "name": "branch_unit",
+      "path": "src/branch_unit.vhd",
+      "inputs": ["rs1_data[31:0]", "rs2_data[31:0]", "funct3[2:0]", "is_branch"],
+      "outputs": ["take_branch"],
+      "responsibility": "Avalia a condicao dos seis branches (beq, bne, blt, bge, bltu, bgeu) comparando registradores.",
+      "satisfies": ["FR-03", "FR-08"],
+      "design_rationale": "Comparador dedicado em vez de reuso do slt da ALU: a ALU do ciclo esta ocupada calculando o alvo do desvio, e um segundo comparador de 32 bits e barato perto de serializar as duas operacoes (NFR-02). A rubrica descarta registrador de flags, entao a condicao e avaliada direto dos registradores."
+    },
+    {
+      "name": "load_store_unit",
+      "path": "src/load_store_unit.vhd",
+      "inputs": ["addr[31:0]", "funct3[2:0]", "mem_write", "rs2_data[31:0]", "ram_data[31:0]", "ram_valid", "rom_data[31:0]", "rom_valid"],
+      "outputs": ["ram_write_enable", "ram_byte_enable[3:0]", "ram_data_in[31:0]", "load_result[31:0]"],
+      "responsibility": "Alinhamento e extensao de dados de load/store: seleciona o byte/halfword pelo offset, aplica extensao de sinal ou de zero, gera byte enables de store e decide entre ROM, RAM e faixa invalida.",
+      "satisfies": ["FR-07", "FR-06"],
+      "design_rationale": "Bloco combinacional separado do array de memoria: mantem data_ram_inst como filha direta do top-level (contrato do repo:FR-RV-26, que exige a RAM nesse ponto da hierarquia) e concentra num lugar a regra de alinhamento e de faixa invalida do FR-07."
+    },
+    {
+      "name": "control_unit",
+      "path": "src/control_unit.vhd",
+      "inputs": ["instr[31:0]"],
+      "outputs": ["reg_write", "mem_write", "mem_to_reg", "alu_src_a_pc", "alu_src_b_imm", "alu_op[3:0]", "md_op[2:0]", "use_mul_div", "imm_format", "is_branch", "is_jal", "is_jalr", "link_pc", "illegal"],
+      "responsibility": "Decodifica opcode/funct3/funct7 em todos os sinais de controle do datapath e marca instrucao nao reconhecida como ilegal (tratada como nop).",
+      "satisfies": ["FR-03", "FR-04", "FR-05", "FR-14"],
+      "design_rationale": "Controle hardwired combinacional (rubrica: multiciclo_microprogramado=False): sem ROM de microcodigo e sem FSM, o que economiza area e memoria (NFR-01) e mantem a decodificacao no mesmo ciclo da execucao (NFR-02). O custo e uma tabela de decode maior em logica combinacional, aceitavel para 45 instrucoes de formato fixo."
+    },
+    {
+      "name": "cpu",
+      "path": "src/cpu.vhd",
+      "inputs": ["clk", "rst"],
+      "outputs": ["dbg_pc[31:0]", "dbg_instr[31:0]", "dbg_valid"],
+      "responsibility": "Top-level: instancia e conecta todos os blocos, calcula next_pc, faz o mux de escrita no banco de registradores e registra as saidas de trace de aposentadoria.",
+      "satisfies": ["FR-05", "FR-08", "FR-09", "FR-10"],
+      "design_rationale": "As saidas dbg_* sao registradas na mesma borda em que a instrucao se aposenta, de modo que dbg_valid distingue aposentadoria real de ciclo de reset (repo:FR-RV-26). Trace de aposentadoria e nao de fetch e o que impede contar como coberta uma instrucao descartada (principio 10)."
+    }
+  ],
+  "connections": [
+    {"from": "program_counter", "to": "instruction_rom", "signal": "pc -> instr_addr"},
+    {"from": "instruction_rom", "to": "control_unit", "signal": "instr_out -> instr"},
+    {"from": "instruction_rom", "to": "immediate_generator", "signal": "instr_out -> instr"},
+    {"from": "instruction_rom", "to": "register_file", "signal": "instr_out(19:15), instr_out(24:20), instr_out(11:7) -> rs1_addr, rs2_addr, rd_addr"},
+    {"from": "instruction_rom", "to": "load_store_unit", "signal": "data_out, data_addr_valid -> rom_data, rom_valid"},
+    {"from": "control_unit", "to": "alu", "signal": "alu_op"},
+    {"from": "control_unit", "to": "mul_div_unit", "signal": "md_op"},
+    {"from": "control_unit", "to": "register_file", "signal": "reg_write"},
+    {"from": "control_unit", "to": "load_store_unit", "signal": "mem_write"},
+    {"from": "control_unit", "to": "immediate_generator", "signal": "imm_format"},
+    {"from": "control_unit", "to": "branch_unit", "signal": "is_branch"},
+    {"from": "register_file", "to": "alu", "signal": "rs1_data -> a (ou pc, via mux alu_src_a_pc)"},
+    {"from": "register_file", "to": "alu", "signal": "rs2_data -> b (ou imm, via mux alu_src_b_imm)"},
+    {"from": "register_file", "to": "mul_div_unit", "signal": "rs1_data, rs2_data -> a, b"},
+    {"from": "register_file", "to": "branch_unit", "signal": "rs1_data, rs2_data"},
+    {"from": "register_file", "to": "load_store_unit", "signal": "rs2_data -> dado de store"},
+    {"from": "alu", "to": "load_store_unit", "signal": "result -> addr (endereco de load/store)"},
+    {"from": "alu", "to": "cpu", "signal": "result -> mux de escrita em rd e alvo de jalr"},
+    {"from": "mul_div_unit", "to": "cpu", "signal": "result -> mux de escrita em rd"},
+    {"from": "load_store_unit", "to": "data_ram", "signal": "ram_write_enable, ram_byte_enable, ram_data_in"},
+    {"from": "data_ram", "to": "load_store_unit", "signal": "data_out, addr_valid -> ram_data, ram_valid"},
+    {"from": "load_store_unit", "to": "cpu", "signal": "load_result -> mux de escrita em rd"},
+    {"from": "branch_unit", "to": "cpu", "signal": "take_branch -> selecao de next_pc"},
+    {"from": "cpu", "to": "program_counter", "signal": "next_pc"},
+    {"from": "cpu", "to": "data_ram", "signal": "alu result -> addr"}
+  ],
+  "alternatives": [
+    {
+      "decision": "profundidade do datapath",
+      "chosen": "monociclo (1 estagio)",
+      "fixed_by_rubric": true,
+      "tradeoff": "Fixado pela rubrica (estagios_pipeline=1, cpi_alvo=1.0). Um pipeline de 5 estagios como o de cpus/rv32i_pipeline elevaria a frequencia possivel (caminho critico menor por estagio) mas adicionaria registradores de pipeline, unidade de hazard e forwarding - area (NFR-01) e, sobretudo, superficie de bug de verificacao. Monociclo tem CPI 1 exato, o que torna o gate de nao-terminacao do repo:FR-RV-21 diretamente interpretavel em ciclos."
+    },
+    {
+      "decision": "implementacao de div/rem",
+      "chosen": "divisor combinacional (numeric_std)",
+      "fixed_by_rubric": false,
+      "tradeoff": "A rubrica pede div em hardware e CPI 1, o que exclui divisor sequencial de 32 ciclos, mas nao fixa a microarquitetura do divisor. Combinacional: mantem CPI 1 (NFR-02) e o modelo de aposentadoria de uma instrucao por borda, ao custo do pior caminho critico do design e da maior area combinacional (NFR-01) - a 50 MHz alvo isso e plausivel em FPGA, mas e o caminho que limitaria uma frequencia maior. Alternativa registrada: divisor sequencial de restauracao com stall de ~32 ciclos, que reduziria area e caminho critico mas quebraria CPI=1 e exigiria logica de stall que a rubrica descarta (deteccao_hazard_stall=False)."
+    },
+    {
+      "decision": "estilo de unidade de controle",
+      "chosen": "hardwired combinacional",
+      "fixed_by_rubric": true,
+      "tradeoff": "Fixado pela rubrica (multiciclo_microprogramado=False). Microprograma daria flexibilidade para adicionar instrucao sem re-sintetizar a logica de decode, mas custaria uma ROM de microcodigo e no minimo um ciclo extra por instrucao - incompativel com CPI 1 (NFR-02)."
+    },
+    {
+      "decision": "leitura de .rodata",
+      "chosen": "segunda porta de leitura na ROM de instrucoes",
+      "fixed_by_rubric": false,
+      "tradeoff": "O programa de teste obrigatorio precisa ler constante de .rodata via auipc/lui (plan.md, fase 3b), e a rubrica pede Harvard. Segunda porta na mesma ROM: sem duplicar area de memoria (NFR-01), ao custo de a ROM precisar ser dual-port na sintese. Alternativa: copiar .rodata para a RAM no boot, o que exigiria codigo de startup e um mecanismo de inicializacao de RAM que a rubrica nao pede."
+    },
+    {
+      "decision": "acesso desalinhado / fora de faixa",
+      "chosen": "leitura retorna 0xFFFFFFFF e escrita e descartada",
+      "fixed_by_rubric": true,
+      "tradeoff": "Fixado por rubrica (exige_acesso_alinhado=True, excecoes_precisas=False, num_causas_excecao=0): sem mecanismo de trap, o comportamento tem de ser silencioso e deterministico. Alternativa (trap preciso) exigiria CSRs e modos de privilegio, descartados na rubrica."
+    }
+  ]
+}

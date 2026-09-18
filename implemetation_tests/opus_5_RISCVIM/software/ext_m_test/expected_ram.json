@@ -1,0 +1,82 @@
+{
+  "program": "ext_m_test",
+  "authored_by": "generated",
+  "extension": "M",
+  "source_asm": "src/program.S",
+  "word_size_bits": 32,
+  "endianness": "little",
+  "ram_base": "0x00FC8000",
+  "ram_top": "0x00FC8FFF",
+  "done_sentinel": {"addr": "0x00FC8FFC", "value": "0xC0FFEE00"},
+  "max_cycles": 200000,
+  "derivation": [
+    "Derivado A MAO da semantica do assembly em src/program.S e da tabela de",
+    "bordas de FR-11, ANTES de qualquer simulacao (pipeline:FR-22).",
+    "Operandos: x4=0x12345678 x5=16 x6=0x00010001 x7=0xFFFFFFFF x8=0x80000000",
+    "           x9=0x40000000 x10=0xC0000000 x11=100 x12=7 x13=-100 x14=-7",
+    "Todos os produtos de 64 bits sao potencias de dois (ou multiplos pequenos",
+    "de uma), de propósito: o valor esperado sai de deslocamento, nao de",
+    "multiplicacao longa feita a mao.",
+    "Somente os enderecos listados em 'expected' sao comparados."
+  ],
+  "expected": [
+    {"addr": "0x00FC8000", "value": "0x23456780", "instruction": "mul",
+     "note": "0x12345678 * 16 = 0x123456780; os 32 bits baixos sao 0x23456780 (o nibble 0x1 sai da palavra)"},
+    {"addr": "0x00FC8004", "value": "0x00020001", "instruction": "mul",
+     "note": "65537^2 = 0x100020001; low32 = 0x00020001 -- prova que mul devolve a parte BAIXA e nao satura"},
+    {"addr": "0x00FC8008", "value": "0x80000000", "instruction": "mul",
+     "note": "0xFFFFFFFF * 0x80000000 = 0x7FFFFFFF80000000; low32 = 0x80000000 (independe de sinal)"},
+
+    {"addr": "0x00FC800C", "value": "0x10000000", "instruction": "mulh",
+     "note": "signed: (+2^30)^2 = 2^60; high32 = 2^60 >> 32 = 2^28 = 0x10000000"},
+    {"addr": "0x00FC8010", "value": "0x10000000", "instruction": "mulh",
+     "note": "signed: (-2^30)^2 = +2^60; dois negativos dao produto positivo -> mesmo 0x10000000"},
+    {"addr": "0x00FC8014", "value": "0x00000000", "instruction": "mulh",
+     "note": "signed: -1 * -2^31 = +2^31 = 0x0000000080000000; high32 = 0x00000000"},
+
+    {"addr": "0x00FC8018", "value": "0x90000000", "instruction": "mulhu",
+     "note": "unsigned: (3*2^30)^2 = 9*2^60 = 0x9000000000000000; high32 = 0x90000000 (contrasta com o mulh do mesmo par em 0x00FC8010)"},
+    {"addr": "0x00FC801C", "value": "0x7FFFFFFF", "instruction": "mulhu",
+     "note": "unsigned: (2^32-1) * 2^31 = 2^63 - 2^31 = 0x7FFFFFFF80000000; high32 = 0x7FFFFFFF"},
+
+    {"addr": "0x00FC8020", "value": "0xFFFFFFFF", "instruction": "mulhsu",
+     "note": "signed rs1 x unsigned rs2: -1 * 2^31 = -2^31 = 0xFFFFFFFF80000000; high32 = 0xFFFFFFFF. Junto com 0x0C/0x18/0x1C fecha as 4 variantes distintas no mesmo par de operandos"},
+    {"addr": "0x00FC8024", "value": "0x30000000", "instruction": "mulhsu",
+     "note": "signed rs1 = +2^30, unsigned rs2 = 3*2^30 -> 3*2^60 = 0x3000000000000000; high32 = 0x30000000"},
+
+    {"addr": "0x00FC8028", "value": "0x00000000", "instruction": "div",
+     "note": "signed: -1 / 16 truncando PARA ZERO = 0 (arredondar para -infinito daria -1)"},
+    {"addr": "0x00FC802C", "value": "0xFFFFFFF2", "instruction": "div",
+     "note": "signed: -100 / 7 = -14 (-14*7 = -98, resto -2)"},
+    {"addr": "0x00FC8030", "value": "0xFFFFFFF2", "instruction": "div",
+     "note": "signed: 100 / -7 = -14; quociente negativo com divisor negativo"},
+    {"addr": "0x00FC8034", "value": "0xFFFFFFFF", "instruction": "div",
+     "note": "FR-11: divisor = 0 -> quociente -1, sem excecao"},
+    {"addr": "0x00FC8038", "value": "0x80000000", "instruction": "div",
+     "note": "FR-11: overflow -2^31 / -1 -> -2^31 (o resultado matematico +2^31 nao cabe em 32 bits com sinal)"},
+
+    {"addr": "0x00FC803C", "value": "0x0FFFFFFF", "instruction": "divu",
+     "note": "unsigned: 0xFFFFFFFF / 16 = 0x0FFFFFFF; mesmo par de operandos que o div em 0x00FC8028, resultado totalmente diferente"},
+    {"addr": "0x00FC8040", "value": "0xFFFFFFFF", "instruction": "divu",
+     "note": "FR-11: divisor = 0 -> 0xFFFFFFFF (2^32 - 1)"},
+
+    {"addr": "0x00FC8044", "value": "0xFFFFFFFF", "instruction": "rem",
+     "note": "signed: -1 % 16 = -1; o resto herda o sinal do DIVIDENDO"},
+    {"addr": "0x00FC8048", "value": "0xFFFFFFFE", "instruction": "rem",
+     "note": "signed: -100 % 7 = -2 (consistente com o div em 0x00FC802C: -14*7 + (-2) = -100)"},
+    {"addr": "0x00FC804C", "value": "0x00000002", "instruction": "rem",
+     "note": "signed: 100 % -7 = +2 (dividendo positivo -> resto positivo; -14*(-7) + 2 = 100)"},
+    {"addr": "0x00FC8050", "value": "0x00000064", "instruction": "rem",
+     "note": "FR-11: divisor = 0 -> resto igual ao dividendo (100)"},
+    {"addr": "0x00FC8054", "value": "0x00000000", "instruction": "rem",
+     "note": "FR-11: overflow -2^31 % -1 -> 0"},
+
+    {"addr": "0x00FC8058", "value": "0x0000000F", "instruction": "remu",
+     "note": "unsigned: 0xFFFFFFFF % 16 = 15; contrasta com o rem em 0x00FC8044"},
+    {"addr": "0x00FC805C", "value": "0x00000064", "instruction": "remu",
+     "note": "FR-11: divisor = 0 -> resto igual ao dividendo (100)"},
+
+    {"addr": "0x00FC8FFC", "value": "0xC0FFEE00", "instruction": "sw",
+     "note": "sentinela de termino (pipeline:FR-28)"}
+  ]
+}

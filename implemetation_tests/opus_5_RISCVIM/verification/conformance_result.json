@@ -1,0 +1,462 @@
+{
+  "phase": "4b (verificacao em nivel de programa)",
+  "judged_by": "python -m rvverify implemetation_tests/opus_5_RISCVIM",
+  "contract": [
+    "repo:FR-RV-26",
+    "repo:FR-RV-27",
+    "repo:FR-RV-28"
+  ],
+  "environment": {
+    "image": "spechdl-toolchain (docker/Dockerfile)",
+    "ghdl": "2.0.0 (mcode)",
+    "cocotb": "2.0.0",
+    "command": "docker run --rm -v <repo>:/job spechdl-toolchain python3 -m rvverify implemetation_tests/opus_5_RISCVIM --sem-cor"
+  },
+  "veredito": "aprovado",
+  "aprovado": true,
+  "exit_code": 0,
+  "por_etapa": {
+    "rv32i": {
+      "total": 24,
+      "passou": 24,
+      "falhou": 0
+    },
+    "rv32m": {
+      "total": 11,
+      "passou": 11,
+      "falhou": 0
+    }
+  },
+  "por_requisito": {
+    "FR-RV-04": {
+      "atendido": true,
+      "passou": 23,
+      "total": 23
+    },
+    "FR-RV-05": {
+      "atendido": true,
+      "passou": 1,
+      "total": 1
+    },
+    "FR-RV-12": {
+      "atendido": true,
+      "passou": 1,
+      "total": 1
+    },
+    "FR-RV-13": {
+      "atendido": true,
+      "passou": 8,
+      "total": 8
+    },
+    "FR-RV-14": {
+      "atendido": true,
+      "passou": 2,
+      "total": 2
+    },
+    "FR-RV-22": {
+      "atendido": true,
+      "passou": 30,
+      "total": 30
+    }
+  },
+  "pulado": [],
+  "escopo": {
+    "completo": true,
+    "etapas": [
+      "rv32i",
+      "rv32m"
+    ],
+    "casos_selecionados": 35,
+    "casos_na_suite": 35,
+    "casos_pulados": []
+  },
+  "totais": {
+    "casos": 35,
+    "ciclos": 6809,
+    "instrucoes_rv32m": 532,
+    "cpi": null,
+    "cpi_motivo": "NAO OBSERVAVEL: um monociclo nao tem stall/flush, e o manifesto nao declara esses sinais. CPI = 1 e consequencia de FR-05 por construcao, nao um numero medido (repo:NFR-RV-02)."
+  },
+  "casos": [
+    {
+      "id": "rv32i/add",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/sub",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/and",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/or",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/xor",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/sll",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/srl",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/sra",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/slt",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/sltu",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/addi",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 157,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/andi",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 157,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/ori",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 157,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/xori",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 157,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/slti",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 157,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/sltiu",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 157,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/slli",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 131,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/srli",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 131,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/srai",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 131,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/x0_imutavel",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04"
+      ],
+      "ciclos": 8,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/load_store_larguras",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-05"
+      ],
+      "ciclos": 19,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/branches",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04",
+        "FR-RV-22"
+      ],
+      "ciclos": 15,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/jal_jalr_lui_auipc",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-04"
+      ],
+      "ciclos": 12,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32i/laco_com_dependencia",
+      "etapa": "rv32i",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-22"
+      ],
+      "ciclos": 46,
+      "instrucoes_rv32m": 0
+    },
+    {
+      "id": "rv32m/mul",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-13",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 64
+    },
+    {
+      "id": "rv32m/mulh",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-13",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 64
+    },
+    {
+      "id": "rv32m/mulhsu",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-13",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 64
+    },
+    {
+      "id": "rv32m/mulhu",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-13",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 64
+    },
+    {
+      "id": "rv32m/div",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-13",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 64
+    },
+    {
+      "id": "rv32m/divu",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-13",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 64
+    },
+    {
+      "id": "rv32m/rem",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-13",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 64
+    },
+    {
+      "id": "rv32m/remu",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-13",
+        "FR-RV-22"
+      ],
+      "ciclos": 288,
+      "instrucoes_rv32m": 64
+    },
+    {
+      "id": "rv32m/divisao_por_zero",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-14"
+      ],
+      "ciclos": 14,
+      "instrucoes_rv32m": 4
+    },
+    {
+      "id": "rv32m/overflow_da_divisao",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-14"
+      ],
+      "ciclos": 11,
+      "instrucoes_rv32m": 4
+    },
+    {
+      "id": "rv32m/misto_rv32i_rv32m",
+      "etapa": "rv32m",
+      "passou": true,
+      "requisitos": [
+        "FR-RV-12",
+        "FR-RV-22"
+      ],
+      "ciclos": 165,
+      "instrucoes_rv32m": 12
+    }
+  ]
+}
