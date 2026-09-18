@@ -159,7 +159,16 @@ RUN printf '%s\n' \
 # Verify that the installed Quartus executable is callable during image build.
 RUN quartus_sh --version
 
+# Wrapper (FR-RV-41, specs/plan.md secao 8.3): "analyze" despacha pro
+# Python; qualquer outro argumento continua indo direto pro quartus_sh
+# (docker/quartus_analyzer/entrypoint.sh), preservando o uso existente
+# validado em docker/quartus_smoketest/ (TRV-8.3 a TRV-8.6) -- nada muda
+# pra quem so quer "--flow compile" ou "--version".
+COPY quartus_analyzer/analyze.py /usr/local/bin/quartus_analyze.py
+COPY quartus_analyzer/entrypoint.sh /usr/local/bin/quartus-entrypoint.sh
+RUN chmod +x /usr/local/bin/quartus-entrypoint.sh
+
 WORKDIR /workspace
 
-ENTRYPOINT ["/opt/altera_lite/25.1std/quartus/bin/quartus_sh"]
+ENTRYPOINT ["/usr/local/bin/quartus-entrypoint.sh"]
 CMD ["--help"]

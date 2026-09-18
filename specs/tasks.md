@@ -766,7 +766,7 @@ por leitura de código ou por o Dockerfile "parecer certo".
     não for viável" — nenhuma imagem é gerada, os dados brutos de síntese
     (`db/`, mais o que `report_rtl_pin_summary`/`get_rtl_cells` conseguirem
     extrair) ficam preservados, e isso não bloqueia fit/timing/potência
-- [ ] TRV-8.7 — Escrever o wrapper `analyze` e o `summary.json`
+- [x] TRV-8.7 — Escrever o wrapper `analyze` e o `summary.json`
   - REQ: FR-RV-41, FR-RV-42
   - ACEITE: `docker run --rm -v "$PWD:/workspace" quartus-lite:25.1 analyze
     --project <projeto>.qpf` roda síntese, fit, timing e potência em
@@ -776,6 +776,31 @@ por leitura de código ou por o Dockerfile "parecer certo".
     `quartus_output/reports/summary.json` com o esquema de
     `docker/quartus-docker-fpga-analysis-plan.md`; `.sof` preservado só
     quando a compilação termina bem
+  - EXECUÇÃO CONFERIDA (2026-09-18): implementado em
+    `docker/quartus_analyzer/analyze.py` (parsers de `fit.summary`,
+    `pow.summary`, `sta.summary` e da saída de `report_clock_fmax_summary`,
+    todos escritos e conferidos contra os relatórios reais de TRV-8.3 a
+    TRV-8.6 antes de virar parser — não adivinhados) e
+    `docker/quartus_analyzer/entrypoint.sh` (despacha `analyze` pro
+    wrapper Python, qualquer outro argumento continua indo pro `quartus_sh`
+    como antes). `docker/Quartus_Dockerfile` atualizado pra copiar os dois
+    e trocar o `ENTRYPOINT`; imagem reconstruída
+    (`docker build -f docker/Quartus_Dockerfile -t quartus-lite:25.1
+    docker`) — a primeira tentativa de rebuild deu
+    `ERROR: failed to prepare extraction snapshot ... parent snapshot ...
+    not found` (corrupção do storage do Docker Desktop, não do Dockerfile);
+    um segundo `docker build` limpo -> exit 0, sem repetir o erro.
+    `docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace"
+    quartus-lite:25.1 analyze --project counter4` -> exit 0, `summary.json`
+    com todos os números reais já vistos em TRV-8.3/8.4/8.5 (fit, timing,
+    Fmax, potência) mais `bitstream.preserved: true`. Caminho de falha
+    testado de verdade também: `analyze --project does_not_exist` -> exit 1,
+    `compilation.success: false`, `fit`/`timing`/`power` todos `null`,
+    `bitstream.preserved: false` — confirma que uma etapa que impede análise
+    não deixa o wrapper prosseguir nem inventar número. Um bug de precisão
+    foi pego rodando o parser contra o dado real antes de declarar pronto:
+    "< 1 %" virava `1.0` sem o qualificador, corrigido pra guardar
+    `logic_utilization_percent_qualifier` também
 - [ ] TRV-8.8 — Rodar o fluxo completo contra `cpus/rv32i_pipeline` de
   verdade e documentar
   - REQ: FR-RV-36, FR-RV-41

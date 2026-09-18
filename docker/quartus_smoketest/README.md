@@ -62,6 +62,24 @@ docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
 total — o próprio Quartus já rotula a confiança da estimativa (baixa aqui,
 por faltar dado de toggle rate de uma simulação real).
 
+## Wrapper `analyze` (TRV-8.7)
+
+`docker/quartus_analyzer/analyze.py` faz tudo isto num comando só —
+compila, extrai fit/timing/Fmax/potência, grava
+`quartus_output/{compilation,reports,netlist,bitstream}/` e
+`quartus_output/reports/summary.json`:
+
+```
+docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+    quartus-lite:25.1 analyze --project counter4
+```
+
+Sem `--revision`, usa o mesmo nome de `--project`. Uma falha de compilação
+(projeto inexistente, erro de síntese) para no primeiro passo, grava
+`compilation.success: false` em `summary.json` e sai com exit code
+diferente de zero, sem tentar timing/potência sobre uma compilação
+inválida.
+
 ## Netlist sem GUI (TRV-8.6)
 
 Não há exportação headless de PNG/SVG/PDF do RTL Viewer nesta instalação

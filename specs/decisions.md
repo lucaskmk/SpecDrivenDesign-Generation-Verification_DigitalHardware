@@ -772,6 +772,12 @@ então "a imagem builda de verdade" continua em aberto em `specs/tasks.md`
 até essa execução real acontecer. Nenhum número de PPA de FPGA existe ainda;
 nenhum é declarado.
 
+*(Atualização, mesmo dia: o usuário completou o download e o build; ver
+TRV-8.1/TRV-8.2 em `specs/tasks.md` para a execução real. Esta ADR fica como
+registro do estado no momento da decisão, sem reescrever — ver também
+ADR-016 para a correção de device que apareceu na primeira tentativa de
+compilar algo contra a imagem.)*
+
 ## ADR-016 — Correção do device alvo: `5CEBA4F23C7`, não `5CEBA4F23C7N`
 
 **Contexto.** Com a imagem construída (ADR-015, TRV-8.2), TRV-8.3 tentou
