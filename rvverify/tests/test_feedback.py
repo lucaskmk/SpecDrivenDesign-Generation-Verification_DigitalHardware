@@ -198,7 +198,7 @@ def test_catalogo_tem_os_35_casos_com_id_unico():
 
 def test_caso_jal_agora_verifica_auipc_de_verdade():
     """O nome prometia AUIPC e o programa nao tinha AUIPC nenhum."""
-    from rv_assembler import assemble_with_symbols
+    from rvverify.asm import assemble_with_symbols
 
     caso = next(c for c in build_cases(BASE) if c.name == "jal_jalr_lui_auipc")
     assert "auipc" in caso.asm

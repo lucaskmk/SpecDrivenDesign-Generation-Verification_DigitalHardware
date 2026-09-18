@@ -9,7 +9,7 @@ passa por nenhum adaptador: monta o programa, escreve o JSON do caso e chama
 CPU nova que so entregou um `cpu.toml`. Se o caminho generico quebrar, este
 teste quebra mesmo com a suite da CPU pipeline inteira verde.
 
-O montador vem de `examples/RISCV32I/tools/` -- e a unica coisa que este
+O montador vem de `rvverify/asm.py` -- e a unica coisa que este
 teste toma emprestado do exemplo; o validador em si nao depende dele.
 
 Pulado automaticamente quando nao ha GHDL na maquina.
@@ -52,7 +52,7 @@ halt:
 
 def test_cpu_com_manifesto_roda_no_caminho_generico(tmp_path):
     """Manifesto -> build -> tb_generic -> relatorio, sem adaptador no meio."""
-    from rv_assembler import assemble_with_symbols, find_halt_addresses, write_ram_image
+    from rvverify.asm import assemble_with_symbols, find_halt_addresses, write_ram_image
     from rvverify.builder import build_design, run_simulation
     from rvverify.manifest import load_manifest
 

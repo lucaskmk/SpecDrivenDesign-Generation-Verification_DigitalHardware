@@ -24,7 +24,7 @@ CPU, e nao o formato dela.
 
 ## De onde vem o valor esperado
 
-Sempre do modelo de referencia em Python (`reference_model.py`), nunca de
+Sempre do modelo de referencia em Python (`rvverify/reference.py`), nunca de
 constante escrita a mao. Se o modelo e o hardware discordarem, o relatorio
 mostra os dois valores lado a lado.
 
@@ -48,7 +48,7 @@ from . import feedback
 from ._ferramentas import REPO_ROOT, ref
 from .manifest import CpuManifest, load_manifest
 
-from rv_assembler import (               # noqa: E402  (caminho em _ferramentas)
+from .asm import (
     AssemblyError,
     assemble_with_symbols,
     find_halt_addresses,

@@ -62,7 +62,7 @@ halt:
 
 def _executar(tmp_path: Path, esperado: int):
     """Roda o programa esperando `esperado` na RAM. Devolve o que aconteceu."""
-    from rv_assembler import assemble_with_symbols, find_halt_addresses, write_ram_image
+    from rvverify.asm import assemble_with_symbols, find_halt_addresses, write_ram_image
     from rvverify.builder import build_design, run_simulation
     from rvverify.manifest import load_manifest
 
