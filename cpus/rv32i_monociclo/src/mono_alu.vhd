@@ -8,7 +8,7 @@
 -- Design note
 -- -----------
 -- This ALU is written from scratch for the single-cycle core; it deliberately
--- does NOT reuse examples/RISCV32I/src/ALU.vhd, because the whole point of this
+-- does NOT reuse cpus/rv32i_pipeline/src/ALU.vhd, because the whole point of this
 -- example is to be an independent implementation that the same conformance
 -- suite must accept. It does reuse `ALU_OP_TYPE_t` from cpu_package.vhd so the
 -- already-verified mul_div_unit.vhd can be dropped in unchanged when

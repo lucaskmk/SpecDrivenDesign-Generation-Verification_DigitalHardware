@@ -5,25 +5,27 @@ REQ: FR-RV-03, FR-RV-04, FR-RV-05, FR-RV-06, FR-RV-09, FR-RV-12, FR-RV-13,
      FR-RV-14, FR-RV-15, FR-RV-16, FR-RV-21, FR-RV-22, FR-RV-23,
      NFR-RV-01, NFR-RV-02
 
-Cada teste monta um programa com o montador de
-`examples/RISCV32I/tools/rv_assembler.py`, grava a imagem `.ram`, elabora o
+Cada teste monta um programa com o montador do validador
+(`rvverify/asm.py`), grava a imagem `.ram`, elabora o
 design com `-gROM_INIT_FILE=...` e roda `ghdl -r` através do
 `cocotb_tools.runner`. Nada aqui é inferido do RTL: se o GHDL falhar ou o
 testbench reprovar, `runner.test` levanta exceção e o pytest falha.
 
 Todo valor esperado vem do modelo de referência em
-`examples/RISCV32I/test/reference_model.py` ou de um modelo Python da semântica
+`rvverify/reference.py` ou de um modelo Python da semântica
 de memória escrito aqui (little-endian, larguras de 8/16/32 bits). Nenhum
 valor esperado foi copiado de uma execução (FR-RV-23).
 
-Este arquivo é autossuficiente: não usa `rv_build.py`, `rv_harness.py` nem o
-pacote `rvverify`. A CPU monociclo existe para provar que o mecanismo de
-conformidade não está preso ao design pipeline, e um smoke test que dependesse
-do outro design não provaria isso.
+Este arquivo monta o próprio harness: não usa `rv_build.py` nem
+`rv_harness.py`, e do pacote `rvverify` toma só o montador (`asm`) e o modelo
+de referência (`reference`) — nada do harness ou da suíte de conformidade. A
+CPU monociclo existe para provar que o mecanismo de conformidade não está
+preso ao design pipeline, e um smoke test que dependesse do harness do outro
+design não provaria isso.
 
 Como rodar (WSL):
     RV_BUILD_ROOT=$HOME/rvb_mono ~/venv-cocotb/bin/python -m pytest \\
-        examples/rv32i_monociclo/test/test_monociclo.py -o addopts= -q
+        cpus/rv32i_monociclo/test/test_monociclo.py -o addopts= -q
 """
 
 from __future__ import annotations
@@ -42,15 +44,14 @@ HERE = Path(__file__).resolve().parent
 EXAMPLE_ROOT = HERE.parent                       # cpus/rv32i_monociclo
 CPUS = EXAMPLE_ROOT.parent                       # cpus/
 PIPELINE_SRC = CPUS / "rv32i_pipeline" / "src"
-PIPELINE_TEST = CPUS / "rv32i_pipeline" / "test"
-PIPELINE_TOOLS = CPUS / "rv32i_pipeline" / "tools"
 MONO_SRC = EXAMPLE_ROOT / "src"
+REPO_ROOT = CPUS.parent
 
-sys.path.insert(0, str(PIPELINE_TOOLS))
-sys.path.insert(0, str(PIPELINE_TEST))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-import reference_model as ref  # noqa: E402
-from rv_assembler import (  # noqa: E402
+from rvverify import reference as ref  # noqa: E402
+from rvverify.asm import (  # noqa: E402
     assemble_with_symbols,
     find_halt_addresses,
     write_ram_image,
@@ -160,7 +161,7 @@ def run_program(tmp_path: Path, name: str, asm: str, *,
                f"requisitos: {', '.join(requirements or [])}\n"
                f"palavras: {len(words)}   parada em: "
                f"{', '.join(hex(p) for p in halt_pcs)}\n"
-               f"gerado por examples/RISCV32I/tools/rv_assembler.py",
+               f"gerado por rvverify/asm.py",
     )
 
     state_out = run_dir / "state.json"

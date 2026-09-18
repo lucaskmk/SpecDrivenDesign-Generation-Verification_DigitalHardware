@@ -17,7 +17,7 @@ ADR-000. O essencial:
 
 | Pergunta | Resposta (verificada por execução) |
 |---|---|
-| Onde está a CPU? | `examples/RISCV32I/src/CPU.vhd` |
+| Onde está a CPU? | `cpus/rv32i_pipeline/src/CPU.vhd` |
 | Está implementada ou prevista? | **Implementada e funcional.** `simple_RISCV_RV32I_vhdl`, de Morgan Demange, vendorizada no commit `f884a4e` |
 | ROM e RAM existem? | Sim: `instruction_memory.vhd`, `data_rom.vhd`, `data_ram.vhd` |
 | Entidades e portas | `entity CPU` tem **apenas** `rst` e `clk`. Nenhuma saída observável |
@@ -46,7 +46,7 @@ ADR-000. O essencial:
 
 ## 2. Arquivos encontrados
 
-**RTL herdado** (19 arquivos, `examples/RISCV32I/src/`): `CPU.vhd`,
+**RTL herdado** (19 arquivos, `cpus/rv32i_pipeline/src/`): `CPU.vhd`,
 `cpu_package.vhd`, `memory_package.vhd`, `ALU.vhd`, `branching_unit.vhd`,
 `control_unit.vhd`, `instruction_decoder.vhd`, `extend_32.vhd`,
 `program_counter.vhd`, `register_file.vhd`, `instruction_memory.vhd`,
@@ -86,14 +86,14 @@ original.
 
 | Arquivo | Papel |
 |---|---|
-| `tools/rv_assembler.py` | montador RV32I/RV32IM (não há compilador RISC-V aqui) |
+| `rvverify/asm.py` | montador RV32I/RV32IM (não há compilador RISC-V aqui); promovido para o pacote na ADR-013 |
 | `tools/build_programs.py` | `.asm` → imagem `.ram` |
 | `tools/synth_ppa.py` | área e profundidade lógica por síntese real |
 | `tools/bench_compare.py` | comparação de eficiência RV32I × RV32IM |
 | `test/rv_harness.py` | harness cocotb: clock, reset, término, métricas |
 | `test/rv_build.py` | monta o programa, gera a `.ram`, dispara o GHDL |
 | `test/tb_program.py`, `test/tb_snapshot.py` | módulos cocotb |
-| `test/reference_model.py` | modelo de referência RV32I/RV32M em Python |
+| `rvverify/reference.py` | modelo de referência RV32I/RV32M em Python; promovido para o pacote na ADR-013 |
 | `test/rv_m_cases.py` | gerador de varreduras da extensão M |
 | `test/test_*.py` | as sete suítes (seção 5) |
 | `programs/*.c`, `*.asm`, `*.ram` | quatro benchmarks, duas ISAs cada |
@@ -389,47 +389,47 @@ yosys -V                # Yosys 0.33 (git sha1 2584903a060)
 ~/venv-cocotb/bin/python -c "import cocotb; print(cocotb.__version__)"   # 2.1.0
 
 # --- suite completa (o que fecha os criterios de aceitacao) -----------
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/ -v
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/ -v
 
 # --- por etapa --------------------------------------------------------
 # montador e modelo de referencia (sem hardware)
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/test_toolchain.py -v
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/test_toolchain.py -v
 
 # preservacao de comportamento das memorias (compara contra o RTL original)
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/test_memory.py -v
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/test_memory.py -v
 
 # BASELINE RV32I -- tem de passar ANTES de olhar qualquer coisa de RV32M
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/test_rv32i_baseline.py -v
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/test_rv32i_baseline.py -v
 
 # extensao M
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/test_rv32m_mul.py -v
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/test_rv32m_div.py -v
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/test_rv32m_integration.py -v
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/test_rv32m_mul.py -v
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/test_rv32m_div.py -v
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/test_rv32m_integration.py -v
 
 # benchmarks .asm/.ram versionados
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/test_programs.py -v
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/test_programs.py -v
 
 # --- medicoes ---------------------------------------------------------
 # eficiencia: ciclos, instrucoes, CPI, stalls, flushes, instrucoes RV32M
-~/venv-cocotb/bin/python examples/RISCV32I/tools/bench_compare.py
-#   -> examples/RISCV32I/ppa/efficiency.json
+~/venv-cocotb/bin/python cpus/rv32i_pipeline/tools/bench_compare.py
+#   -> cpus/rv32i_pipeline/ppa/efficiency.json
 
 # area e profundidade logica, por sintese real
-~/venv-cocotb/bin/python examples/RISCV32I/tools/synth_ppa.py
-#   -> examples/RISCV32I/ppa/ppa.json
+~/venv-cocotb/bin/python cpus/rv32i_pipeline/tools/synth_ppa.py
+#   -> cpus/rv32i_pipeline/ppa/ppa.json
 
 # --- regenerar as imagens .ram ----------------------------------------
-~/venv-cocotb/bin/python examples/RISCV32I/tools/build_programs.py
+~/venv-cocotb/bin/python cpus/rv32i_pipeline/tools/build_programs.py
 
 # --- inspecao manual --------------------------------------------------
 # um teste com waveform; o caminho do .ghw sai no log
 ~/venv-cocotb/bin/python -m pytest \
-  "examples/RISCV32I/test/test_rv32m_integration.py::TestObservability::test_waveform_is_produced" -v
+  "cpus/rv32i_pipeline/test/test_rv32m_integration.py::TestObservability::test_waveform_is_produced" -v
 gtkwave <caminho-do-.ghw>
 
 # --- as duas configuracoes, direto no GHDL ----------------------------
 cd /tmp && rm -rf rvchk && mkdir rvchk && cd rvchk
-SRC=/mnt/c/Users/LKKam/Git/7semestre/SpecDrivenDesign-Generation-Verification_DigitalHardware/examples/RISCV32I/src
+SRC=/mnt/c/Users/LKKam/Git/7semestre/SpecDrivenDesign-Generation-Verification_DigitalHardware/cpus/rv32i_pipeline/src
 for f in cpu_package memory_package ALU mul_div_unit branching_unit control_unit \
          instruction_decoder extend_32 program_counter register_file data_ram \
          data_rom data_memory instruction_memory fetch_pipeline_register \
@@ -456,7 +456,7 @@ yosys -p 'read_verilog cpu_rv32im.v; hierarchy -top CPU; proc; memory -nomap;
 |---|---|---|
 | FR-RV-01 auditoria antes de alterar | `specs/decisions.md` ADR-000 | seção 1 |
 | FR-RV-02 reusar CPU/ROM/RAM | RTL herdado, ADR-001 | seção 3 |
-| FR-RV-03 ISA estritamente RISC-V | `rv_assembler.py` | `TestScopeGuards` |
+| FR-RV-03 ISA estritamente RISC-V | `rvverify/asm.py` | `TestScopeGuards` |
 | FR-RV-04 32 bits, x0..x31, x0 = 0, load/store | RTL herdado | `test_rv32i_baseline.py`, `TestX0` |
 | FR-RV-05 CPU + ROM + RAM no top-level | `CPU.vhd` | toda execução |
 | FR-RV-06 estado observável | ADR-002 | `test_memory.py` |
@@ -476,7 +476,7 @@ yosys -p 'read_verilog cpu_rv32im.v; hierarchy -top CPU; proc; memory -nomap;
 | FR-RV-20 ambiente verificado | ADR-004, ADR-006 | seção 1 |
 | FR-RV-21 testbench cocotb | `rv_harness.py`, `tb_program.py` | `TestObservability` |
 | FR-RV-22 casos de borda | `rv_m_cases.py` | varreduras |
-| FR-RV-23 modelo de referência | `reference_model.py` | todo valor esperado |
+| FR-RV-23 modelo de referência | `rvverify/reference.py` | todo valor esperado |
 | FR-RV-24 métricas | `rv_harness.py`, `bench_compare.py` | seção 7.1 |
 | FR-RV-25 área sintetizada | `synth_ppa.py`, ADR-009 | seção 7.2 |
 | NFR-RV-01 GHDL + cocotb | — | toda execução |

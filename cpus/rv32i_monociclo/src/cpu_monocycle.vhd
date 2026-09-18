@@ -14,13 +14,13 @@
 -- It is the second CPU of the track, and it has two jobs:
 --   (a) it is the "student writes one from scratch" starting point;
 --   (b) it is the proof that the conformance mechanism is not secretly tied to
---       the 5-stage pipeline core in examples/RISCV32I. If the same suite passes
+--       the 5-stage pipeline core in cpus/rv32i_pipeline. If the same suite passes
 --       on both microarchitectures, the mechanism is a validator and not a
 --       testbench for one design.
 --
 -- What is shared and what is not
 -- ------------------------------
--- The MEMORIES and the RV32M unit are reused verbatim from examples/RISCV32I
+-- The MEMORIES and the RV32M unit are reused verbatim from cpus/rv32i_pipeline
 -- (they are already verified, and reusing them keeps the memory map identical,
 -- which is what makes the same test programs run on both cores):
 --     cpu_package.vhd, memory_package.vhd, instruction_memory.vhd,

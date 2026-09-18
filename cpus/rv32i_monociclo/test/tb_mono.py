@@ -4,7 +4,7 @@
 REQ: FR-RV-06, FR-RV-15, FR-RV-21, FR-RV-24
 
 Este módulo é autossuficiente de propósito: ele NÃO importa nada de
-`examples/RISCV32I/test/` nem do pacote `rvverify`. O objetivo desta CPU é ser
+`cpus/rv32i_pipeline/test/` nem do pacote `rvverify`. O objetivo desta CPU é ser
 a prova de que o mecanismo de conformidade não está preso a um design; um
 smoke test que dependesse do outro design ou do validador em construção não
 provaria nada.

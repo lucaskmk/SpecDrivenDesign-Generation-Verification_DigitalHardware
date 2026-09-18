@@ -20,7 +20,7 @@
 --                  Same 2-D -> 1-D storage refactor as data_ram.vhd, for the same
 --                  reason (the GHDL VPI does not expose 2-D arrays to cocotb).
 --                  See specs/decisions.md, ADR-002. Externally visible behaviour
---                  is unchanged; enforced by examples/RISCV32I/test/test_memory.py.
+--                  is unchanged; enforced by cpus/rv32i_pipeline/test/test_memory.py.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

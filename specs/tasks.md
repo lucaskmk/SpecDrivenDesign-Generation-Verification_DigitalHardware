@@ -567,7 +567,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - ACEITE: `grep -rn "import rv_assembler\|import reference_model" cpus/`
     vazio e `pytest cpus/rv32i_pipeline/test -q` rodado de verdade contra
     GHDL/cocotb com exit code 0
-- [ ] TRV-7.7.4c — Reapontar `rv32i_monociclo` e a documentação de referência
+- [x] TRV-7.7.4c — Reapontar `rv32i_monociclo` e a documentação de referência
   - REQ: ADR-013
   - ACEITE: `grep -rn "rv_assembler\.py\|reference_model\.py"` sem sobras em
     `.md`/`.vhd`/`.py`; `pytest cpus/rv32i_monociclo/test -q` rodado de
