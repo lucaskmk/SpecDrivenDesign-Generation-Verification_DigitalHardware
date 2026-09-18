@@ -30,7 +30,7 @@
 -- All results are 32 bits, two's complement, modulo 2^32. RISC-V does NOT trap
 -- on division by zero nor on signed division overflow; both produce defined
 -- values, implemented here and cross-checked in Python by
--- examples/RISCV32I/test/reference_model.py:
+-- rvverify/reference.py:
 --
 --   DIV   rs2 = 0            -> -1  (0xFFFFFFFF)
 --   DIV   -2^31 / -1         -> -2^31          (overflow wraps, no trap)

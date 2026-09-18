@@ -251,7 +251,7 @@ GHDL) e na **carga de programa** (constante VHDL editada à mão).
      `instruction_memory.vhd`: vazio mantém `INSTRUCTION_MEMORY_CONTENT`
      (preserva o caminho de síntese, FR-RV-10); preenchido lê a imagem `.ram`
      por `textio` na elaboração.
-  3. Montador `tools/rv_assembler.py` (`.asm` -> `.ram`), validado por pytest
+  3. Montador `rvverify/asm.py` (`.asm` -> `.ram`), validado por pytest
      encoding a encoding **antes** de gerar qualquer imagem de teste (ADR-004).
 - **Saída:** memórias legíveis pelo cocotb; troca de programa sem editar VHDL;
   montador validado.
@@ -269,7 +269,7 @@ GHDL) e na **carga de programa** (constante VHDL editada à mão).
   larguras, branches, `JAL`/`JALR`, `LUI`/`AUIPC`, comportamento de `x0`,
   reset (FR-RV-15) e os cenários de hazard (load-use, forwarding MEM->EX e
   WB->EX, flush de branch tomado). Comparação contra o modelo de referência
-  Python (`test/reference_model.py`, aritmética modular de 32 bits em
+  Python (`rvverify/reference.py`, aritmética modular de 32 bits em
   complemento de dois).
 - **Saída:** baseline funcional **provada**, mais o snapshot de métricas de
   simulação. A contagem de células desta árvore é remedida em RV-5 (ADR-005):
@@ -404,7 +404,7 @@ necessário na variante combinacional escolhida.
 | Preenchimento | Palavras não informadas viram `0x00000000` |
 | Convenção de parada | Auto-laço `JAL x0, 0` (encoding `0x0000006f`), o mesmo que o `startup.S` original faz no rótulo `spin`. O testbench detecta término pela **visita ao endereço do auto-laço**, e não por PC estacionário — a CPU resolve saltos em EX, então o PC não congela — nem por instrução mágica fora da ISA (FR-RV-03) |
 | Consumo | `instruction_memory` com `ROM_INIT_FILE` preenchido lê o arquivo por `textio` na elaboração; vazio (padrão) mantém `INSTRUCTION_MEMORY_CONTENT` |
-| Produção | `tools/rv_assembler.py` (`.asm` -> `.ram`), validado por pytest antes de qualquer uso |
+| Produção | `rvverify/asm.py` (`.asm` -> `.ram`), validado por pytest antes de qualquer uso |
 
 Risco a validar na implementação de RV-1: `ghdl synth` pode rejeitar a função
 de leitura de arquivo mesmo com o generic vazio — se ocorrer, isolar a leitura

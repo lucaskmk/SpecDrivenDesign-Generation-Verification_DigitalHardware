@@ -31,7 +31,7 @@
 --                  visible behaviour -- little-endian layout, alignment rules,
 --                  0xffffffff on an out-of-range or unaligned read, silently
 --                  discarded writes -- is unchanged, and that claim is enforced by
---                  examples/RISCV32I/test/test_memory.py.
+--                  cpus/rv32i_pipeline/test/test_memory.py.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

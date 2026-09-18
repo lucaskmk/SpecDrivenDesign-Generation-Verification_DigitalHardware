@@ -46,8 +46,8 @@ Esta é a divisão que importa entender antes de começar.
 | RAM e ROM de dados | `data_ram.vhd`, `data_rom.vhd`, `data_memory.vhd` | já são arrays 1-D, que é o único formato que o cocotb consegue ler (ver restrição 1 abaixo) |
 | Mapa de memória | `memory_package.vhd` | instruções em `0x00000000`, DATA_ROM em `0x00FC8000`, DATA_RAM em `0x00FC8100` |
 | Multiplicador e divisor | `mul_div_unit.vhd` | as 8 instruções RV32M, já verificadas contra a especificação |
-| Montador RV32I/RV32IM | `rvverify/_ferramentas.py` + `cpus/rv32i_pipeline/tools/rv_assembler.py` | `.asm` → `.ram`; não existe compilador RISC-V neste ambiente |
-| Modelo de referência | `cpus/rv32i_pipeline/test/reference_model.py` | os valores esperados de toda instrução, inclusive os casos especiais |
+| Montador RV32I/RV32IM | `rvverify/asm.py` | `.asm` → `.ram`; não existe compilador RISC-V neste ambiente |
+| Modelo de referência | `rvverify/reference.py` | os valores esperados de toda instrução, inclusive os casos especiais |
 | A suíte de conformidade | `rvverify/` | é o que julga a sua CPU |
 
 ### Você escreve

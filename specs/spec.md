@@ -253,7 +253,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   compilados neste ambiente**, deixando claro que servem como especificação do
   algoritmo e não como fonte da imagem efetivamente executada.
 - **FR-RV-19**: FOR EACH programa `.asm` versionado, THE SYSTEM SHALL montá-lo
-  com o montador do projeto (`examples/RISCV32I/tools/rv_assembler.py`) para
+  com o montador do projeto (`rvverify/asm.py`) para
   gerar a imagem `.ram` correspondente, usando somente instruções RV32I nos
   programas destinados à baseline e admitindo instruções da extensão M apenas
   nos programas destinados à configuração RV32IM; IF um programa marcado como
@@ -283,7 +283,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   branch tomado e não tomado, encadeamento por forwarding MEM→EX e WB→EX).
 - **FR-RV-23**: FOR EACH valor esperado usado em uma asserção, THE SYSTEM SHALL
   derivá-lo de um modelo de referência em Python
-  (`examples/RISCV32I/test/reference_model.py`) que implementa a aritmética
+  (`rvverify/reference.py`) que implementa a aritmética
   modular de 32 bits em complemento de dois, em vez de valores escritos à mão
   no teste — de modo que o hardware seja conferido contra uma fonte
   independente, e não contra a expectativa de quem escreveu o teste.

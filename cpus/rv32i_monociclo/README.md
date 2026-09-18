@@ -113,7 +113,7 @@ ghdl -a --std=08 <as 11 fontes de cpu.toml, na ordem> && ghdl -e --std=08 cpu_mo
 | `test_travamento_e_detectado` | um programa que nunca para **tem** de reprovar por teto de ciclos |
 
 Todo valor esperado vem do modelo de referência
-(`cpus/rv32i_pipeline/test/reference_model.py`) ou de um modelo Python da
+(`rvverify/reference.py`) ou de um modelo Python da
 semântica de memória — nenhum foi copiado de uma execução.
 
 Duas invariantes da microarquitetura são verificadas em **toda** execução, e

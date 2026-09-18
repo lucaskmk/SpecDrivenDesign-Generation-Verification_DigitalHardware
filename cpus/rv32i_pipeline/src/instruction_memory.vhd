@@ -27,7 +27,7 @@
 --                                    n     -> size the ROM as n 32-bit words.
 --
 --                  .ram image format (FR-RV-08), produced by
---                  examples/RISCV32I/tools/rv_assembler.py:
+--                  rvverify/asm.py:
 --                    * one 32-bit word per line, 8 hexadecimal digits, no 0x prefix,
 --                      case-insensitive;
 --                    * line index 0 is byte address 0x00000000, line n is byte address 4*n;
