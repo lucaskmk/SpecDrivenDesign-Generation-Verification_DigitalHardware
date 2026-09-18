@@ -12,6 +12,17 @@ submeter o formulário, o app grava `rubrica.md` (versionável) e o pipeline
 roda sozinho até o relatório final, sem pedir mais nenhuma decisão do aluno
 — preencher e submeter o formulário é a única responsabilidade dele.
 
+**Atenção: o parágrafo acima descreve a trilha A, hoje congelada em
+`legado/`.** O trabalho ativo é a trilha RISC-V: `rvverify/` é um validador de
+terminal que julga CPUs entregues em `entregas/` contra o mesmo contrato usado
+pelas CPUs de referência de `cpus/` (`rv32i_pipeline` e `rv32i_monociclo`),
+executando GHDL e cocotb de verdade — reprovar é resultado legítimo. Os
+programas de teste são montados por um montador RV32I/RV32IM próprio,
+`rvverify/asm.py` (ADR-004), conferido palavra a palavra, quando há Docker,
+contra um binutils RISC-V real em `docker/Dockerfile` (NFR-RV-05); sem a
+imagem, essa conferência é pulada e nunca reprova a suíte. A estrutura de
+pastas está em `REPO_MAP.md` e a decisão que a fixou, na ADR-013.
+
 Este projeto está sendo construído seguindo a própria metodologia que ele
 implementa: nada de código antes de spec aprovada. Antes de implementar
 qualquer coisa, leia, nesta ordem:

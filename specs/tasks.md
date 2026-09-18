@@ -593,7 +593,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - ACEITE: todo alvo de link relativo em `docs/MUDANCAS.md` existe no disco;
     `docs/mudancas-riscv.html` e `docs/ESTADO-TRILHA-A.md` não citam mais
     `examples/RISCV32I`
-- [ ] TRV-7.7.9 — Registrar a trilha ativa e o legado no `CLAUDE.md`
+- [x] TRV-7.7.9 — Registrar a trilha ativa e o legado no `CLAUDE.md`
   - REQ: ADR-013
   - ACEITE: `git diff CLAUDE.md` mostra só a inserção, e o texto novo não
     contradiz o parágrafo vizinho sobre a trilha A
