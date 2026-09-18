@@ -544,7 +544,7 @@ montagem por toolchain real que estava no plano de merge antigo.
     e `pytest cpus/rv32i_pipeline/test -q` rodados de verdade (GHDL + cocotb)
     com exit code 0 — nenhum caminho `examples/RISCV32I` sobrando em código
     Python executável
-- [ ] TRV-7.7.1 — Apontar `plan.md` e `spec.md` para `cpus/rv32i_pipeline`
+- [x] TRV-7.7.1 — Apontar `plan.md` e `spec.md` para `cpus/rv32i_pipeline`
   - REQ: ADR-013
   - ACEITE: `grep -rn "examples/RISCV32I" specs/plan.md specs/spec.md` só
     devolve as linhas que o TRV-7.7.4c trata (montador e modelo)
