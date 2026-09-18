@@ -1,3 +1,26 @@
+> **ARQUIVADO — plano parcialmente executado, 2026-09-18.**
+>
+> Este plano de merge nunca foi executado como está. Uma parte dele foi
+> aproveitada e o resto foi superado por outra decisão.
+>
+> **Aproveitado.** A imagem Docker com o toolchain RISC-V e o seu uso como
+> oráculo do montador (passos 1 e 3 deste plano) foram trazidos nos commits que
+> acrescentam `NFR-RV-05` a `specs/spec.md`, `docker/Dockerfile` e
+> `rvverify/tests/test_assembler_oracle.py` (tarefas `TRV-7.7.5` a `TRV-7.7.7`),
+> com a `ADR-004` revisada para registrar que o binutils real é cross-check e
+> não substituto do montador Python.
+>
+> **Não executado.** O restante — o merge do branch
+> `Implementing-.asm-and-.rm-tests`, a CPU DUT `opus_5_RISCVIM`, a promoção para
+> um `tools/riscv/` de topo e os IDs `FR-16`..`FR-29`/`NFR-05` — foi superado
+> pela reorganização da `ADR-013`, que resolveu o mesmo problema de estrutura de
+> outra forma: cinco pastas de topo, com o montador e o modelo de referência
+> promovidos para `rvverify/`. Ver `REPO_MAP.md` e a `ADR-014`.
+>
+> O texto abaixo é o plano original, preservado sem alteração (princípio 8).
+
+---
+
 # Merge das duas trilhas: `main` ← `Implementing-.asm-and-.rm-tests`
 
 ## Contexto
