@@ -39,3 +39,8 @@ results.xml
 
 # Saida da analise Quartus/FPGA (RV-8, ver specs/plan.md secao 8)
 /quartus_output/
+/docker/quartus_smoketest/output_files/
+/docker/quartus_smoketest/db/
+/docker/quartus_smoketest/incremental_db/
+/docker/quartus_smoketest/*.qws
+/docker/quartus_smoketest/*_pin_model_dump.txt

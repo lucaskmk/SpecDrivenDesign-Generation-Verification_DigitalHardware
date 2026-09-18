@@ -16,7 +16,7 @@ and analyze FPGA projects in a reproducible environment.
 The initial target FPGA is:
 
 -   **Family:** Altera Cyclone V
--   **Device:** `5CEBA4F23C7N`
+-   **Device:** `5CEBA4F23C7`
 -   **Device support package:** Cyclone V
 
 The image should remain **modular**, so support for additional FPGA
@@ -78,7 +78,7 @@ The main outputs we want are described below.
 Quartus's **Fitter** knows the exact resources available on the selected
 FPGA.
 
-For `5CEBA4F23C7N`, Quartus can therefore determine whether the compiled
+For `5CEBA4F23C7`, Quartus can therefore determine whether the compiled
 design fits and report resource utilization such as:
 
 -   Logic/ALM utilization
@@ -95,7 +95,7 @@ percentage utilization.
 Example:
 
 ``` text
-Target: 5CEBA4F23C7N
+Target: 5CEBA4F23C7
 
 FIT
 --------------------------------
@@ -236,7 +236,7 @@ Cyclone V support should be the initial/default device package because
 the current target is:
 
 ``` text
-5CEBA4F23C7N
+5CEBA4F23C7
 ```
 
 Additional families should be installable through Docker build
@@ -323,7 +323,7 @@ Conceptually:
 
 ``` json
 {
-  "device": "5CEBA4F23C7N",
+  "device": "5CEBA4F23C7",
   "compilation": {
     "success": true
   },
@@ -369,7 +369,7 @@ docker run --rm \
 ## Future Implementation Checklist
 
 -   [ ] Build and test the Quartus Lite Docker image.
--   [ ] Confirm `5CEBA4F23C7N` is selectable and compiles correctly.
+-   [ ] Confirm `5CEBA4F23C7` is selectable and compiles correctly.
 -   [ ] Verify Cyclone V device support is installed.
 -   [ ] Test a minimal Verilog/VHDL project.
 -   [ ] Extract Fitter resource utilization.
