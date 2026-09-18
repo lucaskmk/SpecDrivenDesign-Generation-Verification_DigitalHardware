@@ -11,7 +11,7 @@ RISC-V não privilegiada ANTES de ser usado para gerar imagens de teste.
 Os valores esperados de encoding abaixo foram derivados manualmente dos
 formatos R/I/S/B/U/J da especificação, campo por campo.
 
-Rodar:  pytest examples/RISCV32I/test/test_toolchain.py -v
+Rodar:  pytest cpus/rv32i_pipeline/test/test_toolchain.py -v
 """
 
 from __future__ import annotations
@@ -21,11 +21,10 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import reference_model as ref  # noqa: E402
-from rv_assembler import (  # noqa: E402
+from rvverify import reference as ref  # noqa: E402
+from rvverify.asm import (  # noqa: E402
     AssemblyError,
     assemble,
     parse_register,

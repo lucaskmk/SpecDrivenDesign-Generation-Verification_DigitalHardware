@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Monta a biblioteca de benchmarks de `examples/RISCV32I/programs/`.
+"""Monta a biblioteca de benchmarks de `cpus/rv32i_pipeline/programs/`.
 
 REQ: FR-RV-18 (benchmarks .c), FR-RV-19 (programas .asm, e prova de que os de
 baseline são RV32I puro), FR-RV-20 (alternativa registrada à ausência de
 compilador RISC-V), FR-RV-08 (formato de imagem documentado).
 
 Cada `*.asm` do diretório vira uma imagem `*.ram` versionada ao lado, gerada
-pelo montador do projeto (`rv_assembler.py`). A convenção de nome escolhe o
+pelo montador do projeto (`rvverify/asm.py`). A convenção de nome escolhe o
 modo do montador, e é ela que dá a garantia pedida por FR-RV-19:
 
     *_rv32i.asm    -> allow_m=False   (o montador REJEITA qualquer RV32M)
     *_rv32im.asm   -> allow_m=True    (a extensão M é permitida)
 
 Uso:
-    python examples/RISCV32I/tools/build_programs.py
-    python examples/RISCV32I/tools/build_programs.py --check
+    python cpus/rv32i_pipeline/tools/build_programs.py
+    python cpus/rv32i_pipeline/tools/build_programs.py --check
 
 `--check` não escreve nada: só falha se alguma imagem versionada estiver
 desatualizada em relação ao `.asm`. É o mesmo critério do teste
@@ -32,9 +32,11 @@ HERE = Path(__file__).resolve().parent
 EXAMPLE_ROOT = HERE.parent
 PROGRAMS = EXAMPLE_ROOT / "programs"
 
-sys.path.insert(0, str(HERE))
+REPO_ROOT = EXAMPLE_ROOT.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from rv_assembler import (  # noqa: E402
+from rvverify.asm import (  # noqa: E402
     AssemblyError,
     assemble_with_symbols,
     find_halt_addresses,
@@ -99,11 +101,11 @@ def _header(source: Path, words: list[int], halt_pcs: list[int],
     """Cabeçalho de comentários da imagem. Sem data: precisa ser reprodutível."""
     return (
         f"programa: {source.stem}\n"
-        f"fonte: examples/RISCV32I/programs/{source.name}\n"
+        f"fonte: cpus/rv32i_pipeline/programs/{source.name}\n"
         f"isa: {'RV32IM' if allow_m else 'RV32I (montado com allow_m=False)'}\n"
         f"palavras: {len(words)}   parada em: "
         f"{', '.join(hex(p) for p in halt_pcs)}\n"
-        f"gerado por examples/RISCV32I/tools/build_programs.py\n"
+        f"gerado por cpus/rv32i_pipeline/tools/build_programs.py\n"
         f"formato: uma palavra de 32 bits por linha, 8 digitos hex, "
         f"linha 0 = endereco 0x0 (ADR-003)"
     )
@@ -180,7 +182,7 @@ def stale_images(directory: Path | None = None) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--programs-dir", type=Path, default=PROGRAMS,
-                        help="diretório com os .asm (padrão: examples/RISCV32I/programs)")
+                        help="diretório com os .asm (padrão: cpus/rv32i_pipeline/programs)")
     parser.add_argument("--check", action="store_true",
                         help="não grava nada; falha se alguma imagem estiver desatualizada")
     args = parser.parse_args(argv)
@@ -192,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("imagens .ram desatualizadas:", file=sys.stderr)
                 for p in problems:
                     print(f"  - {p}", file=sys.stderr)
-                print("rode: python examples/RISCV32I/tools/build_programs.py",
+                print("rode: python cpus/rv32i_pipeline/tools/build_programs.py",
                       file=sys.stderr)
                 return 1
             print(f"todas as imagens .ram de {args.programs_dir} estão atualizadas")

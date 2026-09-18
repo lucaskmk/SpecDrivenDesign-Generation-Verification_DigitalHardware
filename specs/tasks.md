@@ -562,7 +562,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - ACEITE: `python -c "import rvverify, rvverify.asm, rvverify.reference,
     rvverify.conformance"` sem `ModuleNotFoundError` e `pytest rvverify/tests
     -q` com exit code 0
-- [ ] TRV-7.7.4b — Reapontar as suítes de `cpus/rv32i_pipeline` para o pacote
+- [x] TRV-7.7.4b — Reapontar as suítes de `cpus/rv32i_pipeline` para o pacote
   - REQ: ADR-013
   - ACEITE: `grep -rn "import rv_assembler\|import reference_model" cpus/`
     vazio e `pytest cpus/rv32i_pipeline/test -q` rodado de verdade contra

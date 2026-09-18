@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Biblioteca de benchmarks versionada em `examples/RISCV32I/programs/`.
+"""Biblioteca de benchmarks versionada em `cpus/rv32i_pipeline/programs/`.
 
 REQ: FR-RV-18 (benchmarks .c como especificação legível), FR-RV-19 (programas
 .asm, e prova de que os de baseline são RV32I puro), FR-RV-13 (MUL, DIV, REM),
@@ -22,10 +22,10 @@ O que esta suíte prova, em quatro camadas:
    os ciclos das duas.
 
 Os valores de ENTRADA abaixo espelham os `.c`; os valores ESPERADOS são
-sempre calculados por `reference_model` (FR-RV-23).
+sempre calculados por `rvverify.reference` (FR-RV-23).
 
 Rodar:
-  pytest examples/RISCV32I/test/test_programs.py -v
+  pytest cpus/rv32i_pipeline/test/test_programs.py -v
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import reference_model as ref  # noqa: E402
+from rvverify import reference as ref  # noqa: E402
 from rv_build import TOOLS, result_addr, run_program  # noqa: E402
 
 sys.path.insert(0, str(TOOLS))
@@ -51,7 +51,7 @@ from build_programs import (  # noqa: E402
     build_one,
     image_path,
 )
-from rv_assembler import AssemblyError, assemble, read_ram_image  # noqa: E402
+from rvverify.asm import AssemblyError, assemble, read_ram_image  # noqa: E402
 
 MASK32 = 0xFFFFFFFF
 
@@ -229,13 +229,13 @@ class TestImagensVersionadas:
         imagem = image_path(source)
         assert imagem.exists(), (
             f"{imagem.name} não existe; rode "
-            f"`python examples/RISCV32I/tools/build_programs.py`"
+            f"`python cpus/rv32i_pipeline/tools/build_programs.py`"
         )
         gravado = read_ram_image(imagem)
         assert gravado == montado.words, (
             f"{imagem.name} está desatualizada em relação a {source.name} "
             f"({len(gravado)} palavras gravadas, {len(montado.words)} montadas)."
-            f" Rode `python examples/RISCV32I/tools/build_programs.py`."
+            f" Rode `python cpus/rv32i_pipeline/tools/build_programs.py`."
         )
 
     @pytest.mark.parametrize("source", SOURCES, ids=SOURCE_IDS)

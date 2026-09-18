@@ -1,8 +1,8 @@
 # programa: bench_dotprod_rv32i
-# fonte: examples/RISCV32I/programs/bench_dotprod_rv32i.asm
+# fonte: cpus/rv32i_pipeline/programs/bench_dotprod_rv32i.asm
 # isa: RV32I (montado com allow_m=False)
 # palavras: 68   parada em: 0x10c
-# gerado por examples/RISCV32I/tools/build_programs.py
+# gerado por cpus/rv32i_pipeline/tools/build_programs.py
 # formato: uma palavra de 32 bits por linha, 8 digitos hex, linha 0 = endereco 0x0 (ADR-003)
 00fc8937
 10090913

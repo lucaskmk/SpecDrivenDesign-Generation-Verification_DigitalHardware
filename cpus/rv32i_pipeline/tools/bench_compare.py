@@ -5,7 +5,7 @@ REQ: FR-RV-24 (ciclos, instruções, CPI, tempo estimado, stalls, flushes,
 instruções RV32M), FR-RV-25 (área), NFR-RV-02 (nada é declarado como medido sem
 executar a ferramenta), NFR-RV-03 (comparação sobre a mesma base de código).
 
-Para cada benchmark de `examples/RISCV32I/programs/` existem DUAS versões do
+Para cada benchmark de `cpus/rv32i_pipeline/programs/` existem DUAS versões do
 mesmo algoritmo -- `*_rv32i.asm` (emulando multiplicação e divisão com
 instruções base) e `*_rv32im.asm` (usando a extensão M). Este script executa as
 duas de verdade no GHDL, via cocotb, e tabula as métricas lado a lado.
@@ -16,7 +16,7 @@ dois programas que calculam coisas diferentes não significaria nada; se os
 resultados divergirem, o script falha com exit code != 0 em vez de reportar.
 
 Uso:
-    python examples/RISCV32I/tools/bench_compare.py [--out DIR] [--slots N]
+    python cpus/rv32i_pipeline/tools/bench_compare.py [--out DIR] [--slots N]
 
 Requer GHDL e cocotb (na WSL). Se `ppa.json` já existir, a área medida por
 `synth_ppa.py` é incorporada ao relatório.
@@ -83,7 +83,7 @@ def _pct(new: float, old: float) -> float | None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default=None,
-                    help="diretório de saída (padrão: examples/RISCV32I/ppa)")
+                    help="diretório de saída (padrão: cpus/rv32i_pipeline/ppa)")
     ap.add_argument("--slots", type=int, default=DEFAULT_SLOTS,
                     help="palavras de RAM comparadas entre as duas versões")
     ap.add_argument("--max-cycles", type=int, default=200000)

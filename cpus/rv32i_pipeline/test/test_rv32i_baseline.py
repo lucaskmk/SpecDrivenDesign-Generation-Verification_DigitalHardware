@@ -12,7 +12,7 @@ daqui pode usar RV32M nem por acidente. Se algo falhar DEPOIS da extensão M,
 a comparação com esta baseline diz se a culpa é da mudança.
 
 Rodar:
-  pytest examples/RISCV32I/test/test_rv32i_baseline.py -v
+  pytest cpus/rv32i_pipeline/test/test_rv32i_baseline.py -v
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import reference_model as ref  # noqa: E402
+from rvverify import reference as ref  # noqa: E402
 from rv_build import RAM_BASE, result_addr, run_program  # noqa: E402
 
 HALT = """
@@ -576,7 +576,7 @@ class TestResetBehaviour:
 class TestScopeGuard:
     def test_baseline_cannot_use_rv32m(self, tmp_path):
         """FR-RV-19: um programa de baseline não pode usar RV32M."""
-        from rv_assembler import AssemblyError
+        from rvverify.asm import AssemblyError
 
         asm = f"""
             li   x5, 6

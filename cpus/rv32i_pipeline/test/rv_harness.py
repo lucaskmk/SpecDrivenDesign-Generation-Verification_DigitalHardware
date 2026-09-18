@@ -8,7 +8,7 @@ registradores e RAM).
 Este arquivo NAO tem mais logica de testbench. Tudo o que era especifico
 desta CPU -- os 11 sinais internos lidos pelo nome, o mapa de memoria, o
 periodo de clock, a polaridade do reset, o modo de parada -- foi para
-`examples/RISCV32I/cpu.toml`, e a mecanica foi para `rvverify/harness.py`,
+`cpus/rv32i_pipeline/cpu.toml`, e a mecanica foi para `rvverify/harness.py`,
 que serve qualquer CPU com manifesto.
 
 O que sobra aqui e a API publica que as suites ja usam (`CpuHarness`,

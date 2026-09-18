@@ -36,7 +36,7 @@ células caracterizada, que não existe aqui. Onde este relatório fala em tempo
 fala em ESTIMATIVA e diz isso.
 
 Uso:
-    python examples/RISCV32I/tools/synth_ppa.py [--out DIR]
+    python cpus/rv32i_pipeline/tools/synth_ppa.py [--out DIR]
 
 Requer GHDL e Yosys no PATH (na WSL, não no Windows).
 """
@@ -266,7 +266,7 @@ def synthesize(cfg: str, enable_m: str, work: Path) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default=None,
-                    help="diretório de saída (padrão: examples/RISCV32I/ppa)")
+                    help="diretório de saída (padrão: cpus/rv32i_pipeline/ppa)")
     ap.add_argument("--work", default="/tmp/spechdl_synth",
                     help="diretório de trabalho da síntese")
     args = ap.parse_args()
