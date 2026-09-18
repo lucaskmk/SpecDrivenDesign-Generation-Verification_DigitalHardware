@@ -597,7 +597,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - REQ: ADR-013
   - ACEITE: `git diff CLAUDE.md` mostra só a inserção, e o texto novo não
     contradiz o parágrafo vizinho sobre a trilha A
-- [ ] TRV-7.7.10 — Arquivar o plano de merge antigo
+- [x] TRV-7.7.10 — Arquivar o plano de merge antigo
   - REQ: ADR-013
   - ACEITE: `git log --follow docs/archive/hey-claude-please-plan-jolly-bird.md`
     mostra histórico contínuo e o arquivo movido diz o que foi aproveitado
