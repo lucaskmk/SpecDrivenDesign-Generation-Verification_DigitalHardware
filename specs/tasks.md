@@ -548,7 +548,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - REQ: ADR-013
   - ACEITE: `grep -rn "examples/RISCV32I" specs/plan.md specs/spec.md` só
     devolve as linhas que o TRV-7.7.4c trata (montador e modelo)
-- [ ] TRV-7.7.2 — Mover a trilha A da raiz para `legado/`
+- [x] TRV-7.7.2 — Mover a trilha A da raiz para `legado/`
   - REQ: ADR-013
   - ACEITE: `git status --short` mostra só renames mais os arquivos de texto
     editados; `src/spechdl/`, `templates/`, `tests/`, `scripts/`,

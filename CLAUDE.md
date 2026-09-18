@@ -82,7 +82,7 @@ qualquer coisa, leia, nesta ordem:
   submissão, o pipeline decide e gera sozinho, sem checkpoint humano no meio
   (NFR-01)
 - Não tentar extrair requisitos de texto livre — a entrada é sempre o
-  formulário web estruturado (schema documentado em `templates/rubrica.md`)
+  formulário web estruturado (schema documentado em `legado/templates/rubrica.md`)
 - Não estimar métricas de PPA "no chute" — usar a saída real do
   Yosys/ghdl-yosys-plugin (fase 5); se não for viável no prazo, marcar
   claramente como heurística no relatório, nunca como medição
