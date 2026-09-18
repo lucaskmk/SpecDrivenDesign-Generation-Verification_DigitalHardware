@@ -528,3 +528,84 @@ CPUs de referência e contra uma CPU com defeito injetado.
   - ACEITE: `README.md`, `entregas/README.md` e `PROMPT_RISCV.md` explicam
     copiar o modelo, preencher o manifesto e rodar a suíte completa; execução
     Linux/WSL com GHDL e cocotb termina com exit code registrado
+
+### Conclusão da ADR-013 e oráculo de montagem (TRV-7.7.x)
+
+O commit `2091e0d` executou só metade da ADR-013: renomeou
+`examples/RISCV32I/` -> `cpus/rv32i_pipeline/` e `examples/rv32i_monociclo/`
+-> `cpus/rv32i_monociclo/`, mas não criou `legado/` nem promoveu o montador e
+o modelo de referência para `rvverify/`. As tarefas abaixo terminam a
+estrutura decidida e trazem, formalizado como `NFR-RV-05`, o oráculo de
+montagem por toolchain real que estava no plano de merge antigo.
+
+- [ ] TRV-7.7.0 — Restaurar as suítes quebradas pela reorganização parcial
+  - REQ: ADR-013
+  - ACEITE: `pytest rvverify/tests -q` e `pytest cpus/rv32i_monociclo/test -q`
+    e `pytest cpus/rv32i_pipeline/test -q` rodados de verdade (GHDL + cocotb)
+    com exit code 0 — nenhum caminho `examples/RISCV32I` sobrando em código
+    Python executável
+- [ ] TRV-7.7.1 — Apontar `plan.md` e `spec.md` para `cpus/rv32i_pipeline`
+  - REQ: ADR-013
+  - ACEITE: `grep -rn "examples/RISCV32I" specs/plan.md specs/spec.md` só
+    devolve as linhas que o TRV-7.7.4c trata (montador e modelo)
+- [ ] TRV-7.7.2 — Mover a trilha A da raiz para `legado/`
+  - REQ: ADR-013
+  - ACEITE: `git status --short` mostra só renames mais os arquivos de texto
+    editados; `src/spechdl/`, `templates/`, `tests/`, `scripts/`,
+    `.streamlit/` e `abrir_formulario.bat` não existem mais na raiz
+- [ ] TRV-7.7.3 — Mover os exemplos remanescentes e esvaziar `examples/`
+  - REQ: ADR-013
+  - ACEITE: `git ls-files examples/` devolve vazio e o workflow
+    `toolchain-smoketest.yml` aponta para `legado/toolchain_smoketest/`
+- [ ] TRV-7.7.4a — Promover o montador e o modelo para `rvverify/`
+  - REQ: ADR-013
+  - ACEITE: `python -c "import rvverify, rvverify.asm, rvverify.reference,
+    rvverify.conformance"` sem `ModuleNotFoundError` e `pytest rvverify/tests
+    -q` com exit code 0
+- [ ] TRV-7.7.4b — Reapontar as suítes de `cpus/rv32i_pipeline` para o pacote
+  - REQ: ADR-013
+  - ACEITE: `grep -rn "import rv_assembler\|import reference_model" cpus/`
+    vazio e `pytest cpus/rv32i_pipeline/test -q` rodado de verdade contra
+    GHDL/cocotb com exit code 0
+- [ ] TRV-7.7.4c — Reapontar `rv32i_monociclo` e a documentação de referência
+  - REQ: ADR-013
+  - ACEITE: `grep -rn "rv_assembler\.py\|reference_model\.py"` sem sobras em
+    `.md`/`.vhd`/`.py`; `pytest cpus/rv32i_monociclo/test -q` rodado de
+    verdade com exit code 0
+- [ ] TRV-7.7.5 — Especificar `NFR-RV-05`, oráculo de montagem real
+  - REQ: NFR-RV-05
+  - ACEITE: `specs/spec.md` traz `NFR-RV-05` no mesmo formato EARS de
+    `NFR-RV-01..04`, exigindo imagem de container com binutils RISC-V e
+    Yosys e tornando a conferência opcional, nunca bloqueante
+- [ ] TRV-7.7.6 — Trazer a imagem Docker do toolchain RISC-V
+  - REQ: NFR-RV-05
+  - ACEITE: `docker build -t spechdl-toolchain -f docker/Dockerfile docker`
+    executado de verdade e `docker run --rm spechdl-toolchain bash -lc
+    "riscv64-unknown-elf-as --version; ghdl --version; yosys -V"` com os três
+    respondendo e exit code 0
+- [ ] TRV-7.7.7 — Oráculo do montador contra o binutils real
+  - REQ: NFR-RV-05
+  - ACEITE: `pytest rvverify/tests/test_assembler_oracle.py -v` rodado de
+    verdade, comparando palavra a palavra a saída de `rvverify.asm` com a do
+    `riscv64-unknown-elf-as`; sem Docker o teste é pulado, nunca falha
+- [ ] TRV-7.7.8 — Corrigir os links quebrados da documentação histórica
+  - REQ: ADR-013
+  - ACEITE: todo alvo de link relativo em `docs/MUDANCAS.md` existe no disco;
+    `docs/mudancas-riscv.html` e `docs/ESTADO-TRILHA-A.md` não citam mais
+    `examples/RISCV32I`
+- [ ] TRV-7.7.9 — Registrar a trilha ativa e o legado no `CLAUDE.md`
+  - REQ: ADR-013
+  - ACEITE: `git diff CLAUDE.md` mostra só a inserção, e o texto novo não
+    contradiz o parágrafo vizinho sobre a trilha A
+- [ ] TRV-7.7.10 — Arquivar o plano de merge antigo
+  - REQ: ADR-013
+  - ACEITE: `git log --follow docs/archive/hey-claude-please-plan-jolly-bird.md`
+    mostra histórico contínuo e o arquivo movido diz o que foi aproveitado
+- [ ] TRV-7.7.11 — Publicar `REPO_MAP.md` com a estrutura final
+  - REQ: ADR-013
+  - ACEITE: todo caminho citado em `REPO_MAP.md` aparece em `git ls-files`
+- [ ] TRV-7.7.12 — Registrar a ADR-014
+  - REQ: ADR-013, NFR-RV-05
+  - ACEITE: `specs/decisions.md` traz a ADR-014 no formato
+    Contexto/Decisão/Alternativas rejeitadas/Consequência, sem editar a
+    ADR-013 nem a ADR-004 acima dela
