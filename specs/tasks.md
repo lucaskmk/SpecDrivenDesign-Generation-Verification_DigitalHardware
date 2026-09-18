@@ -557,7 +557,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - REQ: ADR-013
   - ACEITE: `git ls-files examples/` devolve vazio e o workflow
     `toolchain-smoketest.yml` aponta para `legado/toolchain_smoketest/`
-- [ ] TRV-7.7.4a — Promover o montador e o modelo para `rvverify/`
+- [x] TRV-7.7.4a — Promover o montador e o modelo para `rvverify/`
   - REQ: ADR-013
   - ACEITE: `python -c "import rvverify, rvverify.asm, rvverify.reference,
     rvverify.conformance"` sem `ModuleNotFoundError` e `pytest rvverify/tests

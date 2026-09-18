@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
-"""Acesso ao montador e ao modelo de referencia da CPU de pipeline.
+"""Acesso ao montador e ao modelo de referencia do validador.
 
 REQ: FR-RV-19 (montador do projeto), FR-RV-23 (modelo de referencia).
 
-Os dois vivem ao lado da CPU de exemplo, fora de qualquer pacote Python.
-Este modulo concentra o ajuste de `sys.path` num lugar so, para que a suite
-de conformidade, o diagnostico e a comparacao de eficiencia usem exatamente o
-mesmo montador e o mesmo modelo.
+Os dois eram arquivos soltos ao lado da CPU de exemplo e subiram para o
+pacote na ADR-013 (`rvverify/asm.py` e `rvverify/reference.py`): sao
+infraestrutura do VALIDADOR, nao da CPU de exemplo. Antes, `rvverify`
+importava de uma pasta chamada `cpus/`, o que invertia a direcao da
+dependencia e quebraria se aquele exemplo saisse.
+
+Este modulo continua existindo como ponto unico de acesso: a suite de
+conformidade, o diagnostico e a comparacao de eficiencia usam exatamente o
+mesmo montador e o mesmo modelo, sob os nomes historicos `rv_assembler` e
+`ref`. Nao ha mais nenhum ajuste de `sys.path` aqui.
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
+from . import asm as rv_assembler
+from . import reference as ref
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Os programas de exemplo continuam ao lado da CPU de referencia: sao dados
+# de teste daquela CPU, nao codigo do validador.
 EXAMPLE_ROOT = REPO_ROOT / "cpus" / "rv32i_pipeline"
-TOOLS_DIR = EXAMPLE_ROOT / "tools"
-REFERENCE_DIR = EXAMPLE_ROOT / "test"
 PROGRAMS_DIR = EXAMPLE_ROOT / "programs"
 
-for _p in (TOOLS_DIR, REFERENCE_DIR):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
-
-import reference_model as ref  # noqa: E402
-import rv_assembler  # noqa: E402
-
-__all__ = ["REPO_ROOT", "EXAMPLE_ROOT", "TOOLS_DIR", "REFERENCE_DIR",
-           "PROGRAMS_DIR", "ref", "rv_assembler"]
+__all__ = ["REPO_ROOT", "EXAMPLE_ROOT", "PROGRAMS_DIR", "ref", "rv_assembler"]
