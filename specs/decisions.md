@@ -671,7 +671,7 @@ que os filtros de `on.push.paths` disparam.
 conformidade da RV-7: rodar o Quartus Prime Lite sobre a CPU validada e medir
 viabilidade de FPGA de verdade — cabe (`Fitter`), frequência/timing
 (`TimeQuest`) e potência estimada (`Power Analyzer`), alvo inicial Cyclone V
-`5CEBA4F23C7N`. O plano detalhado está em
+`5CEBA4F23C7`. O plano detalhado está em
 `docker/quartus-docker-fpga-analysis-plan.md`; esta ADR registra as decisões
 de infraestrutura que aquele plano não fixa sozinho, e que vieram de execução
 real, não de leitura de documentação:
@@ -771,3 +771,80 @@ imagem em si **não foi executado** nesta ADR — falta o download manual dos
 então "a imagem builda de verdade" continua em aberto em `specs/tasks.md`
 até essa execução real acontecer. Nenhum número de PPA de FPGA existe ainda;
 nenhum é declarado.
+
+## ADR-016 — Correção do device alvo: `5CEBA4F23C7`, não `5CEBA4F23C7N`
+
+**Contexto.** Com a imagem construída (ADR-015, TRV-8.2), TRV-8.3 tentou
+compilar um projeto Quartus mínimo de fumaça (`docker/quartus_smoketest/`,
+um contador de 4 bits) contra o device até então usado em toda a spec desta
+trilha: `5CEBA4F23C7N`. A primeira tentativa reprovou:
+
+```
+Error (125095): Part name 5CEBA4F23C7N is invalid
+    Info (125063): set_global_assignment -name DEVICE 5CEBA4F23C7N
+Error (281000): Part name 5CEBA4F23C7N is illegal
+```
+
+Consultado o banco de devices de verdade instalado na imagem — não a
+documentação, o próprio Quartus — via
+`quartus_sh -t list_parts.tcl` rodando `get_part_list -family "Cyclone V"`
+dentro do container, os 432 devices da família Cyclone V instalados (pacote
+`.qdz` `cyclonev`, ADR-015) **não incluem nenhum sufixo `N`** em nenhuma
+variante. O prefixo `5CEBA4F23C7` existe e é válido:
+
+```
+5CEBA4F23C7
+5CEBA4F23C8
+```
+
+(junto de outras variantes de die/pacote/grau de velocidade da mesma família
+EBA). O `N` do valor usado até aqui é, com toda probabilidade, o sufixo de
+código de pedido/empacotamento (tray/RoHS) que aparece em datasheet e em
+placas como a DE10-Lite — não faz parte da string que o `DEVICE` do Quartus
+aceita.
+
+**Decisão.**
+
+1. Trocar `5CEBA4F23C7N` por `5CEBA4F23C7` em todo lugar que cita o device
+   alvo: `docker/quartus-docker-fpga-analysis-plan.md`,
+   `docker/Quartus_Dockerfile`, `docker/quartus_installers/README.md`,
+   `specs/spec.md` (FR-RV-37), `specs/tasks.md` e esta própria ADR-015.
+2. Manter `docker/quartus_smoketest/list_parts.tcl` versionado — não é lixo
+   de depuração, é a forma de reconferir, contra a imagem de verdade e não
+   contra memória ou datasheet, qual é a string exata de um device antes de
+   fixá-la em qualquer `.qsf` futuro (inclusive se a família mudar depois).
+3. Manter o projeto de fumaça `docker/quartus_smoketest/` versionado (fontes
+   `.vhd`/`.qpf`/`.qsf`, não os artefatos gerados — `output_files/`, `db/`
+   ficam fora do Git) como prova de regressão: se uma atualização futura do
+   Quartus ou da imagem voltar a rejeitar `5CEBA4F23C7`, a suíte de fumaça
+   pega isso antes de qualquer tentativa contra a CPU inteira.
+
+**Alternativas rejeitadas.**
+
+- *Confiar no datasheet/silkscreen da placa de referência sem checar contra
+  o Quartus instalado* — foi exatamente o que produziu o erro original; a
+  string de pedido de um fabricante e a string que a ferramenta de EDA aceita
+  nem sempre coincidem, e só a execução real revela isso.
+- *Tentar `5CEBA4F23C7N` com variações de maiúscula/minúscula ou espaço antes
+  de consultar o banco de devices* — rejeitado por ser tentativa e erro às
+  cegas; `get_part_list` deu a resposta definitiva em uma chamada.
+
+**Consequência.** `docker run --rm -v ".../quartus_smoketest:/workspace"
+quartus-lite:25.1 --flow compile counter4` -> exit 0, "Quartus Prime Full
+Compilation was successful. 0 errors, 13 warnings" (os warnings são
+esperados: falta `.sdc`, TRV-8.4 trata isso). O `counter4.fit.summary`
+confirma o device correto e traz utilização de recursos de verdade:
+
+```
+Device : 5CEBA4F23C7
+Logic utilization (in ALMs) : 3 / 18,480 ( < 1 % )
+Total registers : 4
+Total pins : 7 / 224 ( 3 % )
+Total block memory bits : 0 / 3,153,920 ( 0 % )
+Total DSP Blocks : 0 / 66 ( 0 % )
+Total PLLs : 0 / 4 ( 0 % )
+```
+
+TRV-8.3 fecha com essa execução. `counter4.sof` foi gerado, confirmando que
+FR-RV-41 (preservar o `.sof` quando a compilação termina bem) é viável no
+fluxo real, não só na especificação.

@@ -504,7 +504,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   VHDL declaradas no `cpu.toml` daquela entrega, sem gerar nem inferir
   nenhuma fonte nova.
 - **FR-RV-37**: THE SYSTEM SHALL rodar o Fitter do Quartus contra o device
-  alvo (`5CEBA4F23C7N`, família Cyclone V, por padrão) e reportar utilização
+  alvo (`5CEBA4F23C7`, família Cyclone V, por padrão) e reportar utilização
   de recursos — lógica/ALM, registradores, memória embarcada, DSP, PLLs,
   pinos de E/S — em valor absoluto e percentual, e SHALL reportar se o
   design coube no device como um campo booleano detectável por outro
@@ -538,7 +538,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   THEN THE SYSTEM SHALL preservar o arquivo de gravação (`.sof`) gerado.
 - **FR-RV-42**: THE SYSTEM SHALL manter o suporte a família de device
   modular: Cyclone V habilitado por padrão (`DEVICE_SUPPORT=cyclonev`,
-  cobrindo `5CEBA4F23C7N`), e outras famílias adicionáveis só via argumento
+  cobrindo `5CEBA4F23C7`), e outras famílias adicionáveis só via argumento
   de build da imagem (`--build-arg DEVICE_SUPPORT=...`), sem inflar a imagem
   padrão com pacotes de device não usados por este projeto.
 - **NFR-RV-06**: THE SYSTEM SHALL manter a imagem Docker do Quartus

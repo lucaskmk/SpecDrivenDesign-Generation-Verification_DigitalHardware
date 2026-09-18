@@ -23,7 +23,7 @@ tenta baixar nada — ele espera os arquivos já aqui.
 2. Baixe:
    - `QuartusLiteSetup-25.1std.0.1129-linux.run` (instalador base, ~2 GB)
    - `cyclonev-25.1std.0.1129.qdz` (suporte ao device Cyclone V — o alvo
-     deste projeto, `5CEBA4F23C7N`; é o único `DEVICE_SUPPORT` default)
+     deste projeto, `5CEBA4F23C7`; é o único `DEVICE_SUPPORT` default)
    - qualquer outro `<familia>-25.1std.0.1129.qdz` só se for habilitar
      outra família no build (`cycloneiv`, `cyclone10lp`, `max10`, `max` —
      ver o cabeçalho de `docker/Quartus_Dockerfile` pro nome exato de

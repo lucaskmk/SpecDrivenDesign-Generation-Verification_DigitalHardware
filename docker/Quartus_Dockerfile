@@ -1,5 +1,5 @@
 # Quartus Prime Lite container with modular Intel/Altera FPGA device support.
-# Default target: Cyclone V, including 5CEBA4F23C7N.
+# Default target: Cyclone V, including 5CEBA4F23C7.
 #
 # DELIBERATELY SEPARATE FROM docker/Dockerfile FOREVER (specs/decisions.md,
 # ADR-015). That image is the lightweight RISC-V toolchain oracle (binutils +

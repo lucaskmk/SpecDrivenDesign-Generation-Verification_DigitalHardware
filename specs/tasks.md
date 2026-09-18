@@ -666,15 +666,31 @@ por leitura de código ou por o Dockerfile "parecer certo".
     (`setlocale: LC_CTYPE: cannot change locale (en_US.UTF-8)`) no stderr,
     inofensivo (exit 0, saída correta) — registrado aqui para não
     surpreender quem for parsear stdout/stderr em TRV-8.7
-- [ ] TRV-8.3 — Projeto Quartus mínimo de fumaça: compilar um bloco trivial
-  (não a CPU inteira) contra `5CEBA4F23C7N` e confirmar o fluxo completo
+- [x] TRV-8.3 — Projeto Quartus mínimo de fumaça: compilar um bloco trivial
+  (não a CPU inteira) contra `5CEBA4F23C7` e confirmar o fluxo completo
   - REQ: FR-RV-36, FR-RV-37, FR-RV-42
   - ACEITE: um `.qpf`/`.qsf` mínimo (ex.: um único flip-flop ou a
     `mul_div_unit` isolada) compila dentro do container com
     `quartus_map`/`quartus_fit` -> exit 0 contra o device
-    `5CEBA4F23C7N`; o relatório do Fitter mostra utilização de recursos
+    `5CEBA4F23C7`; o relatório do Fitter mostra utilização de recursos
     (FR-RV-37); prova de que a imagem builda **e** compila antes de apontar
     o fluxo pra CPU inteira, que é bem mais pesada
+  - EXECUÇÃO CONFERIDA (2026-09-18): primeira tentativa, contra
+    `5CEBA4F23C7N` (o device usado até então em toda a spec), reprovou de
+    verdade — `Error (125095): Part name 5CEBA4F23C7N is invalid` — o que
+    levou à ADR-016: o sufixo `N` não existe em nenhum dos 432 devices
+    Cyclone V instalados (`get_part_list -family "Cyclone V"` dentro do
+    container, via `docker/quartus_smoketest/list_parts.tcl`); o valor certo
+    é `5CEBA4F23C7`, corrigido em toda a spec no mesmo commit. Com a
+    correção, `docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace"
+    quartus-lite:25.1 --flow compile counter4` -> exit 0, "Quartus Prime
+    Full Compilation was successful. 0 errors, 13 warnings" (avisos
+    esperados: falta `.sdc`, tratado em TRV-8.4). `counter4.fit.summary`
+    real: `Device : 5CEBA4F23C7`, `Logic utilization (in ALMs) : 3 / 18,480`,
+    `Total registers : 4`, `Total pins : 7 / 224`. `counter4.sof` gerado —
+    confirma que preservar o `.sof` em sucesso (FR-RV-41) é viável no fluxo
+    real. Projeto de fumaça versionado em `docker/quartus_smoketest/`
+    (fontes only; `output_files/`, `db/` gitignored)
 - [ ] TRV-8.4 — Escrever `.sdc` de restrição de clock e extrair timing real
   - REQ: FR-RV-38
   - ACEITE: `.sdc` com `create_clock` no projeto de fumaça de TRV-8.3;
