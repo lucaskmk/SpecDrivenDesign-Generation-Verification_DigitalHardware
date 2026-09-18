@@ -691,25 +691,81 @@ por leitura de código ou por o Dockerfile "parecer certo".
     confirma que preservar o `.sof` em sucesso (FR-RV-41) é viável no fluxo
     real. Projeto de fumaça versionado em `docker/quartus_smoketest/`
     (fontes only; `output_files/`, `db/` gitignored)
-- [ ] TRV-8.4 — Escrever `.sdc` de restrição de clock e extrair timing real
+- [x] TRV-8.4 — Escrever `.sdc` de restrição de clock e extrair timing real
   - REQ: FR-RV-38
   - ACEITE: `.sdc` com `create_clock` no projeto de fumaça de TRV-8.3;
     `quartus_sta` -> exit 0 dentro do container; slack de setup/hold, Fmax e
     fechamento de timing extraídos do relatório do TimeQuest; rodar o mesmo
     fluxo **sem** `.sdc` e confirmar que o Fmax sai marcado como não
     confiável no relatório (FR-RV-38 exige a ressalva, não só o número)
-- [ ] TRV-8.5 — Extrair potência estimada
+  - EXECUÇÃO CONFERIDA (2026-09-18): a evidência do caso **sem** `.sdc` já
+    tinha sido produzida sem querer em TRV-8.3 — a primeira compilação do
+    smoke test, antes de qualquer `.sdc` existir, emitiu
+    `Critical Warning (332012): Synopsys Design Constraints File file not
+    found: 'counter4.sdc'` e seguiu com `derive_clocks -period 1.0`, um
+    clock de 1 ns inventado, exatamente o cenário que FR-RV-38 exige marcar
+    como não confiável. Com `counter4.sdc` (`create_clock -period 10.000`,
+    100 MHz) adicionado e referenciado via `SDC_FILE` no `.qsf`,
+    `--flow compile counter4` -> exit 0, timing fechado de verdade (antes
+    "Timing requirements not met" em 3 dos 4 corners; depois, positivo nos
+    4: pior caso setup 8.689 ns de folga em Slow 1100mV 0C, extraído de
+    `output_files/counter4.sta.summary`). Fmax **não sai** do relatório
+    padrão do `--flow compile` (confirmado: `counter4.sta.rpt` não tem seção
+    Fmax) — precisou de `report_clock_fmax_summary` via API do TimeQuest
+    (`docker/quartus_smoketest/report_fmax.tcl`, rodado com
+    `quartus_sta -t report_fmax.tcl`, já que `create_timing_netlist` só
+    existe nos executáveis `quartus_fit`/`quartus_sta`, não em `quartus_sh`
+    — outro fato só descoberto tentando, não lendo doc): `Fmax = 791.77 MHz`,
+    `Restricted Fmax = 650.2 MHz` (limitado por período mínimo). O comando
+    certo é `report_clock_fmax_summary`, não `report_fmax_summary` (este
+    último nem existe nesta versão — confirmado em
+    `common/tcl/internal/init/sta.cmds.hlp` dentro da própria imagem)
+- [x] TRV-8.5 — Extrair potência estimada
   - REQ: FR-RV-39
   - ACEITE: `quartus_pow` -> exit 0 dentro do container sobre o projeto de
     TRV-8.3/8.4; potência estática, dinâmica, de E/S e total aparecem no
     relatório, cada uma explicitamente rotulada estimativa, nunca medição
-- [ ] TRV-8.6 — Investigar exportação headless de RTL/netlist
+  - EXECUÇÃO CONFERIDA (2026-09-18): `docker run --rm -v
+    "$PWD/docker/quartus_smoketest:/workspace" --entrypoint quartus_pow
+    quartus-lite:25.1 counter4 -c counter4` -> exit 0, "Quartus Prime Power
+    Analyzer was successful. 0 errors, 3 warnings".
+    `output_files/counter4.pow.summary` real:
+    `Total Thermal Power Dissipation : 199.47 mW`,
+    `Core Dynamic Thermal Power Dissipation : 0.46 mW`,
+    `Core Static Thermal Power Dissipation : 193.89 mW`,
+    `I/O Thermal Power Dissipation : 5.12 mW` — as quatro categorias que
+    FR-RV-39 pede. O próprio Quartus já rotula isso como estimativa, sem
+    precisar de rótulo extra deste projeto:
+    `Power Estimation Confidence : Low: user provided insufficient toggle
+    rate data` — sem dado de toggle vindo de simulação real (que este smoke
+    test não fez), a confiança é baixa por definição da própria ferramenta,
+    o que é exatamente o tipo de ressalva que NFR-RV-02 exige propagar pro
+    relatório final quando o wrapper (TRV-8.7) existir
+- [x] TRV-8.6 — Investigar exportação headless de RTL/netlist
   - REQ: FR-RV-40
   - ACEITE: documentado (com execução real, sucesso ou falha) se o Quartus
     consegue exportar o RTL Viewer como PNG/SVG/PDF sem GUI interativa; se
     não conseguir dentro do prazo, os dados brutos de síntese continuam
     preservados em `quartus_output/netlist/` e a ausência da imagem não
     bloqueia os demais relatórios (FR-RV-40 é explícito sobre isso)
+  - EXECUÇÃO CONFERIDA (2026-09-18): **não existe** exportação headless de
+    PNG/SVG/PDF do RTL Viewer nesta instalação — busca real em
+    `grep -ilE 'png|svg|jpeg|\.eps'` sobre todo
+    `common/tcl/internal/init/*.hlp` (banco de ajuda de **todo** comando
+    Tcl que a imagem conhece) não encontrou um único comando de exportação
+    de imagem. Confirma o que a seção 4 do plano
+    (`docker/quartus-docker-fpga-analysis-plan.md`) já suspeitava: é
+    limitação real da ferramenta (Lite Edition), não falta de tentativa.
+    Em compensação, os **dados** de netlist (não uma imagem, mas a estrutura
+    de células/pinos) são acessíveis sem GUI de verdade, via o pacote
+    `::quartus::rtl` — confirmado rodando
+    `docker/quartus_smoketest/report_netlist.tcl`
+    (`quartus_map -t report_netlist.tcl` -> exit 0,
+    `load_rtl_netlist` + `get_rtl_cells *` devolveu a célula raiz do
+    `counter4` de verdade). Decisão: FR-RV-40 fica satisfeito pelo ramo "se
+    não for viável" — nenhuma imagem é gerada, os dados brutos de síntese
+    (`db/`, mais o que `report_rtl_pin_summary`/`get_rtl_cells` conseguirem
+    extrair) ficam preservados, e isso não bloqueia fit/timing/potência
 - [ ] TRV-8.7 — Escrever o wrapper `analyze` e o `summary.json`
   - REQ: FR-RV-41, FR-RV-42
   - ACEITE: `docker run --rm -v "$PWD:/workspace" quartus-lite:25.1 analyze

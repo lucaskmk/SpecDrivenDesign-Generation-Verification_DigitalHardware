@@ -34,3 +34,42 @@ ADR-016 sobre por que isso importa).
 docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
     quartus-lite:25.1 -t list_parts.tcl
 ```
+
+## Timing real (TRV-8.4)
+
+`counter4.sdc` restringe `clk` a 100 MHz (`create_clock -period 10.000`).
+Sem ele, o `--flow compile` acima roda igual, mas com um clock de 1 ns
+inventado pelo Quartus (`derive_clocks -period 1.0`) e um aviso explícito de
+que faltou o `.sdc` — qualquer Fmax lido desse cenário não significa nada
+(FR-RV-38). Slack de setup/hold sai do relatório padrão
+(`output_files/counter4.sta.summary`); Fmax **não** sai dele — precisa da
+API do TimeQuest, só disponível em `quartus_sta`/`quartus_fit`, não em
+`quartus_sh` (o `ENTRYPOINT` da imagem):
+
+```
+docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+    --entrypoint quartus_sta quartus-lite:25.1 -t report_fmax.tcl
+```
+
+## Potência (TRV-8.5)
+
+```
+docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+    --entrypoint quartus_pow quartus-lite:25.1 counter4 -c counter4
+```
+
+`output_files/counter4.pow.summary` traz estática, dinâmica, de E/S e
+total — o próprio Quartus já rotula a confiança da estimativa (baixa aqui,
+por faltar dado de toggle rate de uma simulação real).
+
+## Netlist sem GUI (TRV-8.6)
+
+Não há exportação headless de PNG/SVG/PDF do RTL Viewer nesta instalação
+(nenhum comando do tipo existe no banco de ajuda Tcl da imagem — conferido
+por busca real, não suposição). Os **dados** de netlist continuam
+acessíveis sem GUI via `::quartus::rtl`:
+
+```
+docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+    --entrypoint quartus_map quartus-lite:25.1 -t report_netlist.tcl
+```
