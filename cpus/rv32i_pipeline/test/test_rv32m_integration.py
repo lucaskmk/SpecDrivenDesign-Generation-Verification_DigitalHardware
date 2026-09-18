@@ -16,7 +16,7 @@ nenhuma lógica nova, e sem introduzir stall próprio. Cada uma dessas
 afirmações tem um teste abaixo que a comprova por execução.
 
 Rodar:
-  pytest examples/RISCV32I/test/test_rv32m_integration.py -v
+  pytest cpus/rv32i_pipeline/test/test_rv32m_integration.py -v
 """
 
 from __future__ import annotations
@@ -27,10 +27,9 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
-import reference_model as ref  # noqa: E402
-from rv_assembler import AssemblyError, assemble  # noqa: E402
+from rvverify import reference as ref  # noqa: E402
+from rvverify.asm import AssemblyError, assemble  # noqa: E402
 from rv_build import RAM_BASE, result_addr, run_program  # noqa: E402
 from rvverify.builder import SimulationFailed  # noqa: E402
 from rv_m_cases import HALT, sig  # noqa: E402

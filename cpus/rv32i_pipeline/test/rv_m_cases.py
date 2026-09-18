@@ -22,7 +22,7 @@ Limites respeitados (ver `memory_package.vhd`):
 
 from __future__ import annotations
 
-import reference_model as ref
+from rvverify import reference as ref
 
 MASK32 = 0xFFFFFFFF
 
@@ -77,7 +77,7 @@ def expected_ram(mnemonic: str, pairs: list[tuple[int, int]]) -> dict[int, int]:
     """Resultados esperados, calculados pelo MODELO DE REFERÊNCIA (FR-RV-23).
 
     Nenhum valor esperado é escrito à mão neste projeto: todos saem de
-    `reference_model.py`, que implementa a semântica da especificação RISC-V
+    `rvverify/reference.py`, que implementa a semântica da especificação RISC-V
     não privilegiada, inclusive os casos especiais da divisão.
     """
     from rv_build import result_addr

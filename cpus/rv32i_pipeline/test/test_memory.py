@@ -12,7 +12,7 @@ prova de que o comportamento não mudou — inclusive as regras originais de
 acesso desalinhado.
 
 Rodar:
-  pytest examples/RISCV32I/test/test_memory.py -v
+  pytest cpus/rv32i_pipeline/test/test_memory.py -v
 """
 
 from __future__ import annotations

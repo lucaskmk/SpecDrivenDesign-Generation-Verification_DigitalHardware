@@ -13,7 +13,7 @@ valor tem de bater com o modelo de referência, e o programa tem de alcançar o
 auto-laço de parada (se travasse, o harness levantaria CpuTimeout).
 
 Rodar:
-  pytest examples/RISCV32I/test/test_rv32m_div.py -v
+  pytest cpus/rv32i_pipeline/test/test_rv32m_div.py -v
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import reference_model as ref  # noqa: E402
+from rvverify import reference as ref  # noqa: E402
 from rv_build import RAM_BASE, result_addr, run_program  # noqa: E402
 from rv_m_cases import (  # noqa: E402
     HALT,

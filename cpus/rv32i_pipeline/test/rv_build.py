@@ -7,7 +7,7 @@ NFR-RV-02 (nada e declarado como medido sem executar a ferramenta).
 
 O que MUDOU: a lista fixa de 20 arquivos VHDL, o mapa de memoria e a
 mecanica de compilar/elaborar sairam daqui. A lista de fontes agora e o
-campo `[design].sources` de `examples/RISCV32I/cpu.toml`; a compilacao com
+campo `[design].sources` de `cpus/rv32i_pipeline/cpu.toml`; a compilacao com
 cache e a chamada ao GHDL sao `rvverify.builder`.
 
 O que NAO mudou: a API publica que as suites usam -- `run_program`,
@@ -42,9 +42,8 @@ PROGRAMS = EXAMPLE_ROOT / "programs"
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(TOOLS))
 
-from rv_assembler import (  # noqa: E402
+from rvverify.asm import (  # noqa: E402
     assemble_with_symbols,
     find_halt_addresses,
     write_ram_image,
@@ -237,7 +236,7 @@ def run_program(
                f"requisitos: {', '.join(requirements or [])}\n"
                f"palavras: {len(words)}   parada em: "
                f"{', '.join(hex(p) for p in halt_pcs)}\n"
-               f"gerado por examples/RISCV32I/tools/rv_assembler.py",
+               f"gerado por rvverify/asm.py",
     )
     if keep_image_at is not None:
         keep_image_at.parent.mkdir(parents=True, exist_ok=True)
@@ -268,7 +267,7 @@ def run_program(
         test_module="tb_program",
         parameters=_rom_parameters(image, rom_size_words, rv32m, src_dir),
         extra_env={"RV_PROGRAM_SPEC": str(spec_path)},
-        python_paths=[HERE, TOOLS],
+        python_paths=[HERE],
         waves=waves,
     )
 
@@ -331,7 +330,7 @@ def run_builtin_snapshot(
         test_module="tb_snapshot",
         parameters=parameters,
         extra_env={"RV_PROGRAM_SPEC": str(spec_path)},
-        python_paths=[HERE, TOOLS],
+        python_paths=[HERE],
         waves=False,
     )
 
