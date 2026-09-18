@@ -696,15 +696,18 @@ halt:  j    halt           <span class="c">◄── ...e AQUI, especulativament
         <div>
           <p>Suíte completa — 795 testes, cerca de 3 minutos.</p>
 <pre>cd /mnt/c/.../SpecDrivenDesign-Generation-Verification_DigitalHardware
-~/venv-cocotb/bin/python -m pytest examples/RISCV32I/test/ -o addopts= -q</pre>
-          <p class="note">O <span class="m">-o addopts=</span> é necessário: o
-            <span class="m">pyproject.toml</span> aponta o pytest para a trilha A.</p>
+~/venv-cocotb/bin/python -m pytest cpus/rv32i_pipeline/test/ -q</pre>
+          <p class="note">O <span class="m">-o addopts=</span> que esta página
+            pedia deixou de ser necessário: desde a ADR-013 o
+            <span class="m">pyproject.toml</span> aponta o pytest para
+            <span class="m">rvverify/tests</span> e <span class="m">cpus</span>,
+            e não mais para a trilha A.</p>
         </div>
       </div>
       <div class="step">
         <span class="n">2</span>
         <div>
-          <p>Seu programa vai em <span class="m">examples/RISCV32I/programs/</span>.
+          <p>Seu programa vai em <span class="m">cpus/rv32i_pipeline/programs/</span>.
             O nome decide a ISA e é obrigatório terminar em
             <span class="m">_rv32i.asm</span> ou <span class="m">_rv32im.asm</span> —
             o primeiro é montado com o montador recusando qualquer instrução M, o que
@@ -722,9 +725,9 @@ halt:
         <span class="n">3</span>
         <div>
           <p>Gerar a imagem e rodar.</p>
-<pre>~/venv-cocotb/bin/python examples/RISCV32I/tools/build_programs.py
-~/venv-cocotb/bin/python examples/RISCV32I/tools/bench_compare.py   <span class="c"># eficiência</span>
-~/venv-cocotb/bin/python examples/RISCV32I/tools/synth_ppa.py       <span class="c"># área</span></pre>
+<pre>~/venv-cocotb/bin/python cpus/rv32i_pipeline/tools/build_programs.py
+~/venv-cocotb/bin/python cpus/rv32i_pipeline/tools/bench_compare.py   <span class="c"># eficiência</span>
+~/venv-cocotb/bin/python cpus/rv32i_pipeline/tools/synth_ppa.py       <span class="c"># área</span></pre>
         </div>
       </div>
     </div>
@@ -737,7 +740,7 @@ halt:
       <h2>Documentos</h2>
     </div>
     <ul class="links">
-      <li><span class="path">examples/RISCV32I/RELATORIO.md</span>
+      <li><span class="path">cpus/rv32i_pipeline/RELATORIO.md</span>
         <span class="what">— diagnóstico, resultado de cada teste, rastreabilidade, comandos de reprodução</span></li>
       <li><span class="path">docs/MUDANCAS.md</span>
         <span class="what">— a versão longa desta página</span></li>
@@ -745,7 +748,7 @@ halt:
         <span class="what">— contexto do projeto original e o que ficou faltando nele</span></li>
       <li><span class="path">specs/decisions.md</span>
         <span class="what">— ADR-000 a ADR-009, cada decisão com o porquê e a alternativa rejeitada</span></li>
-      <li><span class="path">examples/RISCV32I/programs/README.md</span>
+      <li><span class="path">cpus/rv32i_pipeline/programs/README.md</span>
         <span class="what">— os benchmarks e o formato <span class="m">.ram</span></span></li>
       <li><span class="path">docs/mapa-do-projeto.html</span>
         <span class="what">— <strong>desatualizado</strong>: cobre só as fases 0–7 da trilha A</span></li>

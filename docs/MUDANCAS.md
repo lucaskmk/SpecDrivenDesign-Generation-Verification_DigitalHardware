@@ -4,7 +4,7 @@ Diff explicado do que a trilha RISC-V fez no repositório. Ponto de partida:
 commit `f884a4e` ("RISCV32I example"), que vendorizou a CPU. Ponto de chegada:
 `1185a7e`.
 
-Complementa o [`RELATORIO.md`](../examples/RISCV32I/RELATORIO.md), que responde
+Complementa o [`RELATORIO.md`](../cpus/rv32i_pipeline/RELATORIO.md), que responde
 "o que foi medido"; este arquivo responde **"o que foi mexido e o que não foi"**.
 
 > Versão visual, com o diagrama do datapath antes/depois:
@@ -99,9 +99,9 @@ escrita fora de faixa descartada.
 > `ghdl:error: index (1069604864) out of bounds (0 to 127)`.
 > O design original já fazia certo; restaurei a estrutura dele.
 >
-> Arquivos: [`data_ram.vhd`](../examples/RISCV32I/src/data_ram.vhd),
-> [`data_rom.vhd`](../examples/RISCV32I/src/data_rom.vhd),
-> [`memory_package.vhd`](../examples/RISCV32I/src/memory_package.vhd).
+> Arquivos: [`data_ram.vhd`](../cpus/rv32i_pipeline/src/data_ram.vhd),
+> [`data_rom.vhd`](../cpus/rv32i_pipeline/src/data_rom.vhd),
+> [`memory_package.vhd`](../cpus/rv32i_pipeline/src/memory_package.vhd).
 
 ### Mudança 2 — ROM carregável por arquivo `.ram`
 
@@ -122,7 +122,7 @@ entity instruction_memory is
 Preenchido, lê a imagem `.ram` por `textio` **na elaboração**. Formato
 (uma palavra por linha, 8 dígitos hex, linha 0 = endereço `0x0`, `#` comenta)
 documentado em ADR-003 e em
-[`programs/README.md`](../examples/RISCV32I/programs/README.md).
+[`programs/README.md`](../cpus/rv32i_pipeline/programs/README.md).
 
 Risco previsto no ADR-003 que **não se materializou**: `ghdl synth` aceita a
 função com `textio` presente e retorna exit 0.
@@ -274,6 +274,16 @@ depois:  fetches - flush_f - (flush_d - stalls)
 | `test/test_*.py` | 7 suítes, 795 passed / 26 skipped |
 | `programs/` | 4 benchmarks × (`.c` + 2 `.asm` + 2 `.ram`) |
 | `specs/decisions.md` | ADR-000 a ADR-009 |
+
+> **Onde esses arquivos estão hoje.** A tabela acima usa os caminhos da época,
+> relativos a `examples/RISCV32I/`, que a ADR-013 renomeou para
+> `cpus/rv32i_pipeline/`. Dois deles mudaram mais do que de pasta:
+> `tools/rv_assembler.py` e `test/reference_model.py` foram **promovidos para o
+> pacote do validador**, como `rvverify/asm.py` e `rvverify/reference.py` — são
+> infraestrutura do `rvverify`, não da CPU de exemplo. E o montador ganhou um
+> conferente: `docker/Dockerfile` traz um binutils RISC-V real que serve de
+> **oráculo opcional**, comparado palavra a palavra em
+> `rvverify/tests/test_assembler_oracle.py` (NFR-RV-05, ADR-004 *Revisão*).
 
 ---
 
