@@ -6,7 +6,7 @@ de conformidade em cada uma.
 
 ```
 entregas/
-├── _template/            ← copie esta pasta para começar
+├── _modelo/              ← copie esta pasta para começar
 ├── joao_silva/
 │   ├── cpu.toml
 │   └── src/*.vhd
@@ -18,7 +18,7 @@ entregas/
 ## Como entregar
 
 ```bash
-cp -r entregas/_template entregas/seu_nome
+cp -r entregas/_modelo entregas/seu_nome
 # escreva o VHDL em entregas/seu_nome/src/ e preencha o cpu.toml
 ```
 
@@ -46,8 +46,8 @@ Esta é a divisão que importa entender antes de começar.
 | RAM e ROM de dados | `data_ram.vhd`, `data_rom.vhd`, `data_memory.vhd` | já são arrays 1-D, que é o único formato que o cocotb consegue ler (ver restrição 1 abaixo) |
 | Mapa de memória | `memory_package.vhd` | instruções em `0x00000000`, DATA_ROM em `0x00FC8000`, DATA_RAM em `0x00FC8100` |
 | Multiplicador e divisor | `mul_div_unit.vhd` | as 8 instruções RV32M, já verificadas contra a especificação |
-| Montador RV32I/RV32IM | `tools/rv_assembler.py` | `.asm` → `.ram`; não existe compilador RISC-V neste ambiente |
-| Modelo de referência | `test/reference_model.py` | os valores esperados de toda instrução, inclusive os casos especiais |
+| Montador RV32I/RV32IM | `rvverify/_ferramentas.py` + `cpus/rv32i_pipeline/tools/rv_assembler.py` | `.asm` → `.ram`; não existe compilador RISC-V neste ambiente |
+| Modelo de referência | `cpus/rv32i_pipeline/test/reference_model.py` | os valores esperados de toda instrução, inclusive os casos especiais |
 | A suíte de conformidade | `rvverify/` | é o que julga a sua CPU |
 
 ### Você escreve
@@ -88,11 +88,11 @@ condicional.
 ## Os dois caminhos
 
 **Modifico uma CPU que já existe.** Comece de
-[`examples/RISCV32I`](../examples/RISCV32I/) — pipeline de 5 estágios, RV32I
+[`cpus/rv32i_pipeline`](../cpus/rv32i_pipeline/) — pipeline de 5 estágios, RV32I
 completo, já verificada. O `cpu.toml` dela serve de referência.
 
 **Faço do zero.** Comece de
-[`examples/rv32i_monociclo`](../examples/rv32i_monociclo/) — monociclo, bem
+[`cpus/rv32i_monociclo`](../cpus/rv32i_monociclo/) — monociclo, bem
 mais simples de entender, usando as mesmas memórias fornecidas.
 
 Os dois já estão no repositório e os dois passam na mesma suíte de
@@ -120,6 +120,6 @@ manter as suas fora do git, acrescente ao `.gitignore` da raiz:
 
 ```
 entregas/*
-!entregas/_template/
+!entregas/_modelo/
 !entregas/README.md
 ```

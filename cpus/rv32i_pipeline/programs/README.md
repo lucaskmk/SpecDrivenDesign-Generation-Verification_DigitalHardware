@@ -122,7 +122,7 @@ Exemplo (`bench_mul_rv32im.ram`):
 
 ```
 # programa: bench_mul_rv32im
-# fonte: examples/RISCV32I/programs/bench_mul_rv32im.asm
+# fonte: cpus/rv32i_pipeline/programs/bench_mul_rv32im.asm
 # isa: RV32IM
 # palavras: 39   parada em: 0x98
 00fc8937
@@ -134,7 +134,7 @@ Exemplo (`bench_mul_rv32im.ram`):
 ## Como regenerar as imagens
 
 ```bash
-python examples/RISCV32I/tools/build_programs.py
+python cpus/rv32i_pipeline/tools/build_programs.py
 ```
 
 Monta cada `.asm` e grava o `.ram` ao lado. Os `*_rv32i.asm` são montados com
@@ -149,8 +149,8 @@ build em vez de passar despercebida.
 
 ```bash
 # executa cada benchmark nas duas ISAs e tabula ciclos, CPI, stalls e flushes
-python examples/RISCV32I/tools/bench_compare.py
+python cpus/rv32i_pipeline/tools/bench_compare.py
 
 # verificação funcional (resultados na RAM contra o modelo de referência)
-pytest examples/RISCV32I/test/test_programs.py -v
+pytest cpus/rv32i_pipeline/test/test_programs.py -v
 ```

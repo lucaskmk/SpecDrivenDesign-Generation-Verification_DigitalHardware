@@ -413,6 +413,12 @@ pelo mesmo script que mede a coluna RV32IM.
 
 ## ADR-010 — Interface web com `http.server` e Server-Sent Events, não Streamlit
 
+> **REVERTIDA pela ADR-012** (2026-09-18): o professor definiu que o trabalho é
+> de terminal e não pede interface gráfica. O registro fica porque o problema
+> que ele descreve — uma execução de um minuto que despeja 1.576 linhas de log
+> — continua valendo, e foi resolvido pelo relatório de terminal de FR-RV-30 e
+> pelo log por caso da ADR-011. Nenhuma linha de servidor web foi escrita.
+
 **Contexto.** A validação de uma CPU leva cerca de um minuto (26 casos, cerca
 de 2,4 s cada, medido na monociclo em 2026-09-17), e a síntese das duas
 configurações leva mais 68 s. Pela linha de comando isso aparece como 1.576
@@ -486,3 +492,73 @@ mostrar o log de um caso sem misturá-lo com o dos outros.
 `--casos`, `--listar`, `--eficiencia` e `--area`. A interface é só um cliente
 dela, e qualquer coisa que a interface mostra também sai por
 `python -m rvverify --json`.
+
+---
+
+## ADR-012 — Sem interface gráfica: o validador é de terminal
+
+**Contexto.** A ADR-010 projetou uma interface web local para acompanhar a
+validação. Antes de qualquer linha de servidor ser escrita, o professor
+definiu a direção do trabalho: **continuar no terminal, interface não é
+necessária**. O que o trabalho precisa ter são os testes, e testes rigorosos.
+
+**Decisão.** O validador é operado por linha de comando e só por ela
+(NFR-RV-04). O que a interface resolveria vira exigência da saída de terminal:
+
+| dor que a interface atacava | como o terminal resolve |
+|---|---|
+| 1.576 linhas de log por execução | saída do GHDL vai para o `sim.log` de cada caso (ADR-011); a tela recebe uma linha por caso |
+| não saber o que está acontecendo | progresso impresso no instante em que cada caso termina, com tempo e ciclos |
+| não saber o que corrigir | diagnóstico estruturado de FR-RV-28, com entrada, esperado, obtido e a instrução que a CPU parece estar executando |
+| escolher o que rodar | `--casos` e `--etapa`, e o comando pronto que repete só o que falhou |
+| acompanhar de fora | `--eventos` (JSON Lines), para CI e para avaliar modelos de IA em lote |
+
+**Consequência.** O esforço que iria para servidor, HTML e JavaScript vai para
+o **rigor da suíte** (FR-RV-34 e FR-RV-35), que é o que mede de fato se um
+aluno ou um modelo de IA construiu a CPU. Nada de web foi implementado, então
+não há código a remover: só a spec e o backlog mudaram.
+
+---
+
+## ADR-013 — Estrutura do repositório: validador no centro, trilha A no legado
+
+**Contexto.** O repositório cresceu em duas trilhas e a pasta `examples/`
+misturava coisas de naturezas diferentes: a CPU RISC-V de referência
+(`examples/RISCV32I/`), uma segunda CPU (`examples/rv32i_monociclo/`), dois
+exercícios de ULA da trilha A (`examples/ula32_sol`, `examples/ula32_terra`) e
+um smoke test de toolchain. Na raiz conviviam `src/spechdl/`, `templates/`,
+`.streamlit/`, `abrir_formulario.bat`, `outputs/` e os documentos das duas
+trilhas. Quem chega não descobre por onde começar, e o nome `RISCV32I` em caixa
+alta não diz que aquela é a CPU a ser modificada.
+
+**Decisão.** Cinco pastas na raiz, cada uma com uma função só:
+
+| pasta | o que é | antes |
+|---|---|---|
+| `rvverify/` | o validador: manifesto, montador, modelo de referência, harness, suíte e diagnóstico | `rvverify/` + `examples/RISCV32I/tools/rv_assembler.py` + `examples/RISCV32I/test/reference_model.py` |
+| `cpus/rv32i_pipeline/` | a CPU de referência de 5 estágios — o ponto de partida do aluno | `examples/RISCV32I/` |
+| `cpus/rv32i_monociclo/` | a CPU monociclo, prova de que a suíte julga comportamento e não formato | `examples/rv32i_monociclo/` |
+| `entregas/` | onde a CPU entregue entra, com `_modelo/` para copiar | `entregas/` com `_template/` |
+| `legado/` | a trilha A inteira, preservada e fora do caminho | `src/spechdl/`, `templates/`, `tests/`, `scripts/`, `.streamlit/`, `abrir_formulario.bat`, `examples/ula32_*`, `examples/toolchain_smoketest` |
+
+Duas mudanças de dependência vêm junto:
+
+1. **O montador e o modelo de referência sobem para `rvverify/`** (`asm.py` e
+   `reference.py`). Eles são infraestrutura do validador, não da CPU de
+   exemplo: o validador montava programas a partir de uma pasta chamada
+   `examples/`, o que inverte a direção da dependência e quebraria se aquele
+   exemplo saísse. As suítes da CPU de referência passam a importá-los do
+   pacote.
+2. **`pyproject.toml` passa a servir a trilha B**: `pythonpath = ["."]` e
+   `testpaths = ["rvverify/tests", "cpus"]`. Antes apontava para `src/` e
+   `tests/` (trilha A), e por isso toda execução de pytest da trilha B exigia
+   `-o addopts=` na linha de comando.
+
+**Alternativas rejeitadas.** Repositório separado para a trilha A (quebra o
+princípio 8 e o histórico); manter `examples/` com tudo dentro (o problema);
+apagar os exercícios de ULA (princípio 8).
+
+**Consequência.** `git log --follow` continua seguindo cada arquivo. Todo
+caminho citado em spec, plano, tarefas, decisões, README e manifestos foi
+atualizado no mesmo commit da mudança, e a suíte inteira roda depois dela para
+provar que nada ficou apontando para o lugar antigo.

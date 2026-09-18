@@ -34,13 +34,34 @@ from .manifest import CpuManifest
 
 __all__ = [
     "SimulationFailed",
+    "BuildFailed",
     "BuiltDesign",
     "build_design",
     "run_simulation",
     "design_declares_generic",
     "build_root",
     "sources_stamp",
+    "parse_ghdl_messages",
+    "QUIET_IEEE_AT_ZERO",
 ]
+
+# Opcao de EXECUCAO do GHDL (vai depois do nome do top-level, onde o runner
+# poe os plusargs). Antes do reset todo sinal vale 'U', e o numeric_std avisa
+# "metavalue detected" em cada conversao: 805 das 1.576 linhas do log de uma
+# validacao completa, todas em @0ms (medido em 2026-09-17). Silenciar SO o
+# instante zero preserva qualquer aviso que apareca depois dele.
+QUIET_IEEE_AT_ZERO = "--ieee-asserts=disable-at-0"
+
+# Mensagem do GHDL com posicao no fonte, nos dois formatos que ele emite:
+#   arquivo.vhd:12:5: no declaration for "foo"
+#   arquivo.vhd:12:5:error: ...          (e :warning:)
+#   arquivo.vhd:45:10:@120ns:(assertion error): ...   (em tempo de simulacao)
+_GHDL_MSG_RE = re.compile(
+    r"^(?P<file>[^\s:][^:]*\.vhdl?):(?P<line>\d+):(?P<col>\d+):"
+    r"(?:@(?P<time>[^:]+):)?\s*(?P<msg>.*)$",
+    re.IGNORECASE,
+)
+_IEEE_FILES = ("numeric_std", "std_logic_1164", "math_real", "numeric_bit")
 
 # Raiz dos builds. Fica no filesystem do WSL de proposito: compilar dentro de
 # /mnt/c e significativamente mais lento.
@@ -85,13 +106,60 @@ class BuiltDesign:
         return self.manifest.design.top.lower()
 
 
+class BuildFailed(RuntimeError):
+    """O GHDL nao conseguiu analisar ou elaborar as fontes do manifesto.
+
+    `errors` traz as mensagens do GHDL com arquivo, linha e coluna quando a
+    saida da compilacao foi gravada em `log_file` (FR-RV-28).
+    """
+
+    def __init__(self, message: str, errors: list[dict] | None = None,
+                 log_file: Path | None = None):
+        super().__init__(message)
+        self.errors = errors or []
+        self.log_file = log_file
+
+
+def parse_ghdl_messages(text: str, *, limit: int = 20) -> list[dict]:
+    """Mensagens do GHDL com posicao no fonte, na ordem em que apareceram.
+
+    Os avisos da biblioteca IEEE (`numeric_std-body.vhdl`) ficam de fora:
+    nao apontam para nada que o aluno escreveu.
+    """
+    out: list[dict] = []
+    for raw in text.splitlines():
+        m = _GHDL_MSG_RE.match(raw.strip())
+        if not m:
+            continue
+        path = m.group("file")
+        partes = path.replace("\\", "/").lower().split("/")
+        if any(p.startswith("ieee") for p in partes[:-1]) \
+                or partes[-1].startswith(_IEEE_FILES):
+            continue
+        out.append({
+            "arquivo": Path(path).name,
+            "caminho": path,
+            "linha": int(m.group("line")),
+            "coluna": int(m.group("col")),
+            "tempo": m.group("time"),
+            "mensagem": m.group("msg").strip(),
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
 def build_design(manifest: CpuManifest, *, src_dir: Path | None = None,
-                 build_dir: Path | None = None) -> BuiltDesign:
+                 build_dir: Path | None = None,
+                 log_file: Path | None = None) -> BuiltDesign:
     """Analisa as fontes do manifesto e devolve o build (com cache).
 
     `src_dir` troca a arvore de fontes mantendo a ordem de analise do
     manifesto -- e o que permite rodar o RTL original extraido do git sob o
     mesmo testbench, em vez de confiar num snapshot anotado a mao.
+
+    `log_file` desvia a saida do GHDL para um arquivo; se a compilacao
+    falhar, as mensagens com posicao no fonte viram `BuildFailed.errors`.
     """
     sources = manifest.source_paths(src_dir)
     stamp = sources_stamp(sources)
@@ -109,13 +177,27 @@ def build_design(manifest: CpuManifest, *, src_dir: Path | None = None,
     target.mkdir(parents=True, exist_ok=True)
 
     runner = get_runner("ghdl")
-    runner.build(
-        sources=[VHDL(p) for p in sources],
-        hdl_toplevel=manifest.design.top.lower(),
-        build_args=[f"--std={manifest.design.std}"],
-        build_dir=target,
-        always=True,
-    )
+    if log_file is not None:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+    try:
+        runner.build(
+            sources=[VHDL(p) for p in sources],
+            hdl_toplevel=manifest.design.top.lower(),
+            build_args=[f"--std={manifest.design.std}"],
+            build_dir=target,
+            always=True,
+            log_file=log_file,
+        )
+    except (RuntimeError, SystemExit) as e:
+        text = ""
+        if log_file is not None and Path(log_file).exists():
+            text = Path(log_file).read_text(encoding="utf-8", errors="replace")
+        onde = f"; saida completa em {log_file}" if log_file else ""
+        raise BuildFailed(
+            f"o GHDL nao compilou as fontes de {manifest.path} ({e}){onde}",
+            errors=parse_ghdl_messages(text),
+            log_file=Path(log_file) if log_file else None,
+        ) from e
     built = BuiltDesign(manifest=manifest, build_dir=target, runner=runner,
                         sources=sources, stamp=stamp)
     _build_cache[key] = built
@@ -144,11 +226,18 @@ def run_simulation(built: BuiltDesign, *, test_module: str,
                    parameters: dict[str, Any] | None = None,
                    extra_env: dict[str, str] | None = None,
                    python_paths: list[Path] | None = None,
-                   waves: bool = False) -> Path:
+                   waves: bool = False,
+                   log_file: Path | None = None,
+                   plusargs: list[str] | None = None) -> Path:
     """Elabora e executa o design. Levanta excecao se o GHDL ou o teste falhar.
 
     `parameters` sao os generics da CHAMADA; eles VENCEM os declarados em
     [design.generics] (uma suite alterna configuracao caso a caso).
+
+    `log_file` grava a saida do GHDL e do cocotb num arquivo em vez de
+    herdar a saida do processo (ADR-011); `plusargs` sao opcoes de execucao
+    do GHDL, como `QUIET_IEEE_AT_ZERO`. Sem os dois, o comportamento e o de
+    sempre -- e o que as suites pytest usam.
 
     ATENCAO -- por que a checagem do resultado e feita aqui, na mao:
 
@@ -167,6 +256,9 @@ def run_simulation(built: BuiltDesign, *, test_module: str,
     env.update(extra_env or {})
     repo_paths = [Path(__file__).resolve().parent.parent]
     env["PYTHONPATH"] = _pythonpath((python_paths or []) + repo_paths)
+    onde_log = f"ver {log_file}" if log_file else "ver o log do GHDL acima"
+    if log_file is not None:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
 
     try:
         results = built.runner.test(
@@ -178,6 +270,8 @@ def run_simulation(built: BuiltDesign, *, test_module: str,
             parameters=manifest.generics_for(parameters),
             extra_env=env,
             waves=waves,
+            plusargs=list(plusargs or []),
+            log_file=log_file,
         )
     except SystemExit as e:
         # SOB PYTEST o runner ja confere o XML e chama sys.exit(codigo).
@@ -187,8 +281,13 @@ def run_simulation(built: BuiltDesign, *, test_module: str,
         # SimulationFailed no outro, e esquecer um dos dois volta a produzir
         # aprovacao em vazio.
         raise SimulationFailed(
-            f"a simulacao reprovou (exit code {e.code}); "
-            f"ver o log do GHDL acima"
+            f"a simulacao reprovou (exit code {e.code}); {onde_log}"
+        ) from e
+    except RuntimeError as e:
+        # O GHDL terminou com codigo != 0 antes de o cocotb gravar resultado
+        # (erro em tempo de simulacao, como indice fora da faixa).
+        raise SimulationFailed(
+            f"o GHDL abortou a simulacao ({e}); {onde_log}"
         ) from e
 
     # Sob pytest o runner ja teria saido com sys.exit; chegar aqui com falhas

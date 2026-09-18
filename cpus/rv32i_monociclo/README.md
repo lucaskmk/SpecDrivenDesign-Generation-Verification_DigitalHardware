@@ -16,7 +16,7 @@ para caber na cabeça (quatro arquivos VHDL próprios), completa o bastante para
 passar na suíte de conformidade.
 
 **(b) É a prova de que o validador não está preso a um design.** Até aqui a
-trilha tinha **uma** CPU verificada — `examples/RISCV32I`, pipeline de 5
+trilha tinha **uma** CPU verificada — `cpus/rv32i_pipeline`, pipeline de 5
 estágios — e o testbench lia 11 sinais internos pelo nome exato, com o mapa de
 memória escrito no código. Um mecanismo assim não é um validador: é um
 testbench de um design só. Se a **mesma** suíte de conformidade passa nesta CPU
@@ -33,10 +33,10 @@ relativo** na lista `sources` do `cpu.toml` — não há cópia:
 
 | Arquivo | Origem |
 |---|---|
-| `cpu_package.vhd`, `memory_package.vhd` | `../RISCV32I/src/` — tipos e mapa de memória |
-| `instruction_memory.vhd` | `../RISCV32I/src/` — ROM com generic `ROM_INIT_FILE` |
-| `data_ram.vhd`, `data_rom.vhd`, `data_memory.vhd` | `../RISCV32I/src/` — RAM/ROM de dados e o roteamento por endereço |
-| `mul_div_unit.vhd` | `../RISCV32I/src/` — as 8 instruções RV32M, já verificadas |
+| `cpu_package.vhd`, `memory_package.vhd` | `../rv32i_pipeline/src/` — tipos e mapa de memória |
+| `instruction_memory.vhd` | `../rv32i_pipeline/src/` — ROM com generic `ROM_INIT_FILE` |
+| `data_ram.vhd`, `data_rom.vhd`, `data_memory.vhd` | `../rv32i_pipeline/src/` — RAM/ROM de dados e o roteamento por endereço |
+| `mul_div_unit.vhd` | `../rv32i_pipeline/src/` — as 8 instruções RV32M, já verificadas |
 | **`src/mono_alu.vhd`** | **próprio** — ALU combinacional |
 | **`src/mono_control.vhd`** | **próprio** — decodificador + controle, num bloco só |
 | **`src/mono_regfile.vhd`** | **próprio** — banco de registradores 1-D |
@@ -77,13 +77,13 @@ ciclo — e é exatamente por isso que não existe hazard nenhum para tratar.
 ## Como rodar
 
 O smoke test é **autossuficiente**: não depende do pacote `rvverify` nem dos
-testes de `examples/RISCV32I/test/`. Uma CPU cujo papel é provar independência
+testes de `cpus/rv32i_pipeline/test/`. Uma CPU cujo papel é provar independência
 não pode ter o próprio teste amarrado ao outro design.
 
 ```bash
 # dentro da WSL, na raiz do repositório
 RV_BUILD_ROOT=$HOME/rvb_mono ~/venv-cocotb/bin/python -m pytest \
-    examples/rv32i_monociclo/test/test_monociclo.py -o addopts= -q
+    cpus/rv32i_monociclo/test/test_monociclo.py -o addopts= -q
 ```
 
 O `RV_BUILD_ROOT` próprio é obrigatório: dois GHDL escrevendo na mesma
@@ -113,7 +113,7 @@ ghdl -a --std=08 <as 11 fontes de cpu.toml, na ordem> && ghdl -e --std=08 cpu_mo
 | `test_travamento_e_detectado` | um programa que nunca para **tem** de reprovar por teto de ciclos |
 
 Todo valor esperado vem do modelo de referência
-(`examples/RISCV32I/test/reference_model.py`) ou de um modelo Python da
+(`cpus/rv32i_pipeline/test/reference_model.py`) ou de um modelo Python da
 semântica de memória — nenhum foi copiado de uma execução.
 
 Duas invariantes da microarquitetura são verificadas em **toda** execução, e

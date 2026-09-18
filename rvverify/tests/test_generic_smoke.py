@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-EXAMPLE = REPO_ROOT / "examples" / "RISCV32I"
+EXAMPLE = REPO_ROOT / "cpus" / "rv32i_pipeline"
 TOOLS = EXAMPLE / "tools"
 for p in (REPO_ROOT, TOOLS):
     if str(p) not in sys.path:

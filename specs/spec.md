@@ -323,18 +323,24 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 
 ---
 
-## Validador de entregas e interface (FR-RV-26 a FR-RV-33, NFR-RV-04)
+## Validador de entregas (FR-RV-26 a FR-RV-35, NFR-RV-04)
 
-> Acrescentado em 2026-09-17. A trilha deixa de validar só a CPU de
-> `examples/RISCV32I/`: qualquer CPU descrita por um `cpu.toml` — a CPU
-> existente modificada pelo aluno, ou uma escrita do zero — passa pela mesma
-> suíte. O validador de linha de comando (`python -m rvverify`) já existia
-> quando esta seção foi escrita; FR-RV-26 e FR-RV-27 registram o comportamento
-> dele, e os demais requisitos especificam a interface web e o que ela exige do
-> validador (ver `plan.md`, seção 7, e ADR-010/ADR-011).
+> Acrescentado em 2026-09-17 e revisado em 2026-09-18 com a orientação do
+> professor: **o trabalho é de terminal, sem interface gráfica** (ADR-012).
+> A trilha deixa de validar só a CPU de referência: qualquer CPU descrita por
+> um `cpu.toml` — a CPU existente modificada por um aluno ou por um modelo de
+> IA, ou uma escrita do zero — passa pela mesma suíte, e **reprovar é um
+> resultado legítimo**: o objetivo do projeto é medir se quem executou a tarefa
+> conseguiu construir a CPU, não fazer a suíte ser gentil. Daí FR-RV-34 e
+> FR-RV-35, que fixam o rigor exigido da suíte.
+>
+> O validador de linha de comando (`python -m rvverify`) já existia quando esta
+> seção foi escrita; FR-RV-26 e FR-RV-27 registram o comportamento dele, e os
+> demais requisitos especificam o que faltava (ver `plan.md`, seção 7, e
+> ADR-011 a ADR-013).
 
-- **FR-RV-26**: FOR EACH diretório que contenha um `cpu.toml` — os exemplos em
-  `examples/` e as entregas em `entregas/<nome>/` —, THE SYSTEM SHALL validar a
+- **FR-RV-26**: FOR EACH diretório que contenha um `cpu.toml` — as CPUs de
+  referência em `cpus/` e as entregas em `entregas/<nome>/` —, THE SYSTEM SHALL validar a
   CPU descrita usando somente o que o manifesto declara (fontes na ordem de
   análise, clock, reset, generic de carga de programa, caminhos observáveis e
   modo de parada), sem conhecer o RTL, rodando a suíte de conformidade em duas
@@ -345,8 +351,8 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   pular a etapa RV32IM pelo motivo de FR-RV-11.
 - **FR-RV-27**: THE SYSTEM SHALL reportar o resultado de cada caso, de cada
   etapa e de cada requisito exercitado — um requisito só conta como atendido
-  quando todos os casos que o exercitam passam — e um veredito único, igual na
-  linha de comando e na interface, entre quatro estados:
+  quando todos os casos que o exercitam passam — e um veredito único entre
+  quatro estados:
   - **APROVADO** — a suíte completa (as duas etapas, todos os casos) rodou e
     todo caso executado passou;
   - **REPROVADO** — ao menos um caso executado falhou;
@@ -380,39 +386,34 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   pedido (`--eventos`), um evento legível por máquina por linha de saída — o
   plano de itens a executar, o início e o fim da compilação, o início e o fim
   de cada item com o seu resultado e duração, cada etapa pulada com o motivo e
-  o relatório final —, de modo que outro processo acompanhe a execução em
-  tempo real sem interpretar o log do GHDL; e THE SYSTEM SHALL gravar a saída
-  do GHDL de cada caso em um arquivo de log próprio, fora da saída principal.
-- **FR-RV-30**: THE SYSTEM SHALL oferecer uma interface web local
-  (`python -m rvverify.web`) em que o usuário:
-  - vê as CPUs disponíveis (exemplos e entregas), cada uma com o estado do
-    manifesto e, se inválido, o erro exato;
-  - envia uma entrega (FR-RV-31);
-  - escolhe as etapas e os casos a executar, e se inclui a comparação de
-    eficiência (FR-RV-32) e a medição de área (FR-RV-33);
-  - acompanha a execução com cada item passando de pendente para executando e
-    depois para aprovado, reprovado ou pulado assim que o GHDL termina aquele
-    item, com contagem, barra de progresso e tempo decorrido;
-  - lê o resumo — veredito de FR-RV-27, etapas, requisitos e métricas
-    observadas — e o diagnóstico de FR-RV-28 de cada caso reprovado, incluindo
-    o log da simulação do caso;
-  - cancela a execução em andamento, encerrando também os processos do GHDL;
-  - baixa o relatório completo em JSON.
+  o relatório final —, de modo que outro processo — integração contínua, ou um
+  arnês que avalie vários modelos de IA em lote — acompanhe a execução sem
+  interpretar o log do GHDL; e THE SYSTEM SHALL gravar a saída do GHDL de cada
+  caso em um arquivo de log próprio, fora da saída principal.
+- **FR-RV-30**: THE SYSTEM SHALL apresentar cada execução como **um relatório
+  de terminal coeso**, e não como despejo de log:
+  - um cabeçalho com a CPU, o manifesto e o que será executado;
+  - uma linha por caso, no momento em que ele termina, com veredito, tempo e
+    ciclos — a saída do GHDL não aparece aqui (FR-RV-29);
+  - um resumo final com o veredito de FR-RV-27, o placar por etapa, os
+    requisitos atendidos e os pendentes (pelo título, não só pelo ID), e as
+    métricas efetivamente observadas;
+  - o diagnóstico de FR-RV-28 de cada caso reprovado, com o caminho do log
+    daquele caso;
+  - a linha de comando exata que repete apenas o que falhou.
 
-  Ao recarregar a página durante uma execução, a interface SHALL retomar o
-  acompanhamento sem perder os resultados já emitidos.
-- **FR-RV-31**: WHEN o usuário envia uma pasta ou um arquivo `.zip` pela
-  interface, THE SYSTEM SHALL gravar o conteúdo em `entregas/<nome>/`, com
-  `<nome>` restrito a letras minúsculas, dígitos, `_` e `-`; IF algum caminho
-  enviado for absoluto, contiver `..` ou exceder os limites de tamanho e de
-  quantidade de arquivos, THEN THE SYSTEM SHALL recusar o envio inteiro sem
-  gravar nada; IF já existir uma entrega com o mesmo nome, THEN THE SYSTEM
-  SHALL exigir confirmação explícita antes de substituí-la; IF o nome for
-  reservado (`_template`), THEN THE SYSTEM SHALL recusar o envio; e THE SYSTEM
-  SHALL validar o `cpu.toml` imediatamente após gravar, mostrando o erro de
-  manifesto ou de fonte ausente antes de qualquer simulação.
+  WHERE a saída não é um terminal interativo, THE SYSTEM SHALL suprimir cor e
+  animação, mantendo o mesmo conteúdo.
+- **FR-RV-31**: FOR EACH entrega, THE SYSTEM SHALL aceitar uma **pasta** em
+  `entregas/<nome>/` contendo um `cpu.toml` na raiz, descobri-la sozinho, e
+  validar o manifesto e a existência de cada fonte declarada **antes** de
+  qualquer simulação; IF o manifesto estiver ausente, malformado ou apontar
+  para fonte inexistente, THEN THE SYSTEM SHALL dizer qual campo, em qual
+  tabela, em qual arquivo, e terminar com exit code diferente de zero, sem
+  simular; e THE SYSTEM SHALL ignorar a pasta-modelo (`entregas/_modelo/`), que
+  existe para ser copiada e não é uma entrega.
 - **FR-RV-32**: WHERE o usuário pede a comparação de eficiência, THE SYSTEM
-  SHALL executar cada benchmark de `examples/RISCV32I/programs/` nas duas
+  SHALL executar cada benchmark de `cpus/rv32i_pipeline/programs/` nas duas
   versões — `*_rv32i` com a extensão desligada e `*_rv32im` com a extensão
   ligada —, conferir os resultados na RAM contra valores derivados do modelo de
   referência (FR-RV-23) e só então tabular, lado a lado, ciclos, instruções,
@@ -430,9 +431,40 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   medida por `ltp` onde ela for obtida; IF a síntese falhar, THEN THE SYSTEM
   SHALL mostrar o erro da ferramenta e marcar a área como não medida, sem
   alterar o veredito funcional.
-- **NFR-RV-04**: THE SYSTEM SHALL servir a interface apenas em `127.0.0.1` por
-  padrão, recusando requisições cujo cabeçalho `Host` não seja o endereço
-  local servido, e SHALL implementá-la só com a biblioteca padrão do Python e
-  com HTML, CSS e JavaScript próprios, sem dependência instalada a mais e sem
-  recurso carregado da internet — o ambiente de referência (ADR-006) não tem
-  framework web e a interface precisa funcionar offline.
+- **FR-RV-34**: THE SYSTEM SHALL manter uma suíte de conformidade cuja
+  cobertura mínima, por etapa, é declarada e verificável, de modo que uma CPU
+  com defeito real não seja aprovada:
+  - **RV32I**: as 10 operações registrador-registrador e as 9 formas
+    imediatas, cada uma sobre valores de borda com sinal e sem sinal; os
+    deslocamentos nos limites do `shamt`; `x0` como origem e como destino;
+    escrita e leitura dos 31 registradores graváveis; aliasing de operandos
+    (`rd` igual a `rs1`, a `rs2`, e `rs1` igual a `rs2`); as três larguras de
+    load e store com extensão de sinal e de zeros, endianness byte a byte e
+    preservação das faixas vizinhas; offset negativo e ponteiro em registrador;
+    os seis branches nos dois desfechos, para frente e para trás; `JAL`,
+    `JALR`, `LUI` e `AUIPC`; chamada aninhada com retorno salvo em memória;
+    laço aninhado; e cadeias de dependência entre instruções consecutivas,
+    inclusive load seguido de uso imediato;
+  - **RV32IM**: as oito instruções da extensão sobre valores de borda, as
+    metades alta e baixa do mesmo produto de 64 bits, os casos especiais de
+    FR-RV-14, aliasing de operandos, dependência imediata entre uma instrução
+    da extensão e a seguinte, e resultado da extensão usado como endereço de
+    memória e como condição de desvio.
+
+  FOR EACH caso, o valor esperado vem do modelo de referência (FR-RV-23) e o
+  resultado é publicado na RAM de dados, de modo que a verificação não dependa
+  de nenhum sinal interno nem da microarquitetura escolhida (FR-RV-26).
+- **FR-RV-35**: THE SYSTEM SHALL provar o rigor da suíte por **teste de
+  mutação**: para cada defeito de uma lista versionada de mutações — entre
+  elas `SRA` como deslocamento lógico, `SUB` como soma, `funct7` ignorado na
+  decodificação da extensão M, escrita em `x0` não descartada, extensão de
+  sinal ausente em `LB`/`LH`, branch com condição invertida, e `JALR` sem
+  zerar o bit 0 — THE SYSTEM SHALL aplicar a mutação a uma cópia de uma CPU de
+  referência, rodar a suíte e exigir que ela **reprove**, nomeando o caso que
+  pegou o defeito; IF alguma mutação passar, THEN o teste de mutação falha e a
+  lacuna de cobertura é tratada como defeito da suíte, não da CPU.
+- **NFR-RV-04**: THE SYSTEM SHALL ser operado inteiramente por linha de
+  comando, sem interface gráfica e sem serviço de rede (ADR-012), e SHALL
+  depender apenas da biblioteca padrão do Python somada ao GHDL e ao cocotb
+  já exigidos por NFR-RV-01 — o ambiente de referência (ADR-006) não tem
+  framework web instalado, e o fluxo do professor é o terminal.

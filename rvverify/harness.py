@@ -63,7 +63,15 @@ class ObservationError(AssertionError):
 
 
 class CpuTimeout(Exception):
-    """A CPU nao terminou dentro do teto de ciclos (FR-RV-21: travamento)."""
+    """A CPU nao terminou dentro do teto de ciclos (FR-RV-21: travamento).
+
+    `dados` carrega o mesmo diagnostico da mensagem, estruturado, para quem
+    precisa apresenta-lo sem interpretar texto (FR-RV-28).
+    """
+
+    def __init__(self, message: str, dados: dict | None = None):
+        super().__init__(message)
+        self.dados = dados or {}
 
 
 # --------------------------------------------------------------------------
@@ -584,7 +592,8 @@ class CpuHarness:
                 await self._drain()
                 return self.metrics
 
-        raise CpuTimeout(self._timeout_message(max_cycles, halt_pcs, seen_pcs))
+        raise CpuTimeout(self._timeout_message(max_cycles, halt_pcs, seen_pcs),
+                         dados=self._timeout_data(max_cycles, halt_pcs, seen_pcs))
 
     async def _run_fixed_cycles(self, max_cycles: int,
                                 trace_pc: bool) -> RunMetrics:
@@ -594,7 +603,8 @@ class CpuHarness:
             raise CpuTimeout(
                 f"[halt].cycles = {n} e maior que o teto de {max_cycles} ciclos "
                 f"pedido pelo caso de teste; aumente max_cycles ou reduza "
-                f"[halt].cycles"
+                f"[halt].cycles",
+                dados={"max_ciclos": max_cycles, "halt_cycles": n},
             )
         for _ in range(n):
             await self._tick()
@@ -625,6 +635,21 @@ class CpuHarness:
             f"PCs mais visitados: {[(hex(p), n) for p, n in hottest]}. "
             f"Metricas parciais: {self.metrics.as_dict()}"
         )
+
+    def _timeout_data(self, max_cycles: int, halt_pcs: set[int] | None,
+                      seen_pcs: dict[int, int]) -> dict:
+        """O diagnostico de `_timeout_message`, sem precisar ler texto."""
+        hottest = sorted(seen_pcs.items(), key=lambda kv: -kv[1])[:5]
+        return {
+            "max_ciclos": max_cycles,
+            "modo_parada": self.manifest.halt.mode,
+            "pc_busca": self.pc,
+            "pc_parada_observado": self.halt_stage_pc,
+            "instrucao_buscada": self.fetched_instruction,
+            "enderecos_de_parada": sorted(halt_pcs) if halt_pcs else [],
+            "pcs_mais_visitados": [[p, n] for p, n in hottest],
+            "pc_observavel": self.manifest.observe.pc_fetch is not None,
+        }
 
     async def _drain(self) -> None:
         """Escoa o pipeline depois da parada, sem contaminar as metricas."""
