@@ -601,15 +601,19 @@ paralelo direto à regra de MEDIDO/ESTIMADO de NFR-RV-02 e da seção 5), e
 netlist/RTL preservado mesmo se a exportação gráfica não for viável
 (FR-RV-40).
 
-### 8.4 Por que nada disto está implementado ainda
+### 8.4 Estado (atualizado após implementação)
 
-Todas as tarefas de RV-8 em `tasks.md` estão com o checkbox em aberto, de
-propósito: princípio 1 da constitution proíbe código antes de spec aprovada,
-e o princípio de "nunca declarar simulação como passou sem rodar de verdade"
-se aplica igual aqui — não há como testar o wrapper contra o Quartus real
-sem a imagem construída, e a imagem depende do download manual (seção 8.2)
-que só o usuário pode completar. Adicionalmente, RV-7 — a fase que roda
-**antes** desta (seção 8.1) — ainda não fechou (`TRV-7.2` a `TRV-7.6` seguem
-em aberto em `tasks.md`). O gate da seção 6 vale para RV-8 como vale para
-qualquer RV-n: esta seção é a spec aprovável; a implementação começa só
-depois de confirmação explícita do usuário.
+O usuário completou o download manual (seção 8.2) e pediu explicitamente
+pra prosseguir com RV-8 antes de RV-7 fechar — decisão dele, registrada
+aqui porque diverge do gate padrão da seção 6 (normalmente RV-n só começa
+depois de RV-(n-1) fechar). `TRV-8.1` a `TRV-8.7` estão implementadas e
+verificadas por execução real contra a imagem de verdade
+(`docker/quartus_analyzer/analyze.py` + `entrypoint.sh`, detalhe em
+`specs/tasks.md`): device corrigido (ADR-016), smoke test compilando,
+timing/Fmax/potência extraídos com número real, e o wrapper `analyze`
+rodando síntese→fit→timing→potência→`summary.json` de ponta a ponta, com
+caminho de falha testado de verdade (projeto inexistente -> exit 1, nada
+inventado). Falta só `TRV-8.8`: rodar contra `cpus/rv32i_pipeline` de
+verdade (não mais o `counter4` de fumaça) — isso ainda depende de RV-7
+fechado, porque não faz sentido medir FPGA de uma CPU cujo comportamento
+não foi provado (mesma lógica da seção 8.1).
