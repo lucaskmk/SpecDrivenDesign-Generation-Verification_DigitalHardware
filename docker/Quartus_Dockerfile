@@ -1,0 +1,128 @@
+# Quartus Prime Lite container with modular Intel/Altera FPGA device support.
+# Default target: Cyclone V, including 5CEBA4F23C7N.
+#
+# Build:
+#   docker build -t quartus-lite:25.1 --build-arg DEVICE_SUPPORT="cyclonev" .
+#
+# Multiple families can be added at build time:
+#   docker build -t quartus-lite:25.1-multi \
+#     --build-arg DEVICE_SUPPORT="cyclonev cyclone10lp max10" .
+#
+# Add another family by adding one entry to the case statement below.
+
+FROM ubuntu:22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG QUARTUS_VERSION=25.1std.0.1129
+ARG DEVICE_SUPPORT="cyclonev"
+
+ENV QUARTUS_ROOTDIR=/opt/altera_lite/25.1std/quartus \
+    ALTERA_QUARTUS_ROOTDIR=/opt/altera_lite/25.1std/quartus \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    file \
+    gzip \
+    libc6 \
+    libfontconfig1 \
+    libfreetype6 \
+    libglib2.0-0 \
+    libice6 \
+    libsm6 \
+    libtinfo5 \
+    libusb-1.0-0 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxau6 \
+    libxcb1 \
+    libxdmcp6 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrender1 \
+    libxt6 \
+    libxtst6 \
+    make \
+    perl \
+    python3 \
+    sudo \
+    tar \
+    unzip \
+    xterm \
+    zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp/quartus-installer
+
+# Intel/Altera publishes the 25.1 Lite Linux installer and individual .qdz
+# device-support packages separately. The qdz files must be present beside
+# QuartusLiteSetup before the installer is run.
+RUN set -eux; \
+    base_url="https://downloads.intel.com/akdlm/software/acdsinst/25.1std/1129/ib_installers"; \
+    curl -fsSL -o QuartusLiteSetup-${QUARTUS_VERSION}-linux.run \
+        "${base_url}/QuartusLiteSetup-${QUARTUS_VERSION}-linux.run"; \
+    echo "ce0773469eacab5b7035c175484625f4ec3737d1  QuartusLiteSetup-${QUARTUS_VERSION}-linux.run" | sha1sum -c -; \
+    chmod +x QuartusLiteSetup-${QUARTUS_VERSION}-linux.run; \
+    for family in ${DEVICE_SUPPORT}; do \
+        case "${family}" in \
+            cyclonev) \
+                file="cyclonev-${QUARTUS_VERSION}.qdz"; \
+                sha1="a7225ec1bd36ccfd6826ea6273df5d21dd95633b"; \
+                ;; \
+            cycloneiv) \
+                file="cyclone-${QUARTUS_VERSION}.qdz"; \
+                sha1="835d2b1732549294eed625b692d044135499b5e8"; \
+                ;; \
+            cyclone10lp) \
+                file="cyclone10lp-${QUARTUS_VERSION}.qdz"; \
+                sha1="b3cc2ca1b2e1b225407968e2f380e596dff5b80d"; \
+                ;; \
+            max10) \
+                file="max10-${QUARTUS_VERSION}.qdz"; \
+                sha1="8936dac1b092853f3b49a67fef22968ec10f8087"; \
+                ;; \
+            max) \
+                file="max-${QUARTUS_VERSION}.qdz"; \
+                sha1="a3bc065b42a9d005f8d27fe45525411b49c13c43"; \
+                ;; \
+            *) \
+                echo "Unsupported DEVICE_SUPPORT family: ${family}" >&2; \
+                echo "Supported: cyclonev cycloneiv cyclone10lp max10 max" >&2; \
+                exit 2; \
+                ;; \
+        esac; \
+        curl -fsSL -o "${file}" "${base_url}/${file}"; \
+        echo "${sha1}  ${file}" | sha1sum -c -; \
+    done
+
+# Quartus installers support unattended installation. The device .qdz files
+# beside the installer are discovered and installed into the same tree.
+RUN set -eux; \
+    ./QuartusLiteSetup-${QUARTUS_VERSION}-linux.run \
+        --mode unattended \
+        --unattendedmodeui none \
+        --installdir /opt/altera_lite/25.1std \
+        --accept_eula 1; \
+    rm -rf /tmp/quartus-installer
+
+# Make Quartus command-line tools directly invokable.
+ENV PATH=/opt/altera_lite/25.1std/quartus/bin:$PATH
+
+# Initialise the standard Quartus environment for interactive shells.
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    '. /opt/altera_lite/25.1std/quartus/adm/qenv.sh' \
+    'exec "$@"' \
+    > /usr/local/bin/quartus-env \
+    && chmod +x /usr/local/bin/quartus-env
+
+# Verify that the installed Quartus executable is callable during image build.
+RUN quartus_sh --version
+
+WORKDIR /workspace
+
+ENTRYPOINT ["/opt/altera_lite/25.1std/quartus/bin/quartus_sh"]
+CMD ["--help"]
