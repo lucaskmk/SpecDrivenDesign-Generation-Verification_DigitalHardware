@@ -609,3 +609,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - ACEITE: `specs/decisions.md` traz a ADR-014 no formato
     Contexto/Decisão/Alternativas rejeitadas/Consequência, sem editar a
     ADR-013 nem a ADR-004 acima dela
+- [x] TRV-7.7.13 — Reapontar os caminhos citados na constituição
+  - REQ: ADR-013
+  - ACEITE: `grep -n "examples/" specs/constitution.md` vazio e o argumento
+    do princípio 7 continua o mesmo, só com os referentes atualizados

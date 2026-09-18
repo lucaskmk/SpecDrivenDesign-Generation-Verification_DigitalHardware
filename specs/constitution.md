@@ -40,7 +40,8 @@ fases.
 ## 7. Ferramenta genérica, não hardcoded pro exercício específico
 O pipeline não assume que o hardware alvo é uma ULA de 4 bits ou qualquer
 exercício específico — o design vem do documento de entrada. Exemplos fixos
-vivem em `examples/`, nunca dentro do core do pipeline.
+vivem fora do core do pipeline: hoje em `cpus/` (as CPUs de referência) e em
+`legado/` (os exercícios antigos da trilha A), nunca dentro dele.
 
 ## Emenda 1 — Trilha RISC-V (setembro de 2026)
 
@@ -50,8 +51,9 @@ ambas respondem a esta mesma constituição.
 - **Trilha A — SpecHDL genérico** (formulário Streamlit → spec EARS →
   decomposição arquitetural → VHDL + cocotb → GHDL → PPA → relatório).
   Segue existindo **intacta**: nada dela é removido, congelado ou
-  desfigurado. Continua sendo a razão de ser do core em `src/spechdl/` e
-  dos princípios 1 a 7 na forma em que estão escritos.
+  desfigurado. Continua sendo a razão de ser do core em
+  `legado/src/spechdl/` e dos princípios 1 a 7 na forma em que estão
+  escritos.
 - **Trilha B — RISC-V RV32I → RV32IM**. Passa a ser o **foco** do trabalho:
   partir da CPU RV32I concreta já existente, validá-la como *baseline*,
   estendê-la para a extensão M (`MUL`, `MULH`, `MULHSU`, `MULHU`, `DIV`,
@@ -66,14 +68,14 @@ está escrito acima.
 
 O princípio 7 proíbe que o pipeline assuma um exercício específico como
 alvo. A trilha B **não viola** esse princípio porque vive inteiramente em
-`examples/RISCV32I/` — fontes VHDL, montador, programas, testbenches,
-scripts de síntese e relatórios. Nenhuma linha de `src/spechdl/` passa a
+`cpus/rv32i_pipeline/` — fontes VHDL, montador, programas, testbenches,
+scripts de síntese e relatórios. Nenhuma linha de `legado/src/spechdl/` passa a
 conhecer RISC-V, RV32IM, o montador próprio ou o formato `.ram`: o core
 segue genérico e dirigido pelo documento de entrada. A trilha B é, na letra
-do princípio 7, um exemplo fixo em `examples/` — o maior deles, mas ainda
-um exemplo. Se algum dia um trecho da trilha B parecer útil ao core, ele só
-sobe para `src/spechdl/` depois de generalizado e especificado; jamais por
-cópia direta.
+do princípio 7, uma CPU de referência em `cpus/` — a maior delas, mas ainda
+um exemplo fixo. Se algum dia um trecho da trilha B parecer útil ao core,
+ele só sobe para `legado/src/spechdl/` depois de generalizado e
+especificado; jamais por cópia direta.
 
 Os princípios 8 a 11 abaixo são **específicos da trilha B** e têm o mesmo
 peso dos princípios 1 a 7: são inegociáveis da mesma forma.
