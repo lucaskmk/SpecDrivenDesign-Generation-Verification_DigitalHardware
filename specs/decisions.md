@@ -664,3 +664,110 @@ palavras sem divergência, e que ele não passa a vazio foi provado por mutaçã
 verificável localmente: o workflow `toolchain-smoketest.yml` teve os caminhos
 reapontados para `legado/`, mas só um push real ou `workflow_dispatch` confirma
 que os filtros de `on.push.paths` disparam.
+
+## ADR-015 — Imagem Docker do Quartus para RV-8, separada para sempre da imagem do oráculo
+
+**Contexto.** O professor pediu uma etapa nova, depois da suíte de
+conformidade da RV-7: rodar o Quartus Prime Lite sobre a CPU validada e medir
+viabilidade de FPGA de verdade — cabe (`Fitter`), frequência/timing
+(`TimeQuest`) e potência estimada (`Power Analyzer`), alvo inicial Cyclone V
+`5CEBA4F23C7N`. O plano detalhado está em
+`docker/quartus-docker-fpga-analysis-plan.md`; esta ADR registra as decisões
+de infraestrutura que aquele plano não fixa sozinho, e que vieram de execução
+real, não de leitura de documentação:
+
+1. **A imagem tem que ficar separada para sempre da imagem do oráculo**
+   (`docker/Dockerfile`, NFR-RV-05), por pedido explícito e por engenharia:
+   o oráculo é ~200 MB (binutils + Yosys sobre a imagem de referência da
+   disciplina) e roda em **todo** `pytest rvverify/tests`; o Quartus Prime
+   Lite sozinho passa de 2 GB e só é relevante para quem pediu a análise de
+   FPGA. Misturar as duas obrigaria toda execução do oráculo a puxar
+   gigabytes de ferramenta de FPGA que não usa.
+2. **A URL de download hardcoded no rascunho anterior deste Dockerfile
+   estava morta.** `curl -I` contra
+   `https://downloads.intel.com/akdlm/software/acdsinst/25.1std/1129/ib_installers/QuartusLiteSetup-25.1std.0.1129-linux.run`
+   devolve HTTP 301 para
+   `corpredirect.intel.com/Redirector/404Redirector.aspx?404;...` — a árvore
+   `akdlm` nesse host está fora do ar, e o mesmo aconteceu testando uma
+   versão mais antiga (24.1std/1077) no mesmo host. O host vivo é
+   `download.altera.com` (não `downloads.intel.com`): o mesmo caminho
+   `akdlm/software/acdsinst/25.1std/1129/ib_installers/cyclonev-25.1std.0.1129.qdz`
+   devolveu `Content-Disposition: attachment; filename="cyclonev-25.1std.0.1129.qdz"`
+   de um `AkamaiGHost` de verdade — prova de que o nome de arquivo e a versão
+   `25.1std.0.1129` já presentes no rascunho **estão certos**, só o host
+   estava errado. Isso é coerente com a Altera ter voltado a ser empresa
+   independente da Intel: o download voltou para infraestrutura `altera.com`.
+3. **O CDN da Altera bloqueia download automatizado, e isso não tem
+   contorno por script.** Toda tentativa contra `download.altera.com`
+   (instalador e `.qdz`, versões 24.1std e 25.1std, com e sem User-Agent e
+   Referer de navegador) devolveu HTTP 403 do `AkamaiGHost`. A página de
+   download (`www.altera.com/downloads/...`) também devolve 403 pro mesmo
+   `curl`. Isso é mitigação de bot **e** um aceite de licença que a Altera
+   deliberadamente prende a uma sessão de navegador — não uma URL errada.
+   Como isso vale igual dentro de um `RUN curl` do `docker build`, não só
+   numa tentativa isolada, **o Dockerfile parou de tentar baixar
+   automaticamente**.
+4. **Os checksums sha1 hardcoded no rascunho anterior não podiam ser
+   confirmados e foram tratados como não confiáveis.** Sem conseguir
+   completar um download de verdade (item 3), não havia como produzir nem
+   conferir um hash real; um checksum que não pode ser verificado é pior do
+   que nenhum, porque finge uma garantia de integridade que não existe.
+
+**Decisão.**
+
+1. `docker/Quartus_Dockerfile` passa a **copiar** o instalador e os `.qdz`
+   de `docker/quartus_installers/` (pasta local, fora do Git — ver o
+   `README.md` daquela pasta) em vez de baixar com `curl`. O usuário baixa os
+   arquivos uma vez, manualmente, aceitando a licença no navegador — é
+   exatamente o passo que a Altera já exige de qualquer humano, então não é
+   uma etapa extra imposta por este projeto, só reconhece a que já existia.
+2. O `base_url` errado (`downloads.intel.com`) é substituído por
+   `download.altera.com` nos comentários e na documentação — não no código
+   do Dockerfile, que não builda mais nenhuma URL, exatamente para não
+   reintroduzir uma tentativa de download automático que sabe-se que falha.
+3. Os checksums sha1 fixos foram removidos. O Dockerfile imprime o sha256 de
+   cada arquivo que efetivamente usou (log de reprodutibilidade) e confere
+   contra um `SHA256SUMS` opcional se o usuário criar um, mas nunca trava o
+   build por um hash que este projeto não pode provar que é o correto.
+4. Formalizado como `NFR-RV-06` (`specs/spec.md`): as duas imagens nunca
+   compartilham `FROM`, nunca viram um único Dockerfile, e a execução default
+   de `rvverify` nunca depende da imagem do Quartus estar presente.
+5. A arquitetura da nova etapa (RV-8) entra em `specs/plan.md`, seção 8, e o
+   backlog em `specs/tasks.md`, Fase RV-8 — todas as tarefas de
+   implementação do wrapper ficam com o checkbox **em aberto**: nada foi
+   executado de verdade ainda (nem pode, sem os arquivos de
+   `docker/quartus_installers/`), e a Fase RV-7 (a suíte que roda **antes**
+   desta etapa) ainda não fechou (`TRV-7.2` a `TRV-7.6` em aberto) — o gate
+   de fase do `plan.md`, seção 6, aplica-se aqui: RV-8 é especificada agora,
+   implementada só com aprovação explícita do usuário.
+
+**Alternativas rejeitadas.**
+
+- *Tentar automatizar o aceite de licença/contornar a mitigação de bot da
+  Akamai* (por exemplo, navegador headless simulando o clique de "Accept")
+  — rejeitado: é contornar de propósito um controle de consentimento que o
+  fornecedor colocou ali deliberadamente, não um bug a se desviar.
+- *Manter os checksums sha1 antigos "por garantia"* — rejeitado: um hash
+  inventado passa a falsa impressão de que a integridade do binário foi
+  conferida, o que é pior do que declarar explicitamente que não foi.
+- *Unificar `docker/Dockerfile` e `docker/Quartus_Dockerfile` numa imagem só,
+  com um estágio opcional de Quartus* — rejeitado pelo pedido explícito do
+  usuário e pela desproporção de tamanho (item 1 do Contexto); um multi-stage
+  build ainda obrigaria a etapa cara a existir na mesma árvore de build do
+  oráculo leve.
+- *Escrever já o wrapper Python/Tcl do fluxo Quartus (síntese, fit, timing,
+  potência) nesta mesma mudança* — rejeitado por hoje: nenhuma execução real
+  contra o Quartus é possível sem a imagem construída, que depende do
+  download manual (item 1 da Decisão) e do fechamento da Fase RV-7; escrever
+  o wrapper antes disso violaria o princípio 1 (nada de simulação declarada
+  sem rodar de verdade) por não ter como testá-lo.
+
+**Consequência.** `docker/Quartus_Dockerfile` builda de forma determinística
+a partir de arquivos locais, sem tentar (e falhar) uma rede bloqueada; a
+mensagem de erro quando falta um arquivo aponta exatamente pro passo manual
+que falta, em vez de um erro genérico de instalador. `docker build` da
+imagem em si **não foi executado** nesta ADR — falta o download manual dos
+~2 GB de instalador, que só o usuário pode completar (item 3 do Contexto) —
+então "a imagem builda de verdade" continua em aberto em `specs/tasks.md`
+até essa execução real acontecer. Nenhum número de PPA de FPGA existe ainda;
+nenhum é declarado.

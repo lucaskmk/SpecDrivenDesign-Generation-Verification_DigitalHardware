@@ -30,6 +30,7 @@ dependência.
 | caminho | o que é |
 |---|---|
 | [`docker/Dockerfile`](docker/Dockerfile) | **Oráculo opcional do montador** (NFR-RV-05). Imagem com GHDL + cocotb + binutils RISC-V real + Yosys. Serve para conferir palavra a palavra a saída de `rvverify/asm.py` contra um assemblador de verdade, em [`rvverify/tests/test_assembler_oracle.py`](rvverify/tests/test_assembler_oracle.py). **Sem ela a suíte roda igual** — a conferência é pulada, nunca reprovada. |
+| [`docker/Quartus_Dockerfile`](docker/Quartus_Dockerfile) | **Imagem do Quartus Prime Lite para a análise de FPGA da RV-8** (NFR-RV-06, ADR-015). **Permanentemente separada** da imagem acima — nunca compartilha `FROM`, nunca vira um único Dockerfile; ausência dela nunca afeta `rvverify`. Não baixa nada sozinha (CDN da Altera exige sessão de navegador): instalador e `.qdz` vão manualmente em [`docker/quartus_installers/`](docker/quartus_installers/README.md), fora do Git. |
 | [`specs/`](specs/) | `constitution.md` (princípios), `spec.md` (requisitos EARS), `plan.md` (arquitetura), `tasks.md` (backlog), `decisions.md` (ADRs). |
 | [`docs/`](docs/) | `MUDANCAS.md` e `mudancas-riscv.html` (o que a trilha RISC-V mudou), `ESTADO-TRILHA-A.md`, `mapa-do-projeto.html` e `archive/`. |
 | [`README.md`](README.md), [`PROMPT_RISCV.md`](PROMPT_RISCV.md), [`CLAUDE.md`](CLAUDE.md) | porta de entrada, enunciado para modelos de IA, instruções para o Claude Code. |
@@ -51,5 +52,6 @@ dependência.
   aquele, é o mapa atual do repositório.
 - **Decisões relacionadas**, em [`specs/decisions.md`](specs/decisions.md):
   **ADR-004** (montador próprio em Python, e sua *Revisão* sobre o oráculo),
-  **ADR-013** (esta estrutura) e **ADR-014** (a conclusão dela e a adoção do
-  oráculo).
+  **ADR-013** (esta estrutura), **ADR-014** (a conclusão dela e a adoção do
+  oráculo) e **ADR-015** (a imagem do Quartus, separada para sempre da do
+  oráculo, e por que ela não baixa nada sozinha).
