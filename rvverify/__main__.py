@@ -22,6 +22,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from . import feedback
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 VERDE = "\033[32m"
@@ -43,20 +45,57 @@ def descobrir(alvo: Path) -> list[Path]:
         return [alvo / "cpu.toml"]
     achados = sorted(
         p for p in alvo.rglob("cpu.toml")
-        # o template nao e uma entrega: tem TODO no lugar dos caminhos
-        if p.parent.name != "_template"
+        # o modelo nao e uma entrega: tem TODO no lugar dos caminhos
+        if p.parent.name not in {"_template", "_modelo"}
     )
     return achados
 
 
+SELOS = {
+    "aprovado": ("APROVADO", VERDE),
+    "reprovado": ("REPROVADO", VERMELHO),
+    "incompleto": ("INCOMPLETO", AMARELO),
+    "parcial": ("PARCIAL", AMARELO),
+}
+
+
+def progresso(cor: bool):
+    """Uma linha por caso: sem ela a tela fica muda por um minuto.
+
+    A saida do GHDL vai para o `sim.log` de cada caso (ADR-011); aqui so
+    aparece o que o aluno precisa acompanhar.
+    """
+    def on_event(ev: dict) -> None:
+        tipo = ev.get("tipo")
+        if tipo == "compilacao" and ev["estado"] == "inicio":
+            print(_cor("  compilando as fontes com o GHDL...", CINZA, cor), flush=True)
+        elif tipo == "compilacao" and ev["estado"] == "erro":
+            print(_cor("  a compilacao falhou:", VERMELHO, cor), flush=True)
+            for e in ev.get("erros", [])[:5]:
+                print(f"    {e['arquivo']}:{e['linha']}:{e['coluna']}: {e['mensagem']}")
+        elif tipo == "item" and ev["estado"] in ("passou", "falhou"):
+            r = ev.get("resultado") or {}
+            ok = ev["estado"] == "passou"
+            marca = _cor("ok  ", VERDE, cor) if ok else _cor("FALHOU", VERMELHO, cor)
+            extra = []
+            if r.get("cycles"):
+                extra.append(f"{r['cycles']} ciclos")
+            if ev.get("duracao_s") is not None:
+                extra.append(f"{ev['duracao_s']:.1f} s")
+            info = _cor(f"({', '.join(extra)})", CINZA, cor) if extra else ""
+            print(f"  {marca}  {ev['id']:<28} {info}", flush=True)
+            if not ok and r.get("diagnostico"):
+                resumo = r["diagnostico"]["resumo"]
+                print(f"          {_cor(resumo, VERMELHO, cor)}", flush=True)
+        elif tipo == "etapa_pulada":
+            print(_cor(f"  {ev['motivo']}", AMARELO, cor), flush=True)
+    return on_event
+
+
 def imprimir_relatorio(rel: dict, cor: bool) -> None:
     nome = rel["design"]
-    if rel["aprovado"]:
-        selo = _cor("APROVADO", VERDE, cor)
-    elif rel["pulado"] and not any(not c["passed"] for c in rel["casos"]):
-        selo = _cor("INCOMPLETO", AMARELO, cor)
-    else:
-        selo = _cor("REPROVADO", VERMELHO, cor)
+    rotulo, tom = SELOS.get(rel.get("veredito", ""), ("REPROVADO", VERMELHO))
+    selo = _cor(rotulo, tom, cor)
 
     print(f"\n{'=' * 66}")
     print(f"{nome}   {selo}")
@@ -90,8 +129,20 @@ def imprimir_relatorio(rel: dict, cor: bool) -> None:
         for c in falhas:
             reqs = ", ".join(c["requirements"])
             print(f"    - {c['name']}  [{reqs}]")
-            if c["detail"]:
-                print(f"      {_cor(c['detail'], CINZA, cor)}")
+            diag = c.get("diagnostico")
+            linhas = (feedback.resumo_em_texto(diag) if diag
+                      else [c["detail"]] if c["detail"] else [])
+            for linha in linhas:
+                print(f"      {_cor(linha, CINZA, cor)}")
+            if c.get("log"):
+                print(f"      {_cor('log: ' + c['log'], CINZA, cor)}")
+
+    escopo = rel.get("escopo") or {}
+    if escopo and not escopo.get("completo"):
+        fora = escopo["casos_na_suite"] - escopo["casos_selecionados"]
+        print(f"\n  {_cor('! execucao parcial:', AMARELO, cor)} "
+              f"{escopo['casos_selecionados']} de {escopo['casos_na_suite']} "
+              f"casos selecionados ({fora} fora); nao vale como aprovacao")
 
     for nota in rel["pulado"]:
         print(f"\n  {_cor('! ' + nota, AMARELO, cor)}")
@@ -128,16 +179,27 @@ def main(argv: list[str] | None = None) -> int:
                     help="grava o relatorio completo em JSON")
     ap.add_argument("--etapa", choices=["rv32i", "rv32m", "ambas"],
                     default="ambas", help="qual etapa rodar (padrao: ambas)")
+    ap.add_argument("--casos", metavar="NOMES",
+                    help="lista separada por virgulas de nomes ou ids de casos")
+    ap.add_argument("--listar", action="store_true",
+                    help="lista os casos da suite e termina sem usar GHDL")
+    ap.add_argument("--eventos", action="store_true",
+                    help="emite eventos JSON Lines, um por linha, para automacao")
+    ap.add_argument("--workdir", metavar="DIRETORIO",
+                    help="preserva logs e artefatos nesse diretorio")
     ap.add_argument("--keep", action="store_true",
                     help="mantem os arquivos intermediarios da simulacao")
     ap.add_argument("--sem-cor", action="store_true", help="saida sem cor ANSI")
     args = ap.parse_args(argv)
 
-    if shutil.which("ghdl") is None:
-        print("ERRO: 'ghdl' nao esta no PATH. O validador exige simulador "
-              "real -- ele nunca aprova por inferencia (NFR-RV-02).",
-              file=sys.stderr)
-        return 2
+    from .conformance import (SelectionError, catalog, exit_code_for,
+                              resolve_selection, run_conformance)
+
+    if args.listar:
+        for item in catalog():
+            reqs = ", ".join(item["requisitos"])
+            print(f"{item['id']:<24} {reqs:<30} {item['descricao']}")
+        return 0
 
     alvo = Path(args.alvo) if args.alvo else REPO_ROOT / "entregas"
     if not alvo.exists():
@@ -154,37 +216,57 @@ def main(argv: list[str] | None = None) -> int:
     cor = not args.sem_cor and sys.stdout.isatty()
     etapas = (("rv32i", "rv32m") if args.etapa == "ambas" else (args.etapa,))
 
-    from .conformance import run_conformance
+    try:
+        only = resolve_selection(args.casos.split(",") if args.casos else None)
+    except SelectionError as e:
+        print(f"ERRO: {e}", file=sys.stderr)
+        return 2
+
+    # Valida o contrato inteiro antes de consultar o simulador. Assim uma
+    # entrega malformada recebe o erro do campo correto, mesmo num ambiente
+    # sem GHDL.
+    from .manifest import ManifestError, load_manifest
+    for path in manifestos:
+        try:
+            load_manifest(path).source_paths()
+        except ManifestError as e:
+            print(f"ERRO no manifesto {path}: {e}", file=sys.stderr)
+            return 2
+
+    if shutil.which("ghdl") is None:
+        print("ERRO: 'ghdl' nao esta no PATH. O validador exige simulador "
+              "real -- ele nunca aprova por inferencia (NFR-RV-02).",
+              file=sys.stderr)
+        return 2
 
     print(f"Validando {len(manifestos)} CPU(s). Cada caso e uma execucao real "
-          f"de GHDL -- leva alguns minutos.")
+          f"de GHDL; a saida do simulador fica no sim.log de cada caso.")
 
     relatorios = []
-    work = Path(tempfile.mkdtemp(prefix="rvverify_"))
+    work = (Path(args.workdir).resolve() if args.workdir
+            else Path(tempfile.mkdtemp(prefix="rvverify_")))
+    work.mkdir(parents=True, exist_ok=True)
+
+    def emitir(evento: dict) -> None:
+        if args.eventos:
+            print("@rvverify " + json.dumps(evento, ensure_ascii=False), flush=True)
+
     try:
+        emitir({"tipo": "inicio", "cpus": len(manifestos),
+                "etapas": list(etapas), "casos": args.casos})
         for m in manifestos:
             print(f"\n{_cor('>>> ' + str(m), CINZA, cor)}", flush=True)
             try:
-                rel = run_conformance(m, work / m.parent.name, stages=etapas)
+                rel = run_conformance(m, work / m.parent.name, stages=etapas,
+                                      only=only,
+                                      on_event=lambda e: (emitir(e), progresso(cor)(e)))
             except Exception as e:                       # noqa: BLE001
-                rel = {
-                    "design": m.parent.name,
-                    "manifest": str(m),
-                    "aprovado": False,
-                    "por_etapa": {},
-                    "pulado": [],
-                    "casos": [{
-                        "name": "carregar manifesto", "stage": "-",
-                        "passed": False, "requirements": [],
-                        "detail": f"{type(e).__name__}: {e}",
-                        "cycles": None, "instructions": None,
-                        "cpi": None, "m_instructions": None,
-                    }],
-                }
+                rel = relatorio_de_erro(m, e)
             relatorios.append(rel)
             imprimir_relatorio(rel, cor)
+            emitir({"tipo": "relatorio", **rel})
     finally:
-        if not args.keep:
+        if not args.keep and not args.workdir:
             shutil.rmtree(work, ignore_errors=True)
         else:
             print(f"\nintermediarios em {work}")
@@ -197,7 +279,37 @@ def main(argv: list[str] | None = None) -> int:
     aprovadas = sum(1 for r in relatorios if r["aprovado"])
     print(f"\n{'=' * 66}")
     print(f"{aprovadas}/{len(relatorios)} CPU(s) aprovada(s).")
-    return 0 if aprovadas == len(relatorios) else 1
+    codigo = max(exit_code_for(r["veredito"]) for r in relatorios)
+    emitir({"tipo": "fim", "aprovadas": aprovadas,
+            "total": len(relatorios), "codigo": codigo})
+    return codigo
+
+
+def relatorio_de_erro(manifest: Path, e: Exception) -> dict:
+    """Relatorio de uma CPU que nem chegou a rodar (manifesto invalido)."""
+    diag = feedback.diagnosticar(
+        nome="manifesto", relatorio=None, tipo_forcado="manifesto",
+        mensagem_forcada=f"{type(e).__name__}: {e}")
+    return {
+        "design": manifest.parent.name,
+        "manifest": str(manifest),
+        "veredito": "reprovado",
+        "aprovado": False,
+        "codigo_saida": 1,
+        "escopo": {},
+        "compilacao": {"ok": None, "erros": []},
+        "por_etapa": {},
+        "por_requisito": {},
+        "pulado": [],
+        "casos": [{
+            "name": "carregar manifesto", "stage": "-", "id": "-/manifesto",
+            "passed": False, "requirements": [],
+            "detail": f"{type(e).__name__}: {e}",
+            "cycles": None, "instructions": None,
+            "cpi": None, "m_instructions": None,
+            "diagnostico": diag, "log": None,
+        }],
+    }
 
 
 if __name__ == "__main__":

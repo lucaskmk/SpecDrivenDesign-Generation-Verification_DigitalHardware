@@ -24,13 +24,13 @@ std  = "08"                       # --std= do GHDL
 # antes de quem o usa. Os arquivos fornecidos vêm primeiro.
 sources = [
   # --- fornecido: não reescreva ---------------------------------------
-  "../../examples/RISCV32I/src/cpu_package.vhd",
-  "../../examples/RISCV32I/src/memory_package.vhd",
-  "../../examples/RISCV32I/src/instruction_memory.vhd",
-  "../../examples/RISCV32I/src/data_ram.vhd",
-  "../../examples/RISCV32I/src/data_rom.vhd",
-  "../../examples/RISCV32I/src/data_memory.vhd",
-  "../../examples/RISCV32I/src/mul_div_unit.vhd",   # RV32M pronto, se você quiser usar
+  "../../cpus/rv32i_pipeline/src/cpu_package.vhd",
+  "../../cpus/rv32i_pipeline/src/memory_package.vhd",
+  "../../cpus/rv32i_pipeline/src/instruction_memory.vhd",
+  "../../cpus/rv32i_pipeline/src/data_ram.vhd",
+  "../../cpus/rv32i_pipeline/src/data_rom.vhd",
+  "../../cpus/rv32i_pipeline/src/data_memory.vhd",
+  "../../cpus/rv32i_pipeline/src/mul_div_unit.vhd",   # RV32M pronto, se você quiser usar
 
   # --- seu ------------------------------------------------------------
   # "src/alu.vhd",

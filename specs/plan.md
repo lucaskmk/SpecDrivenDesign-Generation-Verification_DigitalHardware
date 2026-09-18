@@ -465,104 +465,76 @@ Gates de bloqueio duro, que não admitem negociação:
   que a produziu, e toda estimativa entra rotulada como estimativa
   (NFR-RV-02).
 
-## 7. Validador de entregas e interface web (RV-7)
+## 7. Validador de entregas pelo terminal (RV-7)
 
-Requisitos: FR-RV-26 a FR-RV-33, NFR-RV-04. Decisões: ADR-010 (servidor da
-biblioteca padrão + Server-Sent Events) e ADR-011 (validação em subprocesso
-com eventos JSON Lines).
+Requisitos: FR-RV-26 a FR-RV-35, NFR-RV-04. Decisões: ADR-011 (log do GHDL por
+caso e eventos JSON Lines), ADR-012 (sem interface gráfica), ADR-013 (estrutura
+do repositório).
 
-### 7.1 Processos
-
-```
-navegador ──HTTP/SSE──> python -m rvverify.web  (127.0.0.1:8765)
-                             │ subprocess, uma execução por vez
-                             ▼
-                        python -m rvverify <cpu> --eventos --workdir <dir>
-                             │ cocotb_tools.runner
-                             ▼
-                        ghdl -r ...   (log em <dir>/<cpu>/<caso>/sim.log)
-```
-
-- O servidor **não** importa o cocotb nem roda GHDL no próprio processo: ele
-  dispara a linha de comando do validador, lê a saída linha a linha e
-  repassa os eventos ao navegador. Cancelar é encerrar o grupo de processos do
-  subprocesso, o que leva junto os `ghdl` filhos.
-- Uma execução por vez. Duas simulações escrevendo na mesma biblioteca do GHDL
-  a corrompem (`rvverify/builder.py`); a interface usa uma raiz de build
-  própria (`~/.cache/rvverify/ui-build`), separada da usada pelo pytest.
-- Os artefatos de cada execução (imagens `.ram`, `spec.json`, `report.json`,
-  `sim.log`, `relatorio.json`) ficam em `~/.cache/rvverify/ui-runs/<id>/`, no
-  sistema de arquivos da WSL. O servidor guarda as 20 execuções mais recentes.
-
-### 7.2 Protocolo de eventos (`--eventos`)
-
-Cada evento é uma linha `@rvverify <json>` na saída padrão. Linhas sem esse
-prefixo são log legível e aparecem na aba de log.
-
-| `tipo` | quando | campos principais |
-|---|---|---|
-| `inicio` | uma vez | `cpus`, `etapas`, `opcoes` |
-| `plano` | por CPU, antes de simular | `design`, `manifest`, `itens` (`id`, `grupo`, `etapa`, `nome`, `requisitos`, `descricao`) |
-| `compilacao` | antes do primeiro caso | `estado` (`inicio`/`ok`/`erro`), `segundos`, `erros` |
-| `item` | início e fim de cada item | `id`, `estado` (`rodando`/`passou`/`falhou`/`pulado`), `duracao_s`, `resultado`, `motivo` |
-| `relatorio` | por CPU, ao final | o relatório completo (mesmo JSON de `--json`) |
-| `fim` | uma vez | `aprovadas`, `total`, `codigo` |
-
-Identificador de item: `<etapa>/<caso>` para a conformidade (`rv32i/sra`),
-`eficiencia/<benchmark>` e `area/<config>`.
-
-### 7.3 API HTTP
-
-| método e caminho | faz |
-|---|---|
-| `GET /` | a página (HTML, CSS e JS próprios, sem CDN) |
-| `GET /api/estado` | versões de GHDL/Yosys e a execução ativa |
-| `GET /api/cpus` | CPUs descobertas, com o manifesto já validado |
-| `GET /api/cpus/manifesto?cpu=<chave>` | o `cpu.toml` da CPU, para leitura |
-| `GET /api/catalogo` | casos, benchmarks e configurações de área, com descrição e requisitos |
-| `GET /api/modelo` | o `cpu.toml` de `entregas/_template/` para download |
-| `POST /api/entregas` | envio de entrega (JSON com os arquivos em base64) |
-| `POST /api/execucoes` | inicia uma execução |
-| `GET /api/execucoes` | execuções recentes |
-| `GET /api/execucoes/<id>/eventos` | stream SSE: reenvia os eventos já emitidos e segue com os novos |
-| `POST /api/execucoes/<id>/cancelar` | cancela |
-| `GET /api/execucoes/<id>/relatorio` | relatório JSON para download |
-| `GET /api/execucoes/<id>/log?item=<id>` | log do GHDL de um item |
-
-A CPU é identificada pela sua **chave** — o caminho relativo à raiz do
-repositório de uma pasta descoberta —, nunca por um caminho livre vindo do
-navegador.
-
-Segurança (NFR-RV-04): o servidor escuta em `127.0.0.1`, recusa `Host` que não
-seja o endereço servido (proteção contra *DNS rebinding*) e só aceita `POST`
-com `Content-Type: application/json`, o que obriga uma página de outra origem
-a passar por *preflight* CORS, que o servidor não autoriza. Os caminhos
-enviados passam por normalização e são recusados se forem absolutos, se
-contiverem `..` ou se excederem 20 MB no total ou 500 arquivos.
-
-### 7.4 Tela
+### 7.1 A forma do projeto
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│ rvverify · validador RISC-V            GHDL 4.1.0 ●  Yosys 0.33 ●      │
-├──────────────────────┬────────────────────────────────────────────────┤
-│ CPU                  │ rv32i_pipeline            REPROVADO  01:12     │
-│ ○ rv32i_pipeline     │ ███████████████░░░░░░  18/26  ✓17  ✕1          │
-│ ● rv32i_monociclo    │ ─────────────────────────────────────────────  │
-│ ○ joao (entrega)     │ Resultados | Requisitos | Eficiência | Área | Log│
-│ [ enviar entrega ]   │  RV32I                                        │
-│                      │  ✓ add      64 pares de borda   1,2 s  312 cic │
-│ Testes               │  ✕ sra      ...                               │
-│ ☑ RV32I (15)         │     RAM[0x00fc811c] sra(0x80000000, 1)        │
-│ ☑ RV32IM (11)        │     esperado 0xc0000000  obtido 0x40000000    │
-│ ☐ Eficiência (4)     │     Parece SRL: confira o funct7 ...          │
-│ ☐ Área (lento)       │  ◌ sltu     executando…                       │
-│ [ Executar ]         │  · x0_imutavel                                │
-└──────────────────────┴────────────────────────────────────────────────┘
+rvverify/          O VALIDADOR. Julga qualquer CPU descrita por um cpu.toml.
+cpus/              CPUs de referência, que passam na suíte.
+entregas/          Onde entra a CPU do aluno ou do modelo de IA.
+specs/  docs/      Spec, plano, decisões, tarefas e relatórios.
+legado/            Trilha A (SpecHDL genérico), preservada e fora do caminho.
 ```
+
+Um comando faz tudo:
+
+```
+python -m rvverify                  valida tudo o que está em entregas/
+python -m rvverify cpus/            valida as CPUs de referência
+python -m rvverify entregas/joao    valida uma entrega
+```
+
+### 7.2 Como um caso roda
+
+```
+cpu.toml ──► manifest.py ──► builder.py ──► ghdl -a/-e   (uma vez por árvore)
+                                   │
+conformance.py ── programa .asm ──►│
+   (esperado vem de reference.py)  ▼
+                             ghdl -r + cocotb ──► report.json de cada caso
+                                   │                     │
+                             sim.log do caso        feedback.py ──► diagnóstico
+```
+
+Um caso reprovado nunca vira exceção solta: vira um `CaseResult` com
+diagnóstico estruturado. O GHDL escreve no `sim.log` do caso; a tela recebe
+uma linha por caso (FR-RV-30).
+
+### 7.3 Saída do terminal
+
+Três blocos, sempre na mesma ordem:
+
+1. **cabeçalho** — CPU, manifesto, o que vai rodar e quanto deve demorar;
+2. **progresso** — uma linha por caso, no instante em que ele termina;
+3. **relatório** — veredito, placar por etapa, requisitos atendidos e
+   pendentes pelo título, métricas observadas, diagnóstico de cada reprovação
+   e o comando que repete só o que falhou.
+
+Nada de saída do GHDL na tela: ela vive no `sim.log` de cada caso, cujo
+caminho aparece no diagnóstico. `--eventos` troca o relatório humano por JSON
+Lines, para CI e para avaliar modelos de IA em lote.
+
+### 7.4 Rigor da suíte (FR-RV-34, FR-RV-35)
+
+O ponto do projeto é medir se um aluno ou um modelo de IA consegue construir a
+CPU. Uma suíte complacente destrói essa medida: aprovar uma CPU quebrada é pior
+do que não medir. Por isso:
+
+- a cobertura mínima por etapa está escrita em FR-RV-34 e é conferida por um
+  teste que compara o catálogo da suíte com essa lista — instrução nova na
+  lista sem caso correspondente quebra o teste;
+- o rigor é provado por **mutação** (FR-RV-35): uma lista versionada de
+  defeitos é aplicada a uma cópia de uma CPU de referência, e a suíte precisa
+  reprovar cada um, nomeando o caso que o pegou. Mutação que passa é lacuna da
+  suíte, e vira caso novo.
 
 ### 7.5 Tarefas
 
-Fase RV-7 de `tasks.md` (TRV-7.1 a TRV-7.8). O gate da fase é a execução real
-da interface contra as duas CPUs de referência e contra uma entrega com
-defeito injetado, com o diagnóstico conferido.
+Fase RV-7 de `tasks.md`. O gate da fase é: as duas CPUs de referência
+aprovadas, toda mutação da lista reprovada, e o relatório de terminal revisado
+com o professor.

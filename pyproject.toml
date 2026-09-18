@@ -1,9 +1,7 @@
-# Configuração mínima só pra tornar a suíte pytest executável: sem isso o
-# pacote `spechdl` (que mora em src/) não é importável de tests/.
-# O empacotamento de verdade — incluindo o console script `spechdl web` —
-# é escopo do T7.1 (ver specs/tasks.md), não deste arquivo.
+# Configuração mínima do validador terminal. O pacote vive na raiz para que
+# `python -m rvverify` e os testes usem exatamente o mesmo código.
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]
+pythonpath = ["."]
+testpaths = ["rvverify/tests", "cpus"]
 addopts = "-q"

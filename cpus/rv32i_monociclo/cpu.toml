@@ -3,7 +3,7 @@
 # REQ: FR-RV-03, FR-RV-05, FR-RV-06, FR-RV-09, FR-RV-15, FR-RV-16, FR-RV-21
 #
 # Este arquivo e a UNICA coisa que o validador precisa saber sobre esta CPU.
-# Compare-o com o manifesto da CPU pipeline (examples/RISCV32I/cpu.toml): as
+# Compare-o com o manifesto da CPU pipeline (../rv32i_pipeline/cpu.toml): as
 # diferencas estao todas em [halt] e [metrics], e cada uma delas decorre de um
 # fato real da microarquitetura, nao de gosto. Ver README.md deste diretorio.
 
@@ -21,13 +21,13 @@ rv32m_generic = "RV32M_ENABLE"
 # desta CPU sao os quatro ultimos arquivos: ALU, decodificador/controle, banco
 # de registradores e o top-level.
 sources = [
-    "../RISCV32I/src/cpu_package.vhd",
-    "../RISCV32I/src/memory_package.vhd",
-    "../RISCV32I/src/mul_div_unit.vhd",
-    "../RISCV32I/src/data_ram.vhd",
-    "../RISCV32I/src/data_rom.vhd",
-    "../RISCV32I/src/data_memory.vhd",
-    "../RISCV32I/src/instruction_memory.vhd",
+    "../rv32i_pipeline/src/cpu_package.vhd",
+    "../rv32i_pipeline/src/memory_package.vhd",
+    "../rv32i_pipeline/src/mul_div_unit.vhd",
+    "../rv32i_pipeline/src/data_ram.vhd",
+    "../rv32i_pipeline/src/data_rom.vhd",
+    "../rv32i_pipeline/src/data_memory.vhd",
+    "../rv32i_pipeline/src/instruction_memory.vhd",
     "src/mono_alu.vhd",
     "src/mono_control.vhd",
     "src/mono_regfile.vhd",
