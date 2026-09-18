@@ -305,7 +305,12 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   falhar no ambiente, THEN THE SYSTEM SHALL marcar qualquer número alternativo
   como heurística, nunca como medição.
 
-## Requisitos não-funcionais da trilha (NFR-RV-01 a NFR-RV-03)
+## Requisitos não-funcionais da trilha (NFR-RV-01 a NFR-RV-03, NFR-RV-05)
+
+> A numeração não é contígua por seção: `NFR-RV-04` fica na seção do
+> validador de entregas, abaixo, porque é sobre a operação por linha de
+> comando. `NFR-RV-05` foi acrescentado depois dele e pertence a esta
+> seção, por ser sobre a verificação da trilha.
 
 - **NFR-RV-01**: THE SYSTEM SHALL usar o GHDL como simulador e o cocotb
   (Python) como testbench em toda a verificação da trilha, dirigindo o DUT VHDL
@@ -320,6 +325,16 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   código, alternando somente o generic `RV32M_ENABLE` (ADR-001), sem duplicar a
   árvore de fontes — de modo que a diferença medida entre as duas configurações
   seja atribuível à extensão M, e não a divergência entre cópias.
+- **NFR-RV-05**: THE SYSTEM SHALL disponibilizar uma imagem de container
+  (`docker/Dockerfile`) com um assemblador RISC-V cruzado real
+  (`riscv64-unknown-elf-as`/`ld`/`objcopy`/`objdump`) e o Yosys, e SHALL usá-la
+  como oráculo independente para conferir, palavra a palavra, a saída do
+  montador Python (ADR-004) contra pelo menos um programa de cada categoria de
+  instrução suportada; IF a imagem não estiver disponível no ambiente, THEN THE
+  SYSTEM SHALL apenas pular essa conferência, marcando-a como não executada, e
+  SHALL NOT bloquear a suíte principal — o montador Python continua sendo o
+  caminho autocontido e testável por pytest, e o binutils real é cross-check,
+  não substituto.
 
 ---
 
