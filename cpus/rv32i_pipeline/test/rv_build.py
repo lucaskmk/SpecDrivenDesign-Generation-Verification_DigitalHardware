@@ -74,6 +74,15 @@ DEFAULT_ROM_SIZE_WORDS = MANIFEST.program.size_words or 1024
 ORIGINAL_REVISION = "f884a4e"
 """Commit que vendorizou o design RV32I original (ver decisions.md, ADR-000)."""
 
+ORIGINAL_PREFIX = "examples/RISCV32I"
+"""Onde o design morava em `ORIGINAL_REVISION`, antes da ADR-013.
+
+Este prefixo NAO pode ser derivado de `EXAMPLE_ROOT`: aquele e o caminho de
+hoje (`cpus/rv32i_pipeline`), e `git show` precisa do caminho que o arquivo
+tinha naquele commit. Se a arvore for reorganizada de novo, `EXAMPLE_ROOT`
+muda e esta constante nao -- ela e historica.
+"""
+
 
 def _manifest_for(src_dir: Path | None):
     """Manifesto desta CPU, opcionalmente apontado para outra arvore de fontes.
@@ -339,7 +348,7 @@ def materialize_original_sources(dest: Path,
     que `_manifest_for` achata os caminhos das fontes.
     """
     dest.mkdir(parents=True, exist_ok=True)
-    prefix = EXAMPLE_ROOT.relative_to(REPO_ROOT).as_posix()
+    prefix = ORIGINAL_PREFIX
     for source in MANIFEST.design.sources:
         rel = f"{prefix}/{source}"
         proc = subprocess.run(
