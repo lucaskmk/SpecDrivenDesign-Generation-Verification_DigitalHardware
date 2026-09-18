@@ -5,8 +5,8 @@ on:
   push:
     paths:
       - .github/workflows/toolchain-smoketest.yml
-      - examples/toolchain_smoketest/src/**
-      - examples/toolchain_smoketest/test/**
+      - legado/toolchain_smoketest/src/**
+      - legado/toolchain_smoketest/test/**
 
 jobs:
   cocotb:
@@ -20,4 +20,4 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Run test
-      run: make -C /var/www/examples/toolchain_smoketest/test/
+      run: make -C /var/www/legado/toolchain_smoketest/test/

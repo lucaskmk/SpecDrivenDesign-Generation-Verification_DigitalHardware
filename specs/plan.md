@@ -10,7 +10,7 @@
 - cocotb — testbench em Python, dirige o DUT VHDL através do GHDL (fluxo
   `make SIM=ghdl`); ambiente de referência é a imagem Docker
   `rafaelcorsi/pl-descomp-cocotb`, a mesma usada no smoke test de
-  `examples/toolchain_smoketest/`
+  `legado/toolchain_smoketest/`
 - GTKWave — inspeção visual do waveform (`.vcd`) gerado pela simulação,
   usado na triagem manual de falha quando a classificação automática
   (FR-10) não é suficiente
@@ -125,8 +125,8 @@ campo `estágios_pipeline` desabilitado se `tem_pipeline` estiver marcado
 "não"), não depois. O parser da fase 1 não precisa de LLM pra extrair
 sentido de texto ambíguo — é essencialmente determinístico; o que sobra pra
 IA é montar o `spec.json` em EARS a partir das respostas já validadas. Não
-confundir com os exemplos de referência em `examples/ula32_sol/` e
-`examples/ula32_terra/` — esses foram gerados contra o modelo antigo (texto
+confundir com os exemplos de referência em `legado/ula32_sol/` e
+`legado/ula32_terra/` — esses foram gerados contra o modelo antigo (texto
 livre) por um agente externo, servem só como prova de que o método SDD
 funciona ponta a ponta, não como formato de fixture pra fase 1.
 
@@ -134,7 +134,7 @@ funciona ponta a ponta, não como formato de fixture pra fase 1.
 Cada bloco gerado vem com um testbench cocotb (Python) e um `Makefile` no
 padrão `TOPLEVEL_LANG = vhdl`, `SIM = ghdl`, `MODULE = test_<bloco>`,
 `VHDL_SOURCES = ../src/<bloco>.vhd` — o mesmo padrão usado em
-`examples/toolchain_smoketest/`. O wrapper Python da fase 4 (T4.1) roda
+`legado/toolchain_smoketest/`. O wrapper Python da fase 4 (T4.1) roda
 `make -C outputs/<bloco>/test/` e captura exit code + log, em vez de chamar
 `ghdl` diretamente; quem invoca o GHDL por baixo é o próprio cocotb. Ambiente
 de referência (usado também na CI de smoke test): imagem Docker
