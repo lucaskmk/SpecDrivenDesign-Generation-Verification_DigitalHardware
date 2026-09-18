@@ -1,0 +1,11 @@
+{
+  "constrained": true,
+  "reliable": true,
+  "worst_setup_slack_ns": -7.228,
+  "worst_hold_slack_ns": 0.171,
+  "closure": false,
+  "fmax_mhz": 36.73,
+  "restricted_fmax_mhz": 36.73,
+  "clock": "clk",
+  "log": "quartus_output_rv32i_a9r/compilation/fmax.log"
+}

@@ -1,0 +1,13 @@
+# Revisao rv32im_a9 -- RV32M_ENABLE = true, device 5CEFA9F23C7.
+# Device MAIOR, mesma familia/pacote/speed grade C7: existe so porque o
+# alvo default reprovou por area e sem fit nao ha timing nem potencia.
+# Qualquer numero daqui vale para ESTE device, nao para o 5CEBA4F23C7.
+# Tudo o mais vem de common.tcl: fontes, .sdc e assinalamentos globais sao os
+# mesmos nas seis revisoes.
+set_global_assignment -name SOURCE_TCL_SCRIPT_FILE common.tcl
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CEFA9F23C7
+# ROM_INIT_FILE fica no default ("", imagem do rom_image_pkg gerado -- FR-13):
+# o Quartus rejeita `set_parameter` com string vazia (Error 125042), e o
+# default do proprio VHDL ja e o caminho que a fase 5 sintetiza.
+set_parameter -name RV32M_ENABLE true

@@ -107,13 +107,22 @@ report = {
         "cell_meaning": "celulas genericas do Yosys apos techmap; comparaveis entre as "
                         "duas configuracoes, NAO equivalentes a um PDK nem a LUTs",
         "lut_meaning": "$lut apos `abc -lut 4` e contagem real de LUT4 de logica de "
-                       "nucleo; ROM e RAM ficam como macro $mem_v2 (block RAM num FPGA) "
-                       "e por isso nao entram",
-        "depth_meaning": "NIVEIS DE LOGICA, nao nanossegundos. Nao ha timing: nenhuma "
-                         "ferramenta desta imagem faz analise temporal com biblioteca "
-                         "de celulas, logo frequencia maxima NAO foi medida",
-        "power": "NAO MEDIDO: nao ha ferramenta de estimativa de potencia nesta imagem "
-                 "(NFR-03 fica sem evidencia; ver RELATORIO.md)",
+                       "nucleo; ROM e RAM ficam como macro $mem_v2 e por isso nao entram",
+        "lut_meaning_ressalva": "CORRIGIDO NA FASE 5b: a frase original dizia que o macro "
+                       "$mem_v2 vira 'block RAM num FPGA'. O Quartus mediu o contrario -- "
+                       "0 de 3.153.920 bits de block memory usados, e a data_ram virou "
+                       "32.768 flip-flops mais um mux 1024:1 de 17.050 LEs. Leitura "
+                       "ASSINCRONA nao infere M10K. Logo o total de LUT4 aqui SUBESTIMA "
+                       "a area de FPGA: ver fpga/ e RELATORIO.md, fase 5b",
+        "depth_meaning": "NIVEIS DE LOGICA, nao nanossegundos. Nenhuma ferramenta DESTA "
+                         "imagem faz analise temporal com biblioteca de celulas",
+        "timing_medido_na_fase_5b": "Fmax foi medido depois, pelo TimeQuest do Quartus "
+                         "(fpga/, repo:FR-RV-38): 9,84 MHz contra alvo de 50 MHz, slack "
+                         "de setup -84,977 ns. Ver fpga/quartus_output_rv32im_a9/",
+        "power": "NAO MEDIDO NESTA FASE: nao ha ferramenta de potencia nesta imagem. "
+                 "Estimado na fase 5b pelo Power Analyzer do Quartus (repo:FR-RV-39): "
+                 "3.623,2 mW contra orcamento de 500 mW, confianca BAIXA por falta de "
+                 "toggle rate. Ver fpga/quartus_output_rv32im_a9/reports/power.json",
     },
     "configs": configs,
 }

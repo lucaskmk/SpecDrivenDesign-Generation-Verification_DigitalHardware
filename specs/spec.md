@@ -493,10 +493,18 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 > já validada, não um substituto nem um pré-requisito dela; não altera o
 > veredito de FR-RV-27. Detalhe de arquitetura em `plan.md`, seção 8; plano
 > de implementação em `docker/quartus-docker-fpga-analysis-plan.md`; decisão
-> de infraestrutura em `decisions.md`, ADR-015. Nenhum requisito desta seção
-> foi verificado por execução real ainda — a imagem Docker de que eles
-> dependem não foi construída (ADR-015, Consequência) — e nenhuma tarefa de
-> `tasks.md` que os implementa está marcada até que seja.
+> de infraestrutura em `decisions.md`, ADR-015.
+>
+> **Estado (2026-09-18, atualizado).** A imagem foi construída e o fluxo roda
+> de verdade: FR-RV-36 a FR-RV-39, FR-RV-41 e FR-RV-42 foram exercitados
+> ponta a ponta contra uma CPU real — a `rv32im_sc` de
+> `implemetation_tests/opus_5_RISCVIM/`, já aprovada por FR-RV-26/FR-RV-27 —
+> produzindo fit, timing (Fmax 9,84 MHz sob `.sdc` de 50 MHz), potência
+> estimada e `.sof` preservado. Evidência em
+> `implemetation_tests/opus_5_RISCVIM/fpga/quartus_output_*/`. FR-RV-40 fica
+> satisfeito pelo ramo "se não for viável" (TRV-8.6: não há exportação
+> headless de imagem do RTL Viewer nesta instalação). Falta ainda TRV-8.8 —
+> o mesmo fluxo contra `cpus/rv32i_pipeline`.
 
 - **FR-RV-36**: WHERE o usuário pede a análise de viabilidade FPGA de uma
   entrega já validada por FR-RV-26, THE SYSTEM SHALL rodar o Quartus Prime
