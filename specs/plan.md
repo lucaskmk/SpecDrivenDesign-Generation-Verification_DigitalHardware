@@ -201,7 +201,7 @@ fatos vêm de execução real de ferramenta, registrada em `specs/decisions.md`
 
 ## 1. Ponto de partida (auditoria ADR-000)
 
-O que já existe em `examples/RISCV32I/src/` (19 arquivos VHDL, autoria de
+O que já existe em `cpus/rv32i_pipeline/src/` (19 arquivos VHDL, autoria de
 Morgan Demange, `simple_RISCV_RV32I_vhdl`, vendorizado no commit `f884a4e`):
 
 | Aspecto | Fato verificado | Onde |

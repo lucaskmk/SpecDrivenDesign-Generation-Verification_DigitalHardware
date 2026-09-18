@@ -112,13 +112,13 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 
 > Trilha paralela (trilha B), concreta e mais simples, criada a pedido do
 > professor: em vez de gerar uma arquitetura qualquer, parte-se da CPU RISC-V
-> RV32I já existente em `examples/RISCV32I/`, valida-se essa CPU como
+> RV32I já existente em `cpus/rv32i_pipeline/`, valida-se essa CPU como
 > **baseline** por simulação real, estende-se para **RV32IM** (as oito
 > instruções de multiplicação e divisão) e mede-se a eficiência antes e
 > depois. A trilha SpecHDL genérica (FR-01 a FR-15) **não é removida** — passa
 > a segundo plano e continua valendo. Os requisitos abaixo são referenciados
-> diretamente pelo código em `examples/RISCV32I/src/`,
-> `examples/RISCV32I/test/` e `examples/RISCV32I/tools/`; as decisões de
+> diretamente pelo código em `cpus/rv32i_pipeline/src/`,
+> `cpus/rv32i_pipeline/test/` e `cpus/rv32i_pipeline/tools/`; as decisões de
 > arquitetura que os concretizam estão em `specs/decisions.md` (ADR-000 a
 > ADR-007; o registro da ADR-007 — unidade M combinacional no estágio EX — é a
 > tarefa TRV-0.4 de `specs/tasks.md`, ainda em aberto).
@@ -126,7 +126,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 ## Escopo e premissas (FR-RV-01 a FR-RV-03)
 
 - **FR-RV-01**: WHEN a trilha RISC-V é iniciada e antes de qualquer alteração
-  em arquivo de `examples/RISCV32I/src/`, THE SYSTEM SHALL registrar em
+  em arquivo de `cpus/rv32i_pipeline/src/`, THE SYSTEM SHALL registrar em
   `specs/decisions.md` (ADR-000) uma auditoria do design existente cujos
   achados — interface do top-level, polaridade e tipo do reset, latência e
   organização das memórias, subconjunto de instruções suportado e ferramentas
@@ -134,7 +134,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   ferramenta, com o comando e o resultado anotados, em vez de presunção sobre
   o código.
 - **FR-RV-02**: THE SYSTEM SHALL reutilizar como base da trilha os blocos já
-  existentes em `examples/RISCV32I/src/` — `CPU.vhd`,
+  existentes em `cpus/rv32i_pipeline/src/` — `CPU.vhd`,
   `instruction_memory.vhd`, `data_ram.vhd`, `data_rom.vhd`,
   `register_file.vhd`, `ALU.vhd` e os demais arquivos RTL do design —, sem
   reescrever o núcleo do zero e sem apagar o caminho RV32I original.
