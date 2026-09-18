@@ -588,7 +588,7 @@ montagem por toolchain real que estava no plano de merge antigo.
   - ACEITE: `pytest rvverify/tests/test_assembler_oracle.py -v` rodado de
     verdade, comparando palavra a palavra a saída de `rvverify.asm` com a do
     `riscv64-unknown-elf-as`; sem Docker o teste é pulado, nunca falha
-- [ ] TRV-7.7.8 — Corrigir os links quebrados da documentação histórica
+- [x] TRV-7.7.8 — Corrigir os links quebrados da documentação histórica
   - REQ: ADR-013
   - ACEITE: todo alvo de link relativo em `docs/MUDANCAS.md` existe no disco;
     `docs/mudancas-riscv.html` e `docs/ESTADO-TRILHA-A.md` não citam mais

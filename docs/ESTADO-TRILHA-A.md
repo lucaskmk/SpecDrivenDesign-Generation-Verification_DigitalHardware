@@ -39,8 +39,11 @@ Documentos: [`specs/constitution.md`](../specs/constitution.md),
 
 ## 2. O que existe de fato hoje
 
+A trilha A inteira mora em `legado/` desde a ADR-013 — os caminhos abaixo são
+os de hoje, não os da raiz do repositório.
+
 ```
-src/spechdl/
+legado/src/spechdl/
 ├── __init__.py                    0 linhas
 ├── ingestion/
 │   ├── __init__.py                0 linhas
@@ -52,8 +55,14 @@ src/spechdl/
 ├── ppa/__init__.py                0 linhas   ← vazio
 └── report/__init__.py             0 linhas   ← vazio
 
-tests/
+legado/tests/
 └── __init__.py                    0 linhas   ← nenhum teste da trilha A existe
+
+legado/templates/rubrica.md        ← schema da rubrica em markdown
+legado/scripts/llm_playground.py
+legado/.streamlit/config.toml
+legado/abrir_formulario.bat        ← assume um .venv dentro de legado/
+legado/ula32_sol/, legado/ula32_terra/, legado/toolchain_smoketest/
 ```
 
 **546 linhas de código real, todas na fase 1.** As fases 2 a 6 são pacotes
@@ -72,11 +81,11 @@ vazios; a fase 7 não começou.
 
 ## 3. Um achado que vale registrar: o parser da fase 1 sumiu
 
-Existe `src/spechdl/ingestion/__pycache__/parser.cpython-312.pyc` — um bytecode
+Existe `legado/src/spechdl/ingestion/__pycache__/parser.cpython-312.pyc` — um bytecode
 compilado — mas **não existe `parser.py` no fonte**, e ele **nunca foi commitado**:
 
 ```
-git log --all --oneline -- src/spechdl/ingestion/parser.py
+git log --all --oneline -- legado/src/spechdl/ingestion/parser.py
 → (vazio)
 ```
 
@@ -127,7 +136,7 @@ retomar. Fica o registro.
       `SPECHDL_LLM_MODEL`; testar uma chamada mínima ao SDK.
       **Bloqueia as fases 2, 3 e 6**, que dependem de LLM.
       `.env.example` já existe; `.env` está no `.gitignore`.
-- [ ] **T0.5** — exemplo fixo em `examples/` com uma rubrica preenchida, para
+- [ ] **T0.5** — exemplo fixo em `legado/` com uma rubrica preenchida, para
       servir de fixture nas fases seguintes. **Bloqueia todos os testes
       pytest da trilha A** (T1.4, T2.4, T4.4, T5.3, T6.3).
 - [ ] T0.3 — `ghdl-yosys-plugin`, se for exigido de verdade. A trilha B mostrou
@@ -170,9 +179,9 @@ real, problemas que a trilha A vai encontrar:
 
 | A trilha A vai precisar de | Já existe em |
 |---|---|
-| rodar GHDL + cocotb de dentro do Python, capturando exit code | `examples/RISCV32I/test/rv_build.py` |
-| harness cocotb com clock, reset, teto de ciclos, detecção de travamento | `examples/RISCV32I/test/rv_harness.py` |
-| síntese real medindo área, com as armadilhas já mapeadas | `examples/RISCV32I/tools/synth_ppa.py` + ADR-009 |
+| rodar GHDL + cocotb de dentro do Python, capturando exit code | `cpus/rv32i_pipeline/test/rv_build.py` |
+| harness cocotb com clock, reset, teto de ciclos, detecção de travamento | `cpus/rv32i_pipeline/test/rv_harness.py` |
+| síntese real medindo área, com as armadilhas já mapeadas | `cpus/rv32i_pipeline/tools/synth_ppa.py` + ADR-009 |
 | formato de imagem de memória para carregar programa | ADR-003 + `instruction_memory.vhd` |
 | fallback quando falta ferramenta, sem instalar nada em silêncio | ADR-004, ADR-005, ADR-006 |
 
@@ -188,7 +197,7 @@ esbarrar nas duas:
 
 > **Ressalva de escopo.** O princípio 7 da constituição diz que o core do
 > pipeline não é hardcoded para um exercício específico. Reaproveitar qualquer
-> coisa de `examples/RISCV32I/` para `src/spechdl/` exige **generalizar
+> coisa de `cpus/rv32i_pipeline/` para `legado/src/spechdl/` exige **generalizar
 > primeiro e atualizar a spec antes** — copiar código específico de RISC-V para
 > dentro do core violaria o princípio.
 
@@ -202,5 +211,5 @@ esbarrar nas duas:
 | [`specs/spec.md`](../specs/spec.md) | FR-01..FR-15 (trilha A), FR-RV-01..25 (trilha B) |
 | [`specs/tasks.md`](../specs/tasks.md) | backlog das duas trilhas |
 | [`docs/MUDANCAS.md`](MUDANCAS.md) | o que a trilha B mexeu, e o que não mexeu |
-| [`examples/RISCV32I/RELATORIO.md`](../examples/RISCV32I/RELATORIO.md) | resultado medido da trilha B |
+| [`cpus/rv32i_pipeline/RELATORIO.md`](../cpus/rv32i_pipeline/RELATORIO.md) | resultado medido da trilha B |
 | `docs/mapa-do-projeto.html` | **desatualizado**: só fases 0–7 da trilha A, zero menções a RISC-V |
