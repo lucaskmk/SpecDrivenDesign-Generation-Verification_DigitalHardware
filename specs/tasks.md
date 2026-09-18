@@ -583,7 +583,7 @@ montagem por toolchain real que estava no plano de merge antigo.
     executado de verdade e `docker run --rm spechdl-toolchain bash -lc
     "riscv64-unknown-elf-as --version; ghdl --version; yosys -V"` com os três
     respondendo e exit code 0
-- [ ] TRV-7.7.7 — Oráculo do montador contra o binutils real
+- [x] TRV-7.7.7 — Oráculo do montador contra o binutils real
   - REQ: NFR-RV-05
   - ACEITE: `pytest rvverify/tests/test_assembler_oracle.py -v` rodado de
     verdade, comparando palavra a palavra a saída de `rvverify.asm` com a do

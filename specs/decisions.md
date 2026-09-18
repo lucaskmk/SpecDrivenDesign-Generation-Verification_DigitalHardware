@@ -191,6 +191,23 @@ o montador estar validado.
 fluxo `.c` real passa a ser possível como caminho alternativo, e os `.c`
 deixam de ser apenas documentação. Não é bloqueante para a trilha.
 
+**Revisão (2026-09-18, TRV-7.7.7).** A premissa "não existe toolchain RISC-V
+neste ambiente" deixou de valer: `docker/Dockerfile` (NFR-RV-05) traz
+`binutils-riscv64-unknown-elf` 2.40 e Yosys 0.23 numa imagem de container, sem
+instalar nada na máquina do usuário. Isso **não** revoga a decisão acima. O
+montador Python continua sendo o caminho principal, por três motivos que a
+imagem não muda: é autocontido (roda sem Docker), é testável por pytest
+instrução a instrução, e faz parte da cadeia de rastreabilidade do projeto. O
+binutils real entra no papel que a *Consequência* acima pedia — o de mitigar o
+risco de um bug no montador aparecer como falha de hardware —, como **oráculo
+de cross-check**: `rvverify/tests/test_assembler_oracle.py` monta os mesmos
+fontes pelos dois caminhos e compara palavra a palavra (490 palavras na
+primeira execução, todas coincidentes). Conforme NFR-RV-05, a ausência da
+imagem pula essa conferência e nunca reprova a suíte. A **Pendência
+registrada** acima segue aberta: a imagem tem só `binutils`, não tem compilador
+C, então o fluxo `.c` real continua indisponível e os `.c` continuam sendo
+documentação do algoritmo.
+
 ---
 
 ## ADR-005 — Síntese real via `ghdl synth --out=verilog` + Yosys
