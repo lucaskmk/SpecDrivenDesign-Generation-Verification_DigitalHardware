@@ -1,0 +1,10 @@
+
+/job/software/ext_m_test/build/program.elf:     file format elf32-littleriscv
+
+SYMBOL TABLE:
+00000000 l    d  .text	00000000 .text
+00000000 l    df *ABS*	00000000 program.o
+00000114 l       .text	00000000 done
+00000000 g       .text	00000000 _start
+
+

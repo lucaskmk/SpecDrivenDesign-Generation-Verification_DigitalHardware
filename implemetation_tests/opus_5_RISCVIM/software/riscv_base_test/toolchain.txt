@@ -1,0 +1,6 @@
+march=rv32i
+mabi=ilp32
+assembler=GNU assembler (2.40-2+4+b1) 2.40
+linker=GNU ld (2.40-2+4+b1) 2.40
+objdump=GNU objdump (2.40-2+4+b1) 2.40
+objcopy=GNU objcopy (2.40-2+4+b1) 2.40

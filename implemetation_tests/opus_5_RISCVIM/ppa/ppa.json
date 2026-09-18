@@ -1,0 +1,215 @@
+{
+  "design": "rv32im_sc",
+  "phase": "5 (analise PPA)",
+  "requirements": [
+    "FR-15",
+    "NFR-01",
+    "NFR-02",
+    "NFR-03",
+    "repo:FR-RV-25"
+  ],
+  "method": {
+    "synthesis": "ghdl synth --std=08 -gRV32M_ENABLE=<cfg> --out=verilog cpu",
+    "stat": "read_verilog cpu_<cfg>.v; hierarchy -top cpu; proc; memory -nomap; opt_expr; techmap; stat",
+    "ltp": "... ; ltp -noff  (caminho topologico mais longo, em NIVEIS DE LOGICA)",
+    "lut4": "... ; opt -fast; techmap; opt -fast; abc -lut 4; opt -fast; stat",
+    "adr": "ADR-005 -- ghdl-yosys-plugin nao esta instalado; o caminho e `ghdl synth --out=verilog` alimentando o Yosys",
+    "hierarchy_kept": "o design NAO e achatado: as contagens por bloco sao o que permite atribuir a area a extensao M",
+    "cell_meaning": "celulas genericas do Yosys apos techmap; comparaveis entre as duas configuracoes, NAO equivalentes a um PDK nem a LUTs",
+    "lut_meaning": "$lut apos `abc -lut 4` e contagem real de LUT4 de logica de nucleo; ROM e RAM ficam como macro $mem_v2 (block RAM num FPGA) e por isso nao entram",
+    "depth_meaning": "NIVEIS DE LOGICA, nao nanossegundos. Nao ha timing: nenhuma ferramenta desta imagem faz analise temporal com biblioteca de celulas, logo frequencia maxima NAO foi medida",
+    "power": "NAO MEDIDO: nao ha ferramenta de estimativa de potencia nesta imagem (NFR-03 fica sem evidencia; ver RELATORIO.md)"
+  },
+  "configs": {
+    "rv32i": {
+      "config": "rv32i",
+      "rv32m_enable": false,
+      "generic_cells_total": 16835,
+      "generic_cells_by_block": {
+        "alu": 2291,
+        "branch_unit": 1554,
+        "control_unit": 1311,
+        "cpu": 700,
+        "data_ram": 154,
+        "immediate_generator": 187,
+        "instruction_rom": 247,
+        "load_store_unit": 1447,
+        "program_counter": 64,
+        "register_file": 8889
+      },
+      "flip_flops": 1121,
+      "latches": 167,
+      "memory_macros": 6,
+      "memory_bits_expanded": 0,
+      "logic_depth_levels": {
+        "alu": 33,
+        "branch_unit": 32,
+        "control_unit": 16,
+        "cpu": 454,
+        "data_ram": 11,
+        "immediate_generator": 9,
+        "instruction_rom": 14,
+        "load_store_unit": 14,
+        "program_counter": 1,
+        "register_file": 19
+      },
+      "verilog_lines": 9342,
+      "measured_by": "ghdl synth --out=verilog + yosys stat (medicao real, ADR-005)",
+      "lut4": {
+        "total": 3138,
+        "by_block": {
+          "alu": 610,
+          "branch_unit": 64,
+          "control_unit": 62,
+          "cpu": 202,
+          "data_ram": 84,
+          "immediate_generator": 40,
+          "instruction_rom": 66,
+          "load_store_unit": 225,
+          "program_counter": null,
+          "register_file": 1785
+        },
+        "flip_flops": 1089,
+        "latches": 121,
+        "memory_macros": 6,
+        "measured_by": "yosys abc -lut 4 (medicao real); memorias mantidas como macro $mem_v2, logo o numero e de LOGICA de nucleo"
+      }
+    },
+    "rv32im": {
+      "config": "rv32im",
+      "rv32m_enable": true,
+      "generic_cells_total": 226328,
+      "generic_cells_by_block": {
+        "alu": 2291,
+        "branch_unit": 1554,
+        "control_unit": 1425,
+        "cpu": 701,
+        "data_ram": 154,
+        "immediate_generator": 187,
+        "instruction_rom": 247,
+        "load_store_unit": 1447,
+        "mul_div_unit": 209379,
+        "program_counter": 64,
+        "register_file": 8889
+      },
+      "flip_flops": 1121,
+      "latches": 171,
+      "memory_macros": 6,
+      "memory_bits_expanded": 0,
+      "logic_depth_levels": {
+        "alu": 33,
+        "branch_unit": 32,
+        "control_unit": 16,
+        "cpu": 573,
+        "data_ram": 11,
+        "immediate_generator": 9,
+        "instruction_rom": 14,
+        "load_store_unit": 14,
+        "mul_div_unit": 785,
+        "program_counter": 1,
+        "register_file": 19
+      },
+      "verilog_lines": 9572,
+      "measured_by": "ghdl synth --out=verilog + yosys stat (medicao real, ADR-005)",
+      "lut4": {
+        "total": 12657,
+        "by_block": {
+          "alu": 610,
+          "branch_unit": 63,
+          "control_unit": 66,
+          "cpu": 229,
+          "data_ram": 84,
+          "immediate_generator": 40,
+          "instruction_rom": 66,
+          "load_store_unit": 225,
+          "mul_div_unit": 9489,
+          "program_counter": null,
+          "register_file": 1785
+        },
+        "flip_flops": 1089,
+        "latches": 124,
+        "memory_macros": 6,
+        "measured_by": "yosys abc -lut 4 (medicao real); memorias mantidas como macro $mem_v2, logo o numero e de LOGICA de nucleo"
+      }
+    }
+  },
+  "comparison": {
+    "generic_cells_rv32i": 16835,
+    "generic_cells_rv32im": 226328,
+    "delta_cells": 209493,
+    "ratio": 13.4439,
+    "per_block": {
+      "alu": {
+        "rv32i": 2291,
+        "rv32im": 2291,
+        "delta": 0
+      },
+      "branch_unit": {
+        "rv32i": 1554,
+        "rv32im": 1554,
+        "delta": 0
+      },
+      "control_unit": {
+        "rv32i": 1311,
+        "rv32im": 1425,
+        "delta": 114
+      },
+      "cpu": {
+        "rv32i": 700,
+        "rv32im": 701,
+        "delta": 1
+      },
+      "data_ram": {
+        "rv32i": 154,
+        "rv32im": 154,
+        "delta": 0
+      },
+      "immediate_generator": {
+        "rv32i": 187,
+        "rv32im": 187,
+        "delta": 0
+      },
+      "instruction_rom": {
+        "rv32i": 247,
+        "rv32im": 247,
+        "delta": 0
+      },
+      "load_store_unit": {
+        "rv32i": 1447,
+        "rv32im": 1447,
+        "delta": 0
+      },
+      "mul_div_unit": {
+        "rv32i": 0,
+        "rv32im": 209379,
+        "delta": 209379
+      },
+      "program_counter": {
+        "rv32i": 64,
+        "rv32im": 64,
+        "delta": 0
+      },
+      "register_file": {
+        "rv32i": 8889,
+        "rv32im": 8889,
+        "delta": 0
+      }
+    },
+    "mul_div_share_of_rv32im": 92.51,
+    "logic_depth_top": {
+      "rv32i": 454,
+      "rv32im": 573
+    },
+    "flip_flops": {
+      "rv32i": 1121,
+      "rv32im": 1121,
+      "note": "identicos: a extensao M e puramente combinacional neste design"
+    },
+    "lut4": {
+      "rv32i": 3138,
+      "rv32im": 12657,
+      "delta": 9519,
+      "ratio": 4.0335
+    }
+  }
+}
