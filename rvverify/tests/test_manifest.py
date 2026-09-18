@@ -28,7 +28,7 @@ from rvverify.manifest import (  # noqa: E402
     load_manifest,
 )
 
-RISCV32I_MANIFEST = REPO_ROOT / "examples" / "RISCV32I" / "cpu.toml"
+RISCV32I_MANIFEST = REPO_ROOT / "cpus" / "rv32i_pipeline" / "cpu.toml"
 
 
 # --------------------------------------------------------------------------

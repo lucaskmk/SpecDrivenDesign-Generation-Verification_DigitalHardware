@@ -39,11 +39,11 @@ import pytest
 from cocotb_tools.runner import VHDL, get_runner
 
 HERE = Path(__file__).resolve().parent
-EXAMPLE_ROOT = HERE.parent                       # examples/rv32i_monociclo
-EXAMPLES = EXAMPLE_ROOT.parent                   # examples/
-PIPELINE_SRC = EXAMPLES / "RISCV32I" / "src"
-PIPELINE_TEST = EXAMPLES / "RISCV32I" / "test"
-PIPELINE_TOOLS = EXAMPLES / "RISCV32I" / "tools"
+EXAMPLE_ROOT = HERE.parent                       # cpus/rv32i_monociclo
+CPUS = EXAMPLE_ROOT.parent                       # cpus/
+PIPELINE_SRC = CPUS / "rv32i_pipeline" / "src"
+PIPELINE_TEST = CPUS / "rv32i_pipeline" / "test"
+PIPELINE_TOOLS = CPUS / "rv32i_pipeline" / "tools"
 MONO_SRC = EXAMPLE_ROOT / "src"
 
 sys.path.insert(0, str(PIPELINE_TOOLS))

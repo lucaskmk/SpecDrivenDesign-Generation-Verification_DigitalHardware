@@ -538,7 +538,7 @@ o modelo de referência para `rvverify/`. As tarefas abaixo terminam a
 estrutura decidida e trazem, formalizado como `NFR-RV-05`, o oráculo de
 montagem por toolchain real que estava no plano de merge antigo.
 
-- [ ] TRV-7.7.0 — Restaurar as suítes quebradas pela reorganização parcial
+- [x] TRV-7.7.0 — Restaurar as suítes quebradas pela reorganização parcial
   - REQ: ADR-013
   - ACEITE: `pytest rvverify/tests -q` e `pytest cpus/rv32i_monociclo/test -q`
     e `pytest cpus/rv32i_pipeline/test -q` rodados de verdade (GHDL + cocotb)
