@@ -15,7 +15,7 @@ o `riscv64-unknown-elf-as` do binutils, que ninguem neste projeto escreveu.
 Como funciona: o mesmo `.asm` e montado duas vezes --
 
   1. por `rvverify.asm.assemble(...)`, em Python;
-  2. dentro do container `spechdl-toolchain` (docker/Dockerfile), por
+  2. dentro do container `spechdl-toolchain` (docker/spechdl-toolchain/), por
      `as` -> `ld` -> `objcopy -O binary`, lendo as palavras do binario
      little-endian --
 
@@ -34,7 +34,7 @@ afetada. O montador Python continua sendo o caminho autocontido -- o binutils e
 cross-check, nao substituto.
 
 Como construir a imagem:
-    docker build -t spechdl-toolchain -f docker/Dockerfile docker
+    docker build -t spechdl-toolchain docker/spechdl-toolchain
 """
 
 from __future__ import annotations
@@ -162,7 +162,7 @@ def _docker_missing() -> str | None:
         return f"docker nao respondeu: {e}"
     if proc.returncode != 0:
         return (f"imagem `{IMAGE}` nao existe; construa com "
-                f"`docker build -t {IMAGE} -f docker/Dockerfile docker`")
+                f"`docker build -t {IMAGE} docker/{IMAGE}`")
     return None
 
 

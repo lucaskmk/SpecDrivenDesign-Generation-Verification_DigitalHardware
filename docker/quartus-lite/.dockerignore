@@ -1,0 +1,5 @@
+# Only the Dockerfile's COPY sources belong in the build context. The smoke
+# test project is mounted at run time, never copied, and its Quartus outputs
+# (db/, output_files/, quartus_output/) grow with every run.
+quartus_smoketest/
+quartus-docker-fpga-analysis-plan.md

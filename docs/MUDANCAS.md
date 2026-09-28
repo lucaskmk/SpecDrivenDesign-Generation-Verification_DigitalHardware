@@ -281,7 +281,7 @@ depois:  fetches - flush_f - (flush_d - stalls)
 > `tools/rv_assembler.py` e `test/reference_model.py` foram **promovidos para o
 > pacote do validador**, como `rvverify/asm.py` e `rvverify/reference.py` — são
 > infraestrutura do `rvverify`, não da CPU de exemplo. E o montador ganhou um
-> conferente: `docker/Dockerfile` traz um binutils RISC-V real que serve de
+> conferente: `docker/spechdl-toolchain/Dockerfile` traz um binutils RISC-V real que serve de
 > **oráculo opcional**, comparado palavra a palavra em
 > `rvverify/tests/test_assembler_oracle.py` (NFR-RV-05, ADR-004 *Revisão*).
 

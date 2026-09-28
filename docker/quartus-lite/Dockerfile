@@ -1,7 +1,7 @@
 # Quartus Prime Lite container with modular Intel/Altera FPGA device support.
 # Default target: Cyclone V, including 5CEBA4F23C7.
 #
-# DELIBERATELY SEPARATE FROM docker/Dockerfile FOREVER (specs/decisions.md,
+# DELIBERATELY SEPARATE FROM docker/spechdl-toolchain/ FOREVER (specs/decisions.md,
 # ADR-015). That image is the lightweight RISC-V toolchain oracle (binutils +
 # Yosys, NFR-RV-05) used on every rvverify run; this one is a multi-GB FPGA
 # vendor toolchain used only for the optional, post-hoc analysis of RV-8
@@ -24,17 +24,18 @@
 #        - QuartusLiteSetup-${QUARTUS_VERSION}-linux.run  (~2 GB, base installer)
 #        - <family>-${QUARTUS_VERSION}.qdz for each family in DEVICE_SUPPORT
 #          (cyclonev-${QUARTUS_VERSION}.qdz for the default Cyclone V target)
-#   3. Place them, unmodified, in docker/quartus_installers/ next to this
-#      Dockerfile (gitignored -- see docker/quartus_installers/README.md).
+#   3. Place them, unmodified, in docker/quartus-lite/quartus_installers/ next
+#      to this Dockerfile (gitignored -- see quartus_installers/README.md).
 #
-# Build (context is docker/, same convention as docker/Dockerfile):
-#   docker build -f docker/Quartus_Dockerfile -t quartus-lite:25.1 \
-#     --build-arg DEVICE_SUPPORT="cyclonev" docker
+# Build (context is this folder, docker/quartus-lite/ -- one folder per
+# image, named after its tag, ADR-017):
+#   docker build -t quartus-lite:25.1 \
+#     --build-arg DEVICE_SUPPORT="cyclonev" docker/quartus-lite
 #
 # Multiple families can be added at build time (each needs its .qdz present
-# in docker/quartus_installers/ too):
-#   docker build -f docker/Quartus_Dockerfile -t quartus-lite:25.1-multi \
-#     --build-arg DEVICE_SUPPORT="cyclonev cyclone10lp max10" docker
+# in docker/quartus-lite/quartus_installers/ too):
+#   docker build -t quartus-lite:25.1-multi \
+#     --build-arg DEVICE_SUPPORT="cyclonev cyclone10lp max10" docker/quartus-lite
 #
 # Add another family by adding one entry to the case statement below. Only
 # "cyclonev" has had its filename pattern cross-checked against a live
@@ -90,7 +91,7 @@ WORKDIR /tmp/quartus-installer
 
 # The installer and device-support .qdz files are NOT fetched here (see the
 # header comment above): copy in whatever the manual download step placed in
-# docker/quartus_installers/, then fail loudly and precisely below if what
+# docker/quartus-lite/quartus_installers/, then fail loudly and precisely below if what
 # DEVICE_SUPPORT needs isn't among them, instead of a confusing failure deep
 # inside the unattended installer.
 COPY quartus_installers/ ./
@@ -98,8 +99,8 @@ COPY quartus_installers/ ./
 RUN set -eux; \
     installer="QuartusLiteSetup-${QUARTUS_VERSION}-linux.run"; \
     test -f "${installer}" || { \
-        echo "Missing ${installer} in docker/quartus_installers/." >&2; \
-        echo "See the header of docker/Quartus_Dockerfile for the manual download steps." >&2; \
+        echo "Missing ${installer} in docker/quartus-lite/quartus_installers/." >&2; \
+        echo "See the header of docker/quartus-lite/Dockerfile for the manual download steps." >&2; \
         exit 3; \
     }; \
     chmod +x "${installer}"; \
@@ -117,8 +118,8 @@ RUN set -eux; \
                 ;; \
         esac; \
         test -f "${file}" || { \
-            echo "Missing ${file} in docker/quartus_installers/ for DEVICE_SUPPORT=${family}." >&2; \
-            echo "See the header of docker/Quartus_Dockerfile for the manual download steps." >&2; \
+            echo "Missing ${file} in docker/quartus-lite/quartus_installers/ for DEVICE_SUPPORT=${family}." >&2; \
+            echo "See the header of docker/quartus-lite/Dockerfile for the manual download steps." >&2; \
             exit 3; \
         }; \
     done; \
@@ -161,8 +162,8 @@ RUN quartus_sh --version
 
 # Wrapper (FR-RV-41, specs/plan.md secao 8.3): "analyze" despacha pro
 # Python; qualquer outro argumento continua indo direto pro quartus_sh
-# (docker/quartus_analyzer/entrypoint.sh), preservando o uso existente
-# validado em docker/quartus_smoketest/ (TRV-8.3 a TRV-8.6) -- nada muda
+# (docker/quartus-lite/quartus_analyzer/entrypoint.sh), preservando o uso existente
+# validado em docker/quartus-lite/quartus_smoketest/ (TRV-8.3 a TRV-8.6) -- nada muda
 # pra quem so quer "--flow compile" ou "--version".
 COPY quartus_analyzer/analyze.py /usr/local/bin/quartus_analyze.py
 COPY quartus_analyzer/entrypoint.sh /usr/local/bin/quartus-entrypoint.sh

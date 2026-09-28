@@ -617,8 +617,10 @@ montagem por toolchain real que estava no plano de merge antigo.
 ## Fase RV-8 — Análise de viabilidade FPGA via Quartus (FR-RV-36 a FR-RV-42, NFR-RV-06)
 
 Arquitetura em `plan.md`, seção 8; plano de implementação detalhado em
-`docker/quartus-docker-fpga-analysis-plan.md`; decisão de infraestrutura em
-ADR-015. Roda **depois** de RV-7 fechar pra uma CPU dada (`plan.md`, seção
+`docker/quartus-lite/quartus-docker-fpga-analysis-plan.md`; decisão de
+infraestrutura em ADR-015. Os caminhos em `docker/` citados nas tarefas já
+concluídas abaixo são os de antes da ADR-017 (uma pasta por imagem); a tabela
+de lá traduz cada um para o caminho atual. Roda **depois** de RV-7 fechar pra uma CPU dada (`plan.md`, seção
 8.1) — nunca antes, nunca no lugar. **Gate de entrada duplo, sem exceção:**
 nenhuma tarefa desta fase é marcada (a) antes de `TRV-7.2` a `TRV-7.6`
 fecharem, nem (b) sem a execução real correspondente — nada aqui é marcado
@@ -850,3 +852,53 @@ por leitura de código ou por o Dockerfile "parecer certo".
     em `implemetation_tests/opus_5_RISCVIM/RELATORIO.md`, fase 5b
   - NÃO fecha TRV-8.8: aquela tarefa é contra `cpus/rv32i_pipeline`, outra
     CPU e outro projeto Quartus, e continua aberta
+- [x] TRV-8.10 — Uma pasta por imagem em `docker/`
+  - REQ: NFR-RV-05, NFR-RV-06 (ADR-017)
+  - ACEITE: `docker/` só contém `README.md` e uma pasta por imagem publicada
+    (`pl-descomp-cocotb/`, `spechdl-toolchain/`, `quartus-lite/`), cada uma
+    com o `Dockerfile` da imagem de mesmo nome; `git status` mostra os
+    arquivos antigos como renames; `docker build -t spechdl-toolchain
+    docker/spechdl-toolchain` com exit 0 e `pytest
+    rvverify/tests/test_assembler_oracle.py -v` rodado de verdade contra a
+    imagem, sem nenhum teste pulado; `docker build -t quartus-lite:25.1
+    docker/quartus-lite` atravessa o contexto novo e, sem instalador, para na
+    checagem explícita do Dockerfile (não num `COPY` sem fonte); todo `COPY`
+    do Dockerfile do Quartus resolve no contexto novo e `quartus_smoketest/`
+    fica fora dele; o projeto de fumaça roda pelo `analyze` a partir do
+    caminho novo (`docker/quartus-lite/quartus_smoketest/`) com exit 0;
+    nenhum caminho antigo sobrando fora das ADRs e dos registros de execução
+    de tarefas concluídas
+  - EXECUÇÃO CONFERIDA (2026-09-28): `docker build -t spechdl-toolchain
+    docker/spechdl-toolchain` -> exit 0, os quatro passos rodados (contexto
+    transferido: só o `Dockerfile`; antes era `docker/` inteira). O oráculo
+    rodou contra essa imagem: `pytest rvverify/tests/test_assembler_oracle.py
+    -v` -> **17 passed**, nenhum pulado. Como o host tem Python 3.10 e o
+    projeto exige 3.11, o pytest rodou dentro de um container `docker:cli`
+    com o socket do daemon montado e `--basetemp` dentro do repositório: o
+    Docker Desktop só compartilha `$HOME` com a VM, e com o `tmp_path` em
+    `/tmp` o `docker run` do oráculo é recusado (`mounts denied`) — limitação
+    do ambiente, não da imagem. `docker build -t pl-descomp-cocotb
+    docker/pl-descomp-cocotb` -> exit 0, com camadas e config idênticas às de
+    `rafaelcorsi/pl-descomp-cocotb@sha256:8dc17254...` (mesmo hash de
+    `RootFS.Layers` + `Config`), ou seja, é de fato o espelho publicado como
+    `cocotb-latest`. `docker build -t quartus-lite:25.1 docker/quartus-lite`,
+    sem instalador na máquina -> passou pelo `apt-get` e pelo `COPY
+    quartus_installers/` e parou no passo 5/12, a checagem explícita:
+    `Missing QuartusLiteSetup-25.1std.0.1129-linux.run in
+    docker/quartus-lite/quartus_installers/`. Um build descartável
+    (`FROM busybox` + os três `COPY` extraídos do Dockerfile) -> exit 0, todas
+    as fontes presentes; outro com `COPY . /ctx` confirmou que o contexto só
+    tem `Dockerfile`, `.dockerignore`, `quartus_analyzer/` e
+    `quartus_installers/`. Fluxo Quartus completo re-executado com a imagem
+    publicada (`gabrielgalazzi/imagens_projeto_descomp:25.1`, id
+    `sha256:34aa0419...`, retag local para `quartus-lite:25.1`, como descreve
+    `docker/README.md`): o `analyze.py` e o `entrypoint.sh` dentro dela diferem
+    dos do repositório só nas quatro linhas de comentário com caminhos que
+    esta tarefa trocou. `docker run --rm -v
+    "$PWD/docker/quartus-lite/quartus_smoketest:/workspace" quartus-lite:25.1
+    analyze --project counter4` -> exit 0 em 32 s, `compilation.success:
+    true`, e os mesmos números de TRV-8.4/8.5: folga de setup 8.689 ns, hold
+    0.171 ns, Fmax 791.77 MHz (restrito 650.2 MHz), 199.47 mW (193.89 mW
+    estáticos), `bitstream.preserved: true`. `git status` limpo depois da
+    execução: as regras reapontadas do `.gitignore` cobrem as saídas do
+    Quartus no caminho novo
