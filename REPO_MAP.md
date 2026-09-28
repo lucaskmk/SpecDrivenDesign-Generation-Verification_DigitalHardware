@@ -29,8 +29,9 @@ dependência.
 
 | caminho | o que é |
 |---|---|
-| [`docker/Dockerfile`](docker/Dockerfile) | **Oráculo opcional do montador** (NFR-RV-05). Imagem com GHDL + cocotb + binutils RISC-V real + Yosys. Serve para conferir palavra a palavra a saída de `rvverify/asm.py` contra um assemblador de verdade, em [`rvverify/tests/test_assembler_oracle.py`](rvverify/tests/test_assembler_oracle.py). **Sem ela a suíte roda igual** — a conferência é pulada, nunca reprovada. |
-| [`docker/Quartus_Dockerfile`](docker/Quartus_Dockerfile) | **Imagem do Quartus Prime Lite para a análise de FPGA da RV-8** (NFR-RV-06, ADR-015). **Permanentemente separada** da imagem acima — nunca compartilha `FROM`, nunca vira um único Dockerfile; ausência dela nunca afeta `rvverify`. Não baixa nada sozinha (CDN da Altera exige sessão de navegador): instalador e `.qdz` vão manualmente em [`docker/quartus_installers/`](docker/quartus_installers/README.md), fora do Git. |
+| [`docker/pl-descomp-cocotb/`](docker/pl-descomp-cocotb/Dockerfile) | **Imagem `pl-descomp-cocotb`: espelho, sem modificação, da imagem de referência da disciplina** (GHDL + cocotb), no mesmo digest em que a `spechdl-toolchain` a pina. Só `FROM`. Existe para o build da de baixo continuar reprodutível se a original sumir. Índice das três imagens e das tags publicadas no Docker Hub: [`docker/README.md`](docker/README.md). |
+| [`docker/spechdl-toolchain/`](docker/spechdl-toolchain/Dockerfile) | **Imagem `spechdl-toolchain`: oráculo opcional do montador** (NFR-RV-05). GHDL + cocotb + binutils RISC-V real + Yosys. Serve para conferir palavra a palavra a saída de `rvverify/asm.py` contra um assemblador de verdade, em [`rvverify/tests/test_assembler_oracle.py`](rvverify/tests/test_assembler_oracle.py). **Sem ela a suíte roda igual** — a conferência é pulada, nunca reprovada. Build: `docker build -t spechdl-toolchain docker/spechdl-toolchain`. |
+| [`docker/quartus-lite/`](docker/quartus-lite/Dockerfile) | **Imagem `quartus-lite:25.1`: Quartus Prime Lite para a análise de FPGA da RV-8** (NFR-RV-06, ADR-015). **Permanentemente separada** da imagem acima — nunca compartilha `FROM`, nunca vira um único Dockerfile; ausência dela nunca afeta `rvverify`. Junto do `Dockerfile` ficam o wrapper `analyze` ([`quartus_analyzer/`](docker/quartus-lite/quartus_analyzer/analyze.py)), o projeto de fumaça ([`quartus_smoketest/`](docker/quartus-lite/quartus_smoketest/README.md)) e o plano de implementação. Não baixa nada sozinha (CDN da Altera exige sessão de navegador): instalador e `.qdz` vão manualmente em [`quartus_installers/`](docker/quartus-lite/quartus_installers/README.md), fora do Git. Build: `docker build -t quartus-lite:25.1 docker/quartus-lite`. |
 | [`implemetation_tests/`](implemetation_tests/) | **Saídas do pipeline, não o pipeline.** CPUs geradas pelas fases 1–5 da metodologia e depois submetidas ao mesmo `rvverify` que julga as de `cpus/`. Hoje só [`opus_5_RISCVIM/`](implemetation_tests/opus_5_RISCVIM/) (RV32IM monociclo, aprovada 35/35). A subpasta [`fpga/`](implemetation_tests/opus_5_RISCVIM/fpga/) traz o projeto Quartus da fase 5b — a análise de FPGA real da RV-8 aplicada a essa CPU (TRV-8.9). |
 | [`specs/`](specs/) | `constitution.md` (princípios), `spec.md` (requisitos EARS), `plan.md` (arquitetura), `tasks.md` (backlog), `decisions.md` (ADRs). |
 | [`docs/`](docs/) | `MUDANCAS.md` e `mudancas-riscv.html` (o que a trilha RISC-V mudou), `ESTADO-TRILHA-A.md`, `mapa-do-projeto.html` e `archive/`. |
@@ -39,6 +40,11 @@ dependência.
 
 ## Notas
 
+- **`docker/` tem uma pasta por imagem**, com o nome da imagem, e cada pasta é
+  o build context da sua imagem (ADR-017). Uma imagem nova ganha uma pasta
+  nova e uma linha em [`docker/README.md`](docker/README.md), que diz qual tag
+  do Docker Hub cada pasta produz; nenhum Dockerfile fica solto na raiz de
+  `docker/`.
 - **`examples/` não existe mais.** A pasta misturava exercícios da trilha A com
   as CPUs de referência RISC-V, e o nome `RISCV32I` não sinalizava que aquele
   era o alvo editável. O conteúdo foi para `cpus/` e `legado/`, sempre por
@@ -55,4 +61,5 @@ dependência.
   **ADR-004** (montador próprio em Python, e sua *Revisão* sobre o oráculo),
   **ADR-013** (esta estrutura), **ADR-014** (a conclusão dela e a adoção do
   oráculo) e **ADR-015** (a imagem do Quartus, separada para sempre da do
-  oráculo, e por que ela não baixa nada sozinha).
+  oráculo, e por que ela não baixa nada sozinha) e **ADR-017** (uma pasta por
+  imagem em `docker/`).

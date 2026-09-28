@@ -30,12 +30,12 @@ execução real cujo log está versionado ao lado (constituição, princípios 4
 
 ## Como reproduzir
 
-Tudo roda na imagem [`docker/Dockerfile`](../../docker/Dockerfile) do
+Tudo roda na imagem [`docker/spechdl-toolchain/Dockerfile`](../../docker/spechdl-toolchain/Dockerfile) do
 repositório (GHDL 2.0.0 mcode, cocotb 2.0.0, Yosys 0.23, binutils RISC-V 2.40).
 Nenhum passo exige instalar ferramenta no host.
 
 ```bash
-docker build -t spechdl-toolchain -f docker/Dockerfile docker   # uma vez
+docker build -t spechdl-toolchain docker/spechdl-toolchain   # uma vez
 
 # Fase 4 -- as 10 suites de bloco
 docker run --rm -v "${PWD}:/job" spechdl-toolchain \
@@ -51,11 +51,11 @@ docker run --rm -v "${PWD}:/job" spechdl-toolchain \
 ```
 
 A **fase 5b** (FPGA real: fit, timing e potencia) usa a OUTRA imagem, a do
-Quartus (`docker/Quartus_Dockerfile`, ADR-015) -- permanentemente separada da
+Quartus (`docker/quartus-lite/Dockerfile`, ADR-015) -- permanentemente separada da
 de cima, nunca a mesma (`repo:NFR-RV-06`):
 
 ```bash
-docker build -t quartus-lite:25.1 -f docker/Quartus_Dockerfile docker   # uma vez
+docker build -t quartus-lite:25.1 docker/quartus-lite   # uma vez
 
 # uma revisao por vez: rv32i, rv32im, rv32i_a9, rv32im_a9, rv32i_a9r, rv32im_a9r
 docker run --rm -v "${PWD}/implemetation_tests/opus_5_RISCVIM:/workspace" \
@@ -238,7 +238,7 @@ princípio 10 existe para evitar.
 ## Fase 5b — FPGA real (Quartus): área, tempo e potência no device
 
 Método: Quartus Prime Lite 25.1std.0 na imagem
-[`docker/Quartus_Dockerfile`](../../docker/Quartus_Dockerfile) (ADR-015),
+[`docker/quartus-lite/Dockerfile`](../../docker/quartus-lite/Dockerfile) (ADR-015),
 dirigido pelo wrapper `analyze` (`repo:FR-RV-41`). Projeto, revisões e
 evidência em [`fpga/`](fpga/). Esta fase **não** substitui a fase 5: ela mede
 outras grandezas, e onde as duas se tocam a do Quartus é a que vale, porque é

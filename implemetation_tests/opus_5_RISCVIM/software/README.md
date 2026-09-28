@@ -31,7 +31,7 @@ conformidade de `rvverify`, cujos programas são montados por
   `tools/check_dasm_coverage.py` **não são executados** pela verificação
   atual. Continuam versionados porque são o que produziu os `.rm` acima, e
   porque regenerar `rom_image_pkg.vhd` a partir de um novo `.S` ainda passa
-  por eles. Exigem Docker (binutils RISC-V), ver `../../docker/Dockerfile`.
+  por eles. Exigem Docker (binutils RISC-V), ver `../../../docker/spechdl-toolchain/Dockerfile`.
 - `riscv_base_test/` aqui não tem `src/program.S` nem `expected_ram.json`: a
   fixture golden completa vivia em `examples/riscv_base_test/` na raiz, pasta
   que a ADR-013 eliminou. O que sobrou é o suficiente para os oráculos da

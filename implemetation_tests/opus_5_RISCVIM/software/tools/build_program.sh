@@ -3,7 +3,7 @@
 # build_program.sh -- assembly -> ELF -> disassembly -> binary -> .rm -> ROM pkg
 # REQ: FR-13 (design) / pipeline:FR-20, pipeline:FR-21
 #
-# Runs inside the project toolchain image (docker/Dockerfile, NFR-05): no
+# Runs inside the project toolchain image (docker/spechdl-toolchain/Dockerfile, NFR-05): no
 # hardcoded local toolchain path, no manual step. Every derived artifact comes
 # from a tool -- the .rm and the disassembly are never written by hand.
 #

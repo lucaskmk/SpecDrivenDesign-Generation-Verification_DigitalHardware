@@ -1,7 +1,7 @@
 # Cache dos instaladores do Quartus (não versionado)
 
 Esta pasta existe só para receber, localmente, os arquivos que o
-`docker/Quartus_Dockerfile` copia pra dentro da imagem. Nada aqui é
+`docker/quartus-lite/Dockerfile` copia pra dentro da imagem. Nada aqui é
 versionado (ver `.gitignore`) — são binários de gigabytes, sob licença da
 Altera, e cada máquina que builda a imagem baixa os seus.
 
@@ -26,13 +26,13 @@ tenta baixar nada — ele espera os arquivos já aqui.
      deste projeto, `5CEBA4F23C7`; é o único `DEVICE_SUPPORT` default)
    - qualquer outro `<familia>-25.1std.0.1129.qdz` só se for habilitar
      outra família no build (`cycloneiv`, `cyclone10lp`, `max10`, `max` —
-     ver o cabeçalho de `docker/Quartus_Dockerfile` pro nome exato de
+     ver o cabeçalho de `docker/quartus-lite/Dockerfile` pro nome exato de
      arquivo esperado por família; só `cyclonev` foi conferido contra uma
      resposta real do servidor)
 3. Coloque os arquivos aqui, sem renomear.
 4. Builde a partir da raiz do repositório:
    ```
-   docker build -f docker/Quartus_Dockerfile -t quartus-lite:25.1 docker
+   docker build -t quartus-lite:25.1 docker/quartus-lite
    ```
 
 Se a versão 25.1std.0.1129 mudar (Intel/Altera lança uma build nova), passe

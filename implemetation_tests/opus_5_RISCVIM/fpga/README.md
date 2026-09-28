@@ -5,9 +5,9 @@ Projeto Quartus da CPU `rv32im_sc`. Existe para responder as duas linhas que a
 **frequência máxima** e **potência** —, e para checar área na unidade em que um
 FPGA de verdade cobra: ALM ocupada, não LUT4 estimada pelo Yosys.
 
-Roda pela imagem [`docker/Quartus_Dockerfile`](../../../docker/Quartus_Dockerfile)
+Roda pela imagem [`docker/quartus-lite/Dockerfile`](../../../docker/quartus-lite/Dockerfile)
 do repositório e pelo wrapper `analyze`
-([`docker/quartus_analyzer/analyze.py`](../../../docker/quartus_analyzer/analyze.py),
+([`docker/quartus-lite/quartus_analyzer/analyze.py`](../../../docker/quartus-lite/quartus_analyzer/analyze.py),
 `repo:FR-RV-41`). A análise é **aditiva**: ela roda depois da conformidade da
 RV-7 e não altera o veredito dela (`repo:NFR-RV-06`).
 

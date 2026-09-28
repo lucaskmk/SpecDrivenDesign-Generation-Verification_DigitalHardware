@@ -18,7 +18,7 @@
 # sendo o caminho autocontido.
 #
 # Build:
-#   docker build -t spechdl-toolchain -f docker/Dockerfile docker
+#   docker build -t spechdl-toolchain docker/spechdl-toolchain
 #
 # Aceite (TRV-7.7.6):
 #   docker run --rm spechdl-toolchain bash -lc "riscv64-unknown-elf-as --version; ghdl --version; yosys -V"

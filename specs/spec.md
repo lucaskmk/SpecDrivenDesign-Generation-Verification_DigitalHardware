@@ -326,7 +326,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   árvore de fontes — de modo que a diferença medida entre as duas configurações
   seja atribuível à extensão M, e não a divergência entre cópias.
 - **NFR-RV-05**: THE SYSTEM SHALL disponibilizar uma imagem de container
-  (`docker/Dockerfile`) com um assemblador RISC-V cruzado real
+  (`docker/spechdl-toolchain/Dockerfile`) com um assemblador RISC-V cruzado real
   (`riscv64-unknown-elf-as`/`ld`/`objcopy`/`objdump`) e o Yosys, e SHALL usá-la
   como oráculo independente para conferir, palavra a palavra, a saída do
   montador Python (ADR-004) contra pelo menos um programa de cada categoria de
@@ -492,7 +492,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 > RV-7 (FR-RV-26/FR-RV-27) — é uma etapa adicional e opcional sobre uma CPU
 > já validada, não um substituto nem um pré-requisito dela; não altera o
 > veredito de FR-RV-27. Detalhe de arquitetura em `plan.md`, seção 8; plano
-> de implementação em `docker/quartus-docker-fpga-analysis-plan.md`; decisão
+> de implementação em `docker/quartus-lite/quartus-docker-fpga-analysis-plan.md`; decisão
 > de infraestrutura em `decisions.md`, ADR-015.
 >
 > **Estado (2026-09-18, atualizado).** A imagem foi construída e o fluxo roda
@@ -508,7 +508,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 
 - **FR-RV-36**: WHERE o usuário pede a análise de viabilidade FPGA de uma
   entrega já validada por FR-RV-26, THE SYSTEM SHALL rodar o Quartus Prime
-  Lite (imagem `docker/Quartus_Dockerfile`, ADR-015) sobre as mesmas fontes
+  Lite (imagem `docker/quartus-lite/Dockerfile`, ADR-015) sobre as mesmas fontes
   VHDL declaradas no `cpu.toml` daquela entrega, sem gerar nem inferir
   nenhuma fonte nova.
 - **FR-RV-37**: THE SYSTEM SHALL rodar o Fitter do Quartus contra o device
@@ -540,7 +540,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   potência em sequência, detecta falha em qualquer etapa sem prosseguir para
   a seguinte quando a falha impede análise, e grava os resultados na
   estrutura `quartus_output/{compilation,reports,netlist,bitstream}/`
-  descrita em `docker/quartus-docker-fpga-analysis-plan.md`, incluindo um
+  descrita em `docker/quartus-lite/quartus-docker-fpga-analysis-plan.md`, incluindo um
   `summary.json` machine-readable consolidando os campos de FR-RV-37 a
   FR-RV-39 mais o veredito de compilação; IF a compilação for bem-sucedida,
   THEN THE SYSTEM SHALL preservar o arquivo de gravação (`.sof`) gerado.
@@ -550,8 +550,8 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   de build da imagem (`--build-arg DEVICE_SUPPORT=...`), sem inflar a imagem
   padrão com pacotes de device não usados por este projeto.
 - **NFR-RV-06**: THE SYSTEM SHALL manter a imagem Docker do Quartus
-  (`docker/Quartus_Dockerfile`) permanentemente separada da imagem do
-  oráculo do montador (`docker/Dockerfile`, NFR-RV-05, ADR-015) — nunca
+  (`docker/quartus-lite/Dockerfile`) permanentemente separada da imagem do
+  oráculo do montador (`docker/spechdl-toolchain/Dockerfile`, NFR-RV-05, ADR-015) — nunca
   compartilhar `FROM`, nunca virar um único Dockerfile — e SHALL manter a
   execução default de `rvverify` (FR-RV-26/27) independente da imagem do
   Quartus estar presente ou não: a análise desta seção é aditiva, e sua

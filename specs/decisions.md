@@ -854,3 +854,66 @@ Total PLLs : 0 / 4 ( 0 % )
 TRV-8.3 fecha com essa execução. `counter4.sof` foi gerado, confirmando que
 FR-RV-41 (preservar o `.sof` quando a compilação termina bem) é viável no
 fluxo real, não só na especificação.
+
+## ADR-017 — Uma pasta por imagem em `docker/`
+
+**Contexto.** Com a ADR-015, `docker/` passou a abrigar duas imagens, mas
+achatadas numa pasta só: `docker/Dockerfile` (a `spechdl-toolchain`,
+NFR-RV-05) e `docker/Quartus_Dockerfile` (a `quartus-lite:25.1`,
+NFR-RV-06) lado a lado, mais três pastas e um plano que só dizem respeito à
+segunda. As duas usavam `docker/` inteira como build context. Na prática,
+isso tinha dois custos: não dava pra saber, olhando a pasta, o que pertencia
+a qual imagem; e buildar a imagem leve do oráculo mandava pro daemon, como
+contexto, a pasta `quartus_installers/` com os gigabytes do instalador do
+Quartus, que ela nunca usa. Além disso, as imagens já estavam publicadas no
+Docker Hub, em `gabrielgalazzi/imagens_projeto_descomp`, com três tags —
+`spechdl-latest`, `25.1` e `cocotb-latest`, esta última com o mesmo digest
+da base `rafaelcorsi/pl-descomp-cocotb` pinada na `spechdl-toolchain`, ou
+seja, um espelho dela —, e nada no repositório dizia qual arquivo produzia
+qual tag, nem que a terceira existia.
+
+**Decisão.** Cada imagem publicada ganha uma pasta própria em `docker/`, com
+o nome da imagem, e essa pasta é o build context dela. `docker/README.md`
+liga cada pasta à sua tag publicada:
+
+| antes | depois |
+|---|---|
+| (só no Docker Hub, `cocotb-latest`) | `docker/pl-descomp-cocotb/Dockerfile` (só `FROM` do digest pinado) |
+| `docker/Dockerfile` | `docker/spechdl-toolchain/Dockerfile` |
+| `docker/Quartus_Dockerfile` | `docker/quartus-lite/Dockerfile` |
+| `docker/quartus_installers/` | `docker/quartus-lite/quartus_installers/` |
+| `docker/quartus_analyzer/` | `docker/quartus-lite/quartus_analyzer/` |
+| `docker/quartus_smoketest/` | `docker/quartus-lite/quartus_smoketest/` |
+| `docker/quartus-docker-fpga-analysis-plan.md` | `docker/quartus-lite/quartus-docker-fpga-analysis-plan.md` |
+
+Os builds passam a ser `docker build -t <imagem> docker/<pasta>`, sem `-f`
+(por exemplo, `docker build -t spechdl-toolchain docker/spechdl-toolchain`). Os `COPY` do Dockerfile do Quartus já eram
+relativos ao contexto e não mudam. `docker/quartus-lite/.dockerignore` tira do
+contexto o projeto de fumaça (montado em tempo de execução, nunca copiado) e o
+plano. As tags das imagens não mudam, então nada que só as usa (o oráculo em
+`rvverify/tests/test_assembler_oracle.py`, os `docker run` já documentados)
+precisa ser reconstruído.
+
+Documentos vivos (Dockerfiles, READMEs, `spec.md`, `plan.md`, `REPO_MAP.md`,
+`CLAUDE.md`, os relatórios de `implemetation_tests/`) foram reapontados. As
+ADRs acima e os registros de execução das tarefas já concluídas **não** foram
+editados: descrevem o que foi rodado na época, com os caminhos da época. Esta
+tabela é a chave para lê-los.
+
+**Alternativas rejeitadas.**
+
+- *Manter as duas imagens achatadas e só renomear arquivos* — não resolve o
+  contexto compartilhado nem diz o que pertence a qual imagem.
+- *Tirar o prefixo `quartus_` das subpastas* (`installers/`, `analyzer/`,
+  `smoketest/`) — mais limpo, mas quebraria, sem ganho funcional, a
+  correspondência com os nomes citados em toda a RV-8 e nas ADRs 015 e 016.
+
+- *Deixar o espelho `cocotb-latest` fora do repositório, por não ter
+  Dockerfile próprio* — ele é a base de que a `spechdl-toolchain` depende; se
+  `rafaelcorsi/pl-descomp-cocotb` sumir, é o espelho que mantém o build
+  reprodutível, e isso precisa estar escrito em algum lugar.
+
+**Consequência.** A separação entre as imagens que a ADR-015 exige passa a
+ser física também: nenhuma delas enxerga, no build, um arquivo da outra. Uma
+imagem nova entra como uma pasta nova em `docker/` e uma linha nova em
+`docker/README.md`.

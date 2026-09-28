@@ -3,12 +3,12 @@
 # --flow compile, depois potencia, depois Fmax), grava
 # quartus_output/{compilation,reports,netlist,bitstream}/ e summary.json.
 #
-# Roda DENTRO do container quartus-lite (docker/Quartus_Dockerfile), nunca
+# Roda DENTRO do container quartus-lite (docker/quartus-lite/Dockerfile), nunca
 # no host: assume que quartus_map/quartus_fit/quartus_sh/quartus_sta/
 # quartus_pow estao no PATH. Formatos de relatorio (fit.summary,
 # pow.summary, sta.summary, saida de report_clock_fmax_summary) foram
 # conferidos contra execucao real do Quartus 25.1std.0.1129 em
-# docker/quartus_smoketest/ (specs/tasks.md, TRV-8.3 a TRV-8.6) antes de
+# docker/quartus-lite/quartus_smoketest/ (specs/tasks.md, TRV-8.3 a TRV-8.6) antes de
 # escrever os parsers abaixo -- nao foram adivinhados da documentacao.
 import argparse
 import json

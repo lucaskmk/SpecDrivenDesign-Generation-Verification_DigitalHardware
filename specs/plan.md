@@ -543,7 +543,7 @@ com o professor.
 
 Requisitos: FR-RV-36 a FR-RV-42, NFR-RV-06. Decisão: ADR-015. Plano de
 implementação detalhado, mantido à parte por ser específico de ferramenta de
-terceiro: `docker/quartus-docker-fpga-analysis-plan.md`.
+terceiro: `docker/quartus-lite/quartus-docker-fpga-analysis-plan.md`.
 
 ### 8.1 Onde isso entra no fluxo
 
@@ -572,8 +572,8 @@ entregas/<nome>/cpu.toml ──► rvverify (RV-7) ──► veredito
 
 ### 8.2 Por que uma imagem Docker separada, e por quê ela não builda sozinha
 
-`docker/Quartus_Dockerfile` nunca compartilha base nem se funde com
-`docker/Dockerfile` (o oráculo do montador, NFR-RV-05) — decisão fixada em
+`docker/quartus-lite/Dockerfile` nunca compartilha base nem se funde com
+`docker/spechdl-toolchain/Dockerfile` (o oráculo do montador, NFR-RV-05) — decisão fixada em
 ADR-015, por pedido explícito e porque as duas têm ciclo de vida e peso
 completamente diferentes (o oráculo é ~200 MB e roda em toda execução de
 `pytest rvverify/tests`; o Quartus Prime Lite sozinho passa de 2 GB e só
@@ -584,13 +584,13 @@ exige uma sessão de navegador de verdade (mitigação de bot da Akamai mais o
 aceite de licença na própria página), e isso bloqueia igualmente um `curl`
 manual e um `RUN curl` dentro de `docker build` — verificado por execução
 real em 2026-09-18 (ADR-015). Por isso o Dockerfile espera o instalador e os
-`.qdz` já em `docker/quartus_installers/` (pasta local, fora do Git), com o
+`.qdz` já em `docker/quartus-lite/quartus_installers/` (pasta local, fora do Git), com o
 passo a passo do download manual documentado no `README.md` daquela pasta e
 no cabeçalho do próprio Dockerfile.
 
 ### 8.3 O que o wrapper `analyze` faz
 
-Descrito em detalhe em `docker/quartus-docker-fpga-analysis-plan.md`; em
+Descrito em detalhe em `docker/quartus-lite/quartus-docker-fpga-analysis-plan.md`; em
 resumo, dado um projeto Quartus (`.qpf`) e o device alvo, a sequência é
 síntese → fitter → TimeQuest → Power Analyzer → coleta de relatórios →
 `summary.json`, preservando o `.sof` só quando a compilação termina bem
@@ -608,7 +608,7 @@ pra prosseguir com RV-8 antes de RV-7 fechar — decisão dele, registrada
 aqui porque diverge do gate padrão da seção 6 (normalmente RV-n só começa
 depois de RV-(n-1) fechar). `TRV-8.1` a `TRV-8.7` estão implementadas e
 verificadas por execução real contra a imagem de verdade
-(`docker/quartus_analyzer/analyze.py` + `entrypoint.sh`, detalhe em
+(`docker/quartus-lite/quartus_analyzer/analyze.py` + `entrypoint.sh`, detalhe em
 `specs/tasks.md`): device corrigido (ADR-016), smoke test compilando,
 timing/Fmax/potência extraídos com número real, e o wrapper `analyze`
 rodando síntese→fit→timing→potência→`summary.json` de ponta a ponta, com

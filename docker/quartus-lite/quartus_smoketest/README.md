@@ -1,7 +1,7 @@
 # Smoke test do fluxo Quartus (RV-8)
 
 Projeto mínimo — um contador de 4 bits (`counter4.vhd`), não a CPU — usado
-pra provar que a imagem `quartus-lite:25.1` (`docker/Quartus_Dockerfile`,
+pra provar que a imagem `quartus-lite:25.1` (`docker/quartus-lite/Dockerfile`,
 ADR-015) builda **e** compila de verdade contra o device alvo deste
 projeto, `5CEBA4F23C7` (Cyclone V), antes de apontar o fluxo pra
 `cpus/rv32i_pipeline` inteiro, que é bem mais pesado. Ver `specs/tasks.md`,
@@ -14,7 +14,7 @@ de verdade).
 Da raiz do repositório:
 
 ```
-docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+docker run --rm -v "$PWD/docker/quartus-lite/quartus_smoketest:/workspace" \
     quartus-lite:25.1 --flow compile counter4
 ```
 
@@ -31,7 +31,7 @@ a string exata de um device antes de fixá-la em qualquer `.qsf` (ver
 ADR-016 sobre por que isso importa).
 
 ```
-docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+docker run --rm -v "$PWD/docker/quartus-lite/quartus_smoketest:/workspace" \
     quartus-lite:25.1 -t list_parts.tcl
 ```
 
@@ -47,14 +47,14 @@ API do TimeQuest, só disponível em `quartus_sta`/`quartus_fit`, não em
 `quartus_sh` (o `ENTRYPOINT` da imagem):
 
 ```
-docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+docker run --rm -v "$PWD/docker/quartus-lite/quartus_smoketest:/workspace" \
     --entrypoint quartus_sta quartus-lite:25.1 -t report_fmax.tcl
 ```
 
 ## Potência (TRV-8.5)
 
 ```
-docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+docker run --rm -v "$PWD/docker/quartus-lite/quartus_smoketest:/workspace" \
     --entrypoint quartus_pow quartus-lite:25.1 counter4 -c counter4
 ```
 
@@ -64,13 +64,13 @@ por faltar dado de toggle rate de uma simulação real).
 
 ## Wrapper `analyze` (TRV-8.7)
 
-`docker/quartus_analyzer/analyze.py` faz tudo isto num comando só —
+`docker/quartus-lite/quartus_analyzer/analyze.py` faz tudo isto num comando só —
 compila, extrai fit/timing/Fmax/potência, grava
 `quartus_output/{compilation,reports,netlist,bitstream}/` e
 `quartus_output/reports/summary.json`:
 
 ```
-docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+docker run --rm -v "$PWD/docker/quartus-lite/quartus_smoketest:/workspace" \
     quartus-lite:25.1 analyze --project counter4
 ```
 
@@ -88,6 +88,6 @@ por busca real, não suposição). Os **dados** de netlist continuam
 acessíveis sem GUI via `::quartus::rtl`:
 
 ```
-docker run --rm -v "$PWD/docker/quartus_smoketest:/workspace" \
+docker run --rm -v "$PWD/docker/quartus-lite/quartus_smoketest:/workspace" \
     --entrypoint quartus_map quartus-lite:25.1 -t report_netlist.tcl
 ```
