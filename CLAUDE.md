@@ -21,7 +21,10 @@ programas de teste são montados por um montador RV32I/RV32IM próprio,
 `rvverify/asm.py` (ADR-004), conferido palavra a palavra, quando há Docker,
 contra um binutils RISC-V real em `docker/spechdl-toolchain/Dockerfile` (NFR-RV-05); sem a
 imagem, essa conferência é pulada e nunca reprova a suíte. A estrutura de
-pastas está em `REPO_MAP.md` e a decisão que a fixou, na ADR-013.
+pastas está em `REPO_MAP.md` e a decisão que a fixou, na ADR-013. O
+`rvgen/` (fase RV-9, ADR-018) gera CPUs com IA local (Ollama) ou externa
+(OpenRouter) e as submete ao mesmo `rvverify`; ele é cliente do validador,
+nunca o contrário.
 
 Este projeto está sendo construído seguindo a própria metodologia que ele
 implementa: nada de código antes de spec aprovada. Antes de implementar

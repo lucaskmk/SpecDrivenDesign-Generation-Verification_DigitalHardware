@@ -3,5 +3,5 @@
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["rvverify/tests", "cpus"]
+testpaths = ["rvverify/tests", "cpus", "rvgen/tests"]
 addopts = "-q"

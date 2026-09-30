@@ -30,6 +30,11 @@ results.xml
 # Relatorios do validador
 /entregas/*/report/
 
+# Sessoes do gerador (rvgen, ADR-018): simulacao e build do GHDL sao
+# descartaveis; sessao.jsonl, relatorios e resultado.json ficam versionaveis
+**/.rvgen/*/sim/
+**/.rvgen/*/build/
+
 # Instaladores Quartus baixados manualmente (ADR-015, ver
 # docker/quartus-lite/quartus_installers/README.md) — binarios de GB sob licenca Altera,
 # nunca versionados

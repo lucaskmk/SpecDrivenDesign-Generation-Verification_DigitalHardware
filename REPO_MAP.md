@@ -10,11 +10,14 @@ que foi de fato movido.
 > deixou meia dúzia de caminhos quebrados espalhados pelo repositório depois da
 > primeira metade da ADR-013.
 
-## As cinco pastas de topo
+## As pastas de topo
+
+As cinco da ADR-013, mais `rvgen/`, acrescentada pela ADR-018.
 
 | pasta | o que é | leia primeiro |
 |---|---|---|
 | [`rvverify/`](rvverify/) | **O validador.** Manifesto (`cpu.toml`), montador, modelo de referência, harness cocotb, suíte de conformidade e diagnóstico. É o que julga uma CPU entregue. Roda por `python -m rvverify`. | [`README.md`](README.md) |
+| [`rvgen/`](rvgen/) | **O gerador** (RV-9, ADR-018). Agente de fases fixas que escreve uma entrega com IA local (Ollama) ou externa (OpenRouter) e a submete ao `rvverify`, corrigindo pelo diagnóstico. Cliente do validador, nunca o contrário (NFR-RV-07). Roda por `python -m rvgen`. | [`README.md`](README.md), [`specs/plan.md`](specs/plan.md) seção 9 |
 | [`cpus/rv32i_pipeline/`](cpus/rv32i_pipeline/) | **A CPU de referência de 5 estágios** — o ponto de partida de quem vai modificar uma CPU. Traz `src/` (RTL), `test/` (suítes próprias), `tools/`, `programs/` (benchmarks `.asm`/`.ram`) e `compilation/`. | [`cpus/rv32i_pipeline/README.md`](cpus/rv32i_pipeline/README.md), [`RELATORIO.md`](cpus/rv32i_pipeline/RELATORIO.md) |
 | [`cpus/rv32i_monociclo/`](cpus/rv32i_monociclo/) | **A CPU monociclo.** Existe como prova de que a suíte julga comportamento e não formato: outra microarquitetura, mesmo contrato, mesma suíte. | [`cpus/rv32i_monociclo/README.md`](cpus/rv32i_monociclo/README.md) |
 | [`entregas/`](entregas/) | **Onde a CPU avaliada entra.** Copie `_modelo/` para `entregas/<seu_nome>/`, preencha o `cpu.toml` e ponha o VHDL em `src/`. | [`entregas/README.md`](entregas/README.md) |
