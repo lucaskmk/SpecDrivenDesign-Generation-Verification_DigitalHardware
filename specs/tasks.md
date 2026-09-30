@@ -920,7 +920,7 @@ da CPU gerada, que é resultado de medição do modelo usado.
     dos vizinhos, sem colisão de ID; `plan.md`, seção 9; ADR-018 com
     contexto, decisão, alternativas e consequência, registrando a revisão da
     escolha do SDK do OpenRouter e a exceção ao fase gate
-- [ ] TRV-9.2 — Cliente único de LLM: Ollama (local) e OpenRouter (externo)
+- [x] TRV-9.2 — Cliente único de LLM: Ollama (local) e OpenRouter (externo)
   - REQ: FR-RV-46
   - ACEITE: testes contra servidores HTTP falsos dos dois formatos —
     resposta, contagem de tokens, saída restrita por JSON Schema no Ollama,
