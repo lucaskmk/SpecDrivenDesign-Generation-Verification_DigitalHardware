@@ -902,3 +902,71 @@ por leitura de código ou por o Dockerfile "parecer certo".
     estáticos), `bitstream.preserved: true`. `git status` limpo depois da
     execução: as regras reapontadas do `.gitignore` cobrem as saídas do
     Quartus no caminho novo
+
+## Fase RV-9 — Gerador de CPUs por agente, IA local ou externa (FR-RV-43 a FR-RV-50, NFR-RV-07)
+
+Arquitetura em `plan.md`, seção 9; decisão em ADR-018 (inclusive a exceção
+ao fase gate: RV-7 ainda aberta, início pedido explicitamente pelo usuário
+em 2026-09-30). O `rvgen` só usa a biblioteca padrão do Python, e os testes
+dele também: são `unittest`, que roda em host sem pytest
+(`python -m unittest discover -s rvgen/tests -t .`) e que o pytest do
+repositório coleta igual (`testpaths`). O gate da fase é a execução real de
+`preparar` e de `gerar` contra o `rvverify` de verdade — **não** a aprovação
+da CPU gerada, que é resultado de medição do modelo usado.
+
+- [x] TRV-9.1 — Especificar o gerador: requisitos, plano, ADR e tarefas
+  - REQ: FR-RV-43 a FR-RV-50, NFR-RV-07
+  - ACEITE: `spec.md` com FR-RV-43 a FR-RV-50 e NFR-RV-07 no formato EARS
+    dos vizinhos, sem colisão de ID; `plan.md`, seção 9; ADR-018 com
+    contexto, decisão, alternativas e consequência, registrando a revisão da
+    escolha do SDK do OpenRouter e a exceção ao fase gate
+- [ ] TRV-9.2 — Cliente único de LLM: Ollama (local) e OpenRouter (externo)
+  - REQ: FR-RV-46
+  - ACEITE: testes contra servidores HTTP falsos dos dois formatos —
+    resposta, contagem de tokens, saída restrita por JSON Schema no Ollama,
+    erro HTTP com a mensagem do servidor, chave externa ausente — com exit
+    code 0; extração de bloco VHDL e de JSON de uma resposta com texto em
+    volta
+- [ ] TRV-9.3 — `rvgen preparar`: Ollama, servidor, modelo e executor
+  - REQ: FR-RV-43, FR-RV-44, FR-RV-45
+  - ACEITE: testes contra um Ollama falso (versão, lista de modelos com e
+    sem `:latest`, download com progresso e com erro), dos planos de
+    instalação por plataforma e da escolha de perfil por VRAM; teste de que
+    `--verificar` e a ausência de terminal sem `--sim` não instalam nem
+    baixam nada; `python -m rvgen preparar --verificar` rodado de verdade
+    nesta máquina, com exit code conferido
+- [ ] TRV-9.4 — Executor do validador: local ou Docker
+  - REQ: FR-RV-49, NFR-RV-07
+  - ACEITE: testes da montagem do comando nos dois modos (caminhos POSIX
+    relativos à raiz no Docker, `RVVERIFY_BUILD_ROOT` próprio da entrega,
+    `--casos`/`--etapa` repassados) e da leitura do relatório JSON; a escolha
+    automática recusa, com a instrução de como resolver, quando não há GHDL
+    nem imagem
+- [ ] TRV-9.5 — Contrato dos tipos e `cpu.toml` determinístico
+  - REQ: FR-RV-47
+  - ACEITE: para cada tipo (`monociclo`, `multiciclo`, `pipeline`) e ISA
+    (`rv32i`, `rv32im`), o `cpu.toml` gerado é aceito por
+    `rvverify.manifest.load_manifest` e `source_paths()` encontra toda
+    fonte; tipo ou ISA desconhecido recusado com a lista do que é aceito; as
+    interfaces fornecidas no prompt são lidas dos arquivos reais de
+    `cpus/rv32i_pipeline/src/`
+- [ ] TRV-9.6 — Orquestrador `rvgen gerar`
+  - REQ: FR-RV-47, FR-RV-48, FR-RV-49, FR-RV-50
+  - ACEITE: testes com modelo e executor falsos: plano inválido cai no plano
+    padrão do tipo; escrita fora de `<pasta>/src/` recusada; erro de
+    compilação corrigido no arquivo que o GHDL apontou; correção que piora o
+    placar desfeita; veredito só da execução completa sem `--casos`;
+    mudança num arquivo protegido recusa o veredito; sessão gravada em
+    `<pasta>/.rvgen/`
+- [ ] TRV-9.7 — Documentação e configuração
+  - REQ: FR-RV-43, FR-RV-46
+  - ACEITE: `README.md` com a seção do gerador, `REPO_MAP.md` com `rvgen/`,
+    `.env.example` com as variáveis novas, `.gitignore` cobrindo os
+    diretórios de simulação da sessão e `pyproject.toml` coletando
+    `rvgen/tests`
+- [ ] TRV-9.8 — Execução real ponta a ponta com modelo local
+  - REQ: FR-RV-43 a FR-RV-50
+  - ACEITE: `python -m rvgen preparar` sem pendências e
+    `python -m rvgen gerar entregas/<nome> --tipo monociclo --isa rv32im`
+    executados de verdade, com Ollama e `rvverify` reais; veredito,
+    iterações e sessão registrados aqui, seja APROVADO ou REPROVADO
