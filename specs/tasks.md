@@ -948,7 +948,10 @@ da CPU gerada, que é resultado de medição do modelo usado.
     registro; um chat com `llama3.2` e saída restrita por JSON Schema
     devolveu JSON válido (50 + 16 tokens, 4,0 s) — e errado no conteúdo
     (opcode de 8 bits), o que ilustra por que os perfis são modelos de
-    código. O servidor de teste foi encerrado em seguida
+    código. O servidor de teste foi encerrado em seguida. Achado dessa
+    execução: iniciado com `DETACHED_PROCESS`, o runner filho do
+    `ollama serve` abria janelas de console que piscavam na tela; trocado
+    por `CREATE_NO_WINDOW`
 - [x] TRV-9.4 — Executor do validador: local ou Docker
   - REQ: FR-RV-49, NFR-RV-07
   - ACEITE: testes da montagem do comando nos dois modos (caminhos POSIX
@@ -956,7 +959,7 @@ da CPU gerada, que é resultado de medição do modelo usado.
     `--casos`/`--etapa` repassados) e da leitura do relatório JSON; a escolha
     automática recusa, com a instrução de como resolver, quando não há GHDL
     nem imagem
-- [ ] TRV-9.5 — Contrato dos tipos e `cpu.toml` determinístico
+- [x] TRV-9.5 — Contrato dos tipos e `cpu.toml` determinístico
   - REQ: FR-RV-47
   - ACEITE: para cada tipo (`monociclo`, `multiciclo`, `pipeline`) e ISA
     (`rv32i`, `rv32im`), o `cpu.toml` gerado é aceito por
@@ -964,7 +967,13 @@ da CPU gerada, que é resultado de medição do modelo usado.
     fonte; tipo ou ISA desconhecido recusado com a lista do que é aceito; as
     interfaces fornecidas no prompt são lidas dos arquivos reais de
     `cpus/rv32i_pipeline/src/`
-- [ ] TRV-9.6 — Orquestrador `rvgen gerar`
+  - EXECUÇÃO CONFERIDA (2026-09-30): `python -m unittest
+    rvgen.tests.test_contrato` -> 6 testes, exit 0; o manifesto dos seis
+    pares tipo × ISA passa pelo leitor do próprio `rvverify`, com caminhos
+    POSIX. Prompt de sistema do monociclo RV32IM: 14 465 caracteres
+    (~3,6 mil tokens). `python -m rvgen gerar ... --isa rv32imc` -> exit 2
+    com a lista de ISAs aceitas, sem procurar o Ollama
+- [x] TRV-9.6 — Orquestrador `rvgen gerar`
   - REQ: FR-RV-47, FR-RV-48, FR-RV-49, FR-RV-50
   - ACEITE: testes com modelo e executor falsos: plano inválido cai no plano
     padrão do tipo; escrita fora de `<pasta>/src/` recusada; erro de
@@ -972,12 +981,26 @@ da CPU gerada, que é resultado de medição do modelo usado.
     placar desfeita; veredito só da execução completa sem `--casos`;
     mudança num arquivo protegido recusa o veredito; sessão gravada em
     `<pasta>/.rvgen/`
-- [ ] TRV-9.7 — Documentação e configuração
+  - EXECUÇÃO CONFERIDA (2026-09-30): `python -m unittest
+    rvgen.tests.test_agente` -> 14 testes, exit 0, cobrindo cada item do
+    aceite, mais a linha de comando ponta a ponta com modelo e executor
+    falsos. Suíte inteira do gerador: `python -m unittest discover -s
+    rvgen/tests -t .` -> 62 testes, exit 0. `python -m rvgen gerar
+    entregas/ia_mono --tipo monociclo --isa rv32im` rodado de verdade nesta
+    máquina -> exit 2 antes de chamar o modelo, listando os dois executores
+    indisponíveis e como resolver; nada criado em `entregas/`. O laço contra
+    o GHDL e um modelo reais é a TRV-9.8
+- [x] TRV-9.7 — Documentação e configuração
   - REQ: FR-RV-43, FR-RV-46
   - ACEITE: `README.md` com a seção do gerador, `REPO_MAP.md` com `rvgen/`,
     `.env.example` com as variáveis novas, `.gitignore` cobrindo os
     diretórios de simulação da sessão e `pyproject.toml` coletando
     `rvgen/tests`
+  - EXECUÇÃO CONFERIDA (2026-09-30): `git check-ignore` confirma que
+    `<pasta>/.rvgen/<sessão>/sim/` e `build/` são ignorados e que
+    `sessao.jsonl` e os relatórios JSON continuam versionáveis;
+    `rvgen.config.carregar_env(.env.example)` lê só as chaves não comentadas.
+    `CLAUDE.md` ganhou uma frase apontando para o `rvgen/`
 - [ ] TRV-9.8 — Execução real ponta a ponta com modelo local
   - REQ: FR-RV-43 a FR-RV-50
   - ACEITE: `python -m rvgen preparar` sem pendências e
