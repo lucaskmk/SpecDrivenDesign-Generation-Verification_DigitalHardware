@@ -927,7 +927,7 @@ da CPU gerada, que é resultado de medição do modelo usado.
     erro HTTP com a mensagem do servidor, chave externa ausente — com exit
     code 0; extração de bloco VHDL e de JSON de uma resposta com texto em
     volta
-- [ ] TRV-9.3 — `rvgen preparar`: Ollama, servidor, modelo e executor
+- [x] TRV-9.3 — `rvgen preparar`: Ollama, servidor, modelo e executor
   - REQ: FR-RV-43, FR-RV-44, FR-RV-45
   - ACEITE: testes contra um Ollama falso (versão, lista de modelos com e
     sem `:latest`, download com progresso e com erro), dos planos de
@@ -935,6 +935,20 @@ da CPU gerada, que é resultado de medição do modelo usado.
     `--verificar` e a ausência de terminal sem `--sim` não instalam nem
     baixam nada; `python -m rvgen preparar --verificar` rodado de verdade
     nesta máquina, com exit code conferido
+  - EXECUÇÃO CONFERIDA (2026-09-30, Windows 11, Python 3.14, sem pytest no
+    host): `python -m unittest rvgen.tests.test_ollama` -> 21 testes, exit
+    0. `python -m rvgen preparar --verificar` -> exit 1 com três pendências
+    reais e nada alterado: Ollama 0.32.1 instalado mas servidor parado,
+    modelo `qwen2.5-coder:14b` não verificado (perfil `padrao` escolhido por
+    `nvidia-smi`: GPU de 11,9 GB), sem GHDL no host e daemon do Docker
+    parado. Fora do comando, as funções chamadas contra o Ollama real:
+    `iniciar_servidor` subiu `ollama serve` e respondeu 0.32.1;
+    `modelos_instalados` listou os três modelos já baixados;
+    `tamanho_remoto("qwen2.5-coder:14b")` leu 8 988 123 810 bytes do
+    registro; um chat com `llama3.2` e saída restrita por JSON Schema
+    devolveu JSON válido (50 + 16 tokens, 4,0 s) — e errado no conteúdo
+    (opcode de 8 bits), o que ilustra por que os perfis são modelos de
+    código. O servidor de teste foi encerrado em seguida
 - [x] TRV-9.4 — Executor do validador: local ou Docker
   - REQ: FR-RV-49, NFR-RV-07
   - ACEITE: testes da montagem do comando nos dois modos (caminhos POSIX
