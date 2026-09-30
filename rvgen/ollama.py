@@ -203,7 +203,11 @@ def iniciar_servidor(binario: Path, log: Path, *, base: str = "http://127.0.0.1:
     log.parent.mkdir(parents=True, exist_ok=True)
     extra: dict = {}
     if sys.platform == "win32":
-        extra["creationflags"] = (subprocess.DETACHED_PROCESS
+        # CREATE_NO_WINDOW, e nao DETACHED_PROCESS: um processo sem console
+        # faz cada filho seu (o runner que carrega o modelo) abrir uma janela
+        # de console nova, que pisca na tela; com um console oculto, os
+        # filhos o herdam e nada aparece.
+        extra["creationflags"] = (subprocess.CREATE_NO_WINDOW
                                   | subprocess.CREATE_NEW_PROCESS_GROUP)
     else:
         extra["start_new_session"] = True

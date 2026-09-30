@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """Gerador de CPUs RISC-V por agente -- ponto de entrada.
 
-REQ: FR-RV-43, FR-RV-44, FR-RV-45, FR-RV-46.
+REQ: FR-RV-43 a FR-RV-50.
 
     python -m rvgen preparar              confere Ollama, modelo e executor;
                                           oferece instalar/baixar o que faltar
     python -m rvgen preparar --verificar  so confere, nao muda nada
     python -m rvgen preparar --sim        responde "sim" a toda confirmacao
+    python -m rvgen tipos                 lista os tipos de CPU que da para gerar
+    python -m rvgen gerar entregas/<nome> --tipo monociclo --isa rv32im
+                                          gera, valida e corrige ate o veredito
+    python -m rvgen gerar ... --provedor openrouter
+                                          o mesmo, com um modelo externo
 
-Codigo de saida: 0 quando tudo esta pronto, 1 com pendencia, 2 com erro de
-uso ou de configuracao.
+Codigo de saida: 0 quando tudo esta pronto (preparar) ou a CPU atingiu o
+objetivo (gerar), 1 com pendencia ou CPU reprovada, 2 com erro de uso, de
+configuracao ou de ambiente.
 """
 
 from __future__ import annotations
@@ -19,9 +25,12 @@ import sys
 import tempfile
 from pathlib import Path
 
+from . import contrato as ct
 from . import executor as ex
 from . import ollama as ol
-from .config import ErroConfig, ler_config
+from .agente import Agente, ErroGeracao, ErroIntegridade
+from .config import REPO_ROOT, ErroConfig, ler_config
+from .llm import ClienteOllama, ClienteOpenAI, ErroLLM
 
 VERDE = "\033[32m"
 VERMELHO = "\033[31m"
@@ -51,25 +60,39 @@ class Tela:
         print(f"  {self._c('info ', AMARELO)}  {texto}", flush=True)
 
 
+def _tamanho(n: int) -> str:
+    """Bytes na unidade que faz sentido: uma camada de 400 bytes nao e 0.00 GB."""
+    if n >= 1e9:
+        return f"{n / 1e9:.2f} GB"
+    if n >= 1e6:
+        return f"{n / 1e6:.1f} MB"
+    return f"{max(n, 1) / 1e3:.1f} KB"
+
+
 def _progresso_download(interativo: bool):
-    """Barra de download do modelo; sem terminal, so as mudancas de estado."""
-    ultimo = {"status": None, "pct": -1}
+    """Uma linha por etapa do download; no terminal, reescrita no lugar.
+
+    O Ollama anuncia cada camada (`pulling <digest>`) antes de mandar o
+    progresso dela, com o MESMO status: por isso a linha so muda quando o
+    status muda, e cada camada ocupa uma linha so.
+    """
+    ultimo: dict = {"status": None, "decil": None}
 
     def mostrar(status: str, feito: int | None, total: int | None) -> None:
-        if feito and total:
+        numeros, decil = "", None
+        if feito is not None and total:
             pct = int(100 * feito / total)
-            if interativo:
-                print(f"\r         {status[:28]:<28} {pct:3d}%  "
-                      f"({feito / 1e9:.2f}/{total / 1e9:.2f} GB)", end="", flush=True)
-            elif pct // 10 != ultimo["pct"] // 10:
-                print(f"         {pct}% ({feito / 1e9:.2f}/{total / 1e9:.2f} GB)", flush=True)
-            ultimo["pct"] = pct
-        elif status != ultimo["status"]:
-            if interativo and ultimo["pct"] >= 0:
+            decil = pct // 10
+            numeros = f"{pct:3d}%  ({_tamanho(feito)} de {_tamanho(total)})"
+        novo = status != ultimo["status"]
+        texto = f"         {status[:28]:<28} {numeros}"
+        if interativo:
+            if novo and ultimo["status"] is not None:
                 print()
-            print(f"         {status}", flush=True)
-            ultimo["pct"] = -1
-        ultimo["status"] = status
+            print(f"\r{texto:<78}", end="", flush=True)
+        elif novo or decil != ultimo["decil"]:
+            print(texto.rstrip(), flush=True)
+        ultimo["status"], ultimo["decil"] = status, decil
     return mostrar
 
 
@@ -218,6 +241,115 @@ def cmd_preparar(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tipos(args: argparse.Namespace) -> int:
+    print("Tipos de CPU que o gerador pede e o rvverify sabe julgar:\n")
+    for t in ct.TIPOS.values():
+        print(f"  {t.nome:<11} {t.descricao}")
+        print(f"  {'':<11} parada: {t.halt['mode']}; blocos padrao: "
+              f"{', '.join(b.name for b in t.blocos)}")
+    print(f"\nISAs: {', '.join(ct.ISAS)}. Outra extensao exige primeiro estender "
+          f"o validador (spec, modelo de referencia, montador e casos).")
+    return 0
+
+
+class Relator:
+    """Linhas do agente, mais um contador vivo enquanto o modelo responde."""
+
+    def __init__(self, interativo: bool) -> None:
+        self.interativo = interativo
+        self._contador = False
+
+    def progresso(self, caracteres: int) -> None:
+        if self.interativo:
+            print(f"\r           {caracteres} caracteres recebidos", end="", flush=True)
+            self._contador = True
+
+    def linha(self, texto: str) -> None:
+        if self._contador:
+            print("\r" + " " * 48 + "\r", end="")
+            self._contador = False
+        print(texto, flush=True)
+
+
+def cmd_gerar(args: argparse.Namespace) -> int:
+    def erro(texto: str) -> int:
+        print(f"ERRO: {texto}", file=sys.stderr)
+        return 2
+
+    try:
+        cfg = ler_config()
+        tipo = ct.validar(args.tipo, args.isa)       # antes de qualquer modelo
+    except (ErroConfig, ct.ErroContrato) as e:
+        return erro(str(e))
+    pasta = Path(args.pasta).resolve()
+    try:
+        pasta.relative_to(REPO_ROOT)
+    except ValueError:
+        return erro(f"{pasta} esta fora do repositorio; use entregas/<nome>.")
+    if args.exemplo and not any(Path(args.exemplo).glob("src/*.vhd")):
+        return erro(f"--exemplo {args.exemplo}: nenhum src/*.vhd ali.")
+    try:
+        executor = ex.escolher_executor(args.executor or cfg.executor, cfg.imagem_docker)
+    except ex.ErroExecutor as e:
+        return erro(f"{e}\nRode `python -m rvgen preparar` para ver o que falta.")
+
+    relator = Relator(sys.stdout.isatty())
+    provedor = args.provedor or cfg.provedor
+    if provedor == "ollama":
+        servidor = ol.localizar_servidor(ol.hosts_candidatos())
+        if servidor is None:
+            return erro("nenhum servidor Ollama respondeu. Rode `python -m rvgen preparar`.")
+        try:
+            modelo, origem = ol.resolver_modelo(args.modelo, args.perfil, cfg.modelo)
+            instalados = ol.modelos_instalados(servidor[0])
+        except ol.ErroOllama as e:
+            return erro(str(e))
+        if not ol.tem_modelo(instalados, modelo):
+            return erro(f"o modelo {modelo} ({origem}) nao esta baixado. Rode "
+                        f"`python -m rvgen preparar --modelo {modelo}`.")
+        cliente = ClienteOllama(servidor[0], modelo, num_ctx=cfg.num_ctx,
+                                temperatura=cfg.temperatura, timeout=cfg.timeout_s,
+                                ao_progredir=relator.progresso)
+        onde = f"ollama {modelo} ({origem}) em {servidor[0]}, num_ctx {cfg.num_ctx}"
+    else:
+        if not cfg.openrouter_key:
+            return erro("OPENROUTER_API_KEY nao definida (.env ou ambiente).")
+        modelo = args.modelo or cfg.modelo_externo
+        cliente = ClienteOpenAI(cfg.openrouter_url, cfg.openrouter_key, modelo,
+                                temperatura=cfg.temperatura, timeout=cfg.timeout_s)
+        onde = f"openrouter {modelo}"
+
+    rel_pasta = pasta.relative_to(REPO_ROOT).as_posix()
+    print(f"rvgen gerar -> {rel_pasta}  ({tipo.nome}, {args.isa})")
+    print(f"  modelo  : {onde}")
+    print(f"  executor: {executor.nome}; ate {args.iteracoes} iteracoes de correcao"
+          + (f"; exemplo: {args.exemplo}" if args.exemplo else ""))
+    agente = Agente(cliente=cliente, executor=executor, pasta=pasta, tipo=tipo,
+                    isa=args.isa, iteracoes=args.iteracoes,
+                    exemplo=Path(args.exemplo) if args.exemplo else None,
+                    forcar=args.forcar, relatar=relator.linha)
+    try:
+        r = agente.gerar()
+    except ErroIntegridade as e:
+        print(f"\nVEREDITO RECUSADO: {e}", file=sys.stderr)
+        return 1
+    except (ErroGeracao, ErroLLM, ex.ErroExecutor) as e:
+        return erro(f"{e}\n(sessao em {agente.sessao})")
+
+    selo = "OBJETIVO ATINGIDO" if r.objetivo_atingido else "OBJETIVO NAO ATINGIDO"
+    print(f"\n{'=' * 66}")
+    print(f"{rel_pasta}   {r.veredito.upper()}   ({selo})")
+    print("=" * 66)
+    print(f"  placar final   : {r.placar.texto()}")
+    print(f"  iteracoes      : {r.iteracoes} de correcao, {r.chamadas} chamadas ao modelo")
+    print(f"  tokens         : {r.tokens_entrada} de entrada, {r.tokens_saida} de saida")
+    print(f"  tempo          : {r.segundos / 60:.1f} min")
+    print(f"  sessao         : {r.sessao.relative_to(REPO_ROOT).as_posix()}")
+    print(f"  relatorio JSON : {r.relatorio.relative_to(REPO_ROOT).as_posix()}")
+    print(f"  validar de novo: python -m rvverify {rel_pasta}")
+    return 0 if r.objetivo_atingido else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="python -m rvgen",
@@ -238,6 +370,30 @@ def main(argv: list[str] | None = None) -> int:
                    help="onde rodar o rvverify (padrao: auto)")
     p.add_argument("--sem-cor", action="store_true", help="saida sem cor ANSI")
     p.set_defaults(func=cmd_preparar)
+
+    t = sub.add_parser("tipos", help="lista os tipos de CPU e as ISAs aceitas")
+    t.set_defaults(func=cmd_tipos)
+
+    g = sub.add_parser("gerar", help="gera uma CPU, valida no rvverify e corrige")
+    g.add_argument("pasta", help="pasta da entrega, dentro do repositorio (ex.: entregas/ia_mono)")
+    g.add_argument("--tipo", required=True, choices=list(ct.TIPOS))
+    g.add_argument("--isa", required=True,
+                   help=f"ISA da CPU; o rvverify julga {', '.join(ct.ISAS)}")
+    g.add_argument("--provedor", choices=["ollama", "openrouter"], default=None,
+                   help="ollama (local, padrao) ou openrouter (externo)")
+    g.add_argument("--modelo", help="modelo (padrao: perfil pela VRAM ou SPECHDL_LLM_MODEL)")
+    g.add_argument("--perfil", choices=["auto", *ol.PERFIS], default=None,
+                   help="perfil de modelo local")
+    g.add_argument("--iteracoes", type=int, default=12,
+                   help="maximo de correcoes antes do veredito (padrao: 12)")
+    g.add_argument("--executor", choices=["auto", "local", "docker"], default=None,
+                   help="onde rodar o rvverify (padrao: auto)")
+    g.add_argument("--exemplo", metavar="DIR",
+                   help="CPU de referencia cujo src/*.vhd entra no prompt "
+                        "(ex.: cpus/rv32i_monociclo); fica registrado na sessao")
+    g.add_argument("--forcar", action="store_true",
+                   help="sobrescreve os arquivos gerados numa pasta que ja existe")
+    g.set_defaults(func=cmd_gerar)
 
     args = ap.parse_args(argv)
     return args.func(args)

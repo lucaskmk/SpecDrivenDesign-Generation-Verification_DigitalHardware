@@ -252,6 +252,34 @@ class TestComandoPreparar(unittest.TestCase):
         self.assertIn("executor do rvverify: docker", saida)
         self.assertIn("Tudo pronto", saida)
 
+    def test_progresso_uma_linha_por_camada_e_unidade_certa(self):
+        # a sequencia que o Ollama 0.32.1 mandou de verdade, encurtada
+        eventos = [("pulling manifest", None, None),
+                   ("pulling ac9bc7a69dab", None, None),
+                   ("pulling ac9bc7a69dab", 4_494_000_000, 8_988_000_000),
+                   ("pulling ac9bc7a69dab", 8_988_000_000, 8_988_000_000),
+                   ("pulling 66b9ea09bd5b", None, None),
+                   ("pulling 66b9ea09bd5b", 68, 68),
+                   ("success", None, None)]
+        for interativo in (False, True):
+            saida = io.StringIO()
+            with redirect_stdout(saida):
+                mostrar = cli._progresso_download(interativo)
+                for ev in eventos:
+                    mostrar(*ev)
+                print()
+            # o que fica visivel: em cada linha, o texto depois do ultimo \r
+            # (splitlines() nao serve -- ele tambem quebra no \r)
+            linhas = [ln.split("\r")[-1].rstrip() for ln in saida.getvalue().split("\n")]
+            linhas = [ln for ln in linhas if ln]
+            with self.subTest(interativo=interativo):
+                camada = [ln for ln in linhas if "ac9bc7a69dab" in ln]
+                self.assertIn("100%  (8.99 GB de 8.99 GB)", camada[-1])
+                self.assertTrue(any("(0.1 KB de 0.1 KB)" in ln for ln in linhas))
+                self.assertNotIn("0.00 GB", saida.getvalue())
+                if interativo:   # uma linha visivel por etapa
+                    self.assertEqual(len(linhas), 4)
+
     def test_tudo_ja_pronto(self):
         codigo, saida, acoes = self._rodar(
             [], servidor=("http://127.0.0.1:11434", "0.32.1"), binario=Path("ollama"),
