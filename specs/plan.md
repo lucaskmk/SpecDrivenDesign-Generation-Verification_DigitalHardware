@@ -617,3 +617,78 @@ inventado). Falta só `TRV-8.8`: rodar contra `cpus/rv32i_pipeline` de
 verdade (não mais o `counter4` de fumaça) — isso ainda depende de RV-7
 fechado, porque não faz sentido medir FPGA de uma CPU cujo comportamento
 não foi provado (mesma lógica da seção 8.1).
+
+## 9. Gerador de CPUs por agente, local ou externo (RV-9)
+
+Requisitos: FR-RV-43 a FR-RV-50, NFR-RV-07. Decisão: ADR-018.
+
+### 9.1 Onde isso entra
+
+O `rvverify` julga uma CPU; até aqui, quem escrevia a CPU era um aluno ou um
+agente externo operado à mão (`implemetation_tests/opus_5_RISCVIM`). O
+`rvgen` fecha o laço dentro do repositório: gera uma entrega em
+`entregas/<nome>/` e a submete ao **mesmo** validador. Ele é cliente do
+`rvverify`, nunca o contrário (NFR-RV-07):
+
+```
+python -m rvgen preparar   Ollama? modelo? onde rodar o GHDL?  (FR-RV-43..45)
+python -m rvgen gerar entregas/<nome> --tipo monociclo --isa rv32im
+
+  contrato do tipo ──► LLM: architecture.json ──► LLM: um .vhd por bloco
+         │                                                   │
+         └──────────► cpu.toml (determinístico) ◄────────────┘
+                               │
+             ┌──── python -m rvverify (host ou docker) ◄────┐
+             │                                              │
+       compilou? casos? ──► diagnóstico ──► LLM: corrige um arquivo
+             │
+     suíte completa, sem --casos ──► veredito (FR-RV-27, FR-RV-49)
+```
+
+### 9.2 Por que um agente com fases fixas
+
+Um modelo local de 7 a 30 bilhões de parâmetros se perde em tarefas longas
+e abertas. Por isso o LLM não recebe um shell nem escolhe o próximo passo:
+o orquestrador em Python fixa a sequência — decomposição, um arquivo por
+vez, compilação, etapa RV32I, etapa RV32IM — e o modelo só preenche cada
+passo. O que não precisa de IA não passa por IA: o `cpu.toml` sai do
+contrato do tipo, os nomes observáveis (`pc`, `register_file.registers`,
+`data_memory.data_ram.memory`) são fixados no prompt, e o veredito é sempre
+o do `rvverify`. Detalhe e alternativas na ADR-018.
+
+### 9.3 Contrato de cada tipo
+
+| tipo | parada (`[halt]`) | o que o prompt fixa |
+|---|---|---|
+| `monociclo` | `fetch_pc`, `pc`, 2 ciclos estacionário | um ciclo por instrução, PC como único registrador do núcleo |
+| `multiciclo` | `fetch_pc`, `pc`, 8 ciclos estacionário | FSM de busca/decodificação/execução/memória/escrita; `pc` só muda no fim da instrução |
+| `pipeline` | `commit_pc`, `pc_e` + `jump_e` | 5 estágios, forwarding, stall de load-use, flush em salto; sinais `stall_pc`, `flush_d`, `flush_f` expostos para métricas |
+
+As três usam as memórias e a `mul_div_unit` fornecidas por
+`cpus/rv32i_pipeline/src/` (as mesmas de `entregas/_modelo/`) e o mesmo
+top-level: entidade `cpu_top`, portas `clk`/`rst`, generics
+`ROM_INIT_FILE`, `ROM_SIZE_WORDS` e `RV32M_ENABLE`. ISAs aceitas: `rv32i` e
+`rv32im` — as que a suíte sabe julgar. Outras extensões exigem primeiro
+estender o validador (spec, modelo de referência, montador e casos).
+
+### 9.4 Local e externo
+
+O provedor é configuração, não código (FR-RV-46): `ollama` fala a API
+nativa `/api/chat` (para fixar `num_ctx` e pedir saída em JSON Schema) e
+`openrouter` fala Chat Completions compatível com OpenAI. Os dois são
+HTTP da biblioteca padrão, então o `rvgen` roda no host ou dentro da
+imagem `spechdl-toolchain` sem instalar pacote Python. Perfis locais,
+com tamanhos lidos do registro do Ollama em 2026-09-30:
+
+| perfil | modelo | download | quando |
+|---|---|---|---|
+| `leve` | `qwen2.5-coder:7b` | 4,68 GB | GPU com menos de 10 GB |
+| `padrao` | `qwen2.5-coder:14b` | 8,99 GB | GPU de 10 a 23 GB |
+| `forte` | `qwen3-coder:30b` | 18,56 GB | GPU de 24 GB ou mais (MoE; roda com parte na RAM) |
+
+### 9.5 Gate
+
+O gerador está pronto quando `preparar` e `gerar` rodam de verdade numa
+máquina limpa e o laço completo — gerar, validar, corrigir, veredito —
+executa contra o `rvverify` real. Aprovar a CPU gerada **não** é critério:
+um modelo local reprovar é resultado de medição, não defeito do gerador.

@@ -556,3 +556,81 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   execução default de `rvverify` (FR-RV-26/27) independente da imagem do
   Quartus estar presente ou não: a análise desta seção é aditiva, e sua
   ausência nunca é motivo para pular ou reprovar a suíte de conformidade.
+
+---
+
+## Gerador de CPUs por agente, com IA local ou externa (FR-RV-43 a FR-RV-50, NFR-RV-07)
+
+> Acrescentado em 2026-09-30, a pedido do usuário: gerar CPUs RISC-V
+> inteiras com um modelo de linguagem rodando **na própria máquina**
+> (Ollama), sem perder a opção de usar um modelo externo (OpenRouter). O
+> gerador é um **cliente** do validador de FR-RV-26: ele escreve uma
+> entrega e o `rvverify` a julga exatamente como julgaria a de um aluno.
+> Reprovar continua sendo resultado legítimo — o gerador não relaxa nada da
+> suíte. Arquitetura em `plan.md`, seção 9; decisão em `decisions.md`,
+> ADR-018.
+
+- **FR-RV-43**: THE SYSTEM SHALL oferecer o comando
+  `python -m rvgen preparar`, que verifica e reporta, item a item, como
+  pronto ou faltando: (a) um servidor Ollama respondendo em algum endereço
+  candidato — `OLLAMA_HOST`, `127.0.0.1:11434`,
+  `host.docker.internal:11434`; (b) o executável do Ollama instalado; (c) o
+  modelo configurado já baixado; (d) um executor do validador — GHDL e
+  cocotb no `PATH`, ou a imagem Docker `spechdl-toolchain` (NFR-RV-05) — e
+  (e) a chave do provedor externo, apenas como informação. Para cada item
+  faltando, THE SYSTEM SHALL mostrar o comando exato que o resolve, e SHALL
+  terminar com exit code diferente de zero enquanto algum item obrigatório
+  faltar.
+- **FR-RV-44**: IF o Ollama não estiver instalado, ou o modelo configurado
+  não estiver baixado, THEN THE SYSTEM SHALL oferecer instalá-lo ou baixá-lo,
+  mostrando antes a origem e, quando obtível, o tamanho do download, e SHALL
+  executar a instalação ou o download somente depois de confirmação
+  explícita — resposta afirmativa no terminal ou a opção `--sim`. Em modo
+  `--verificar`, ou sem terminal interativo e sem `--sim`, THE SYSTEM SHALL
+  NOT baixar nem instalar nada (FR-RV-20).
+- **FR-RV-45**: WHERE o executável do Ollama existe mas nenhum servidor
+  responde, THE SYSTEM SHALL iniciar `ollama serve` em segundo plano, com a
+  saída gravada num arquivo de log próprio, e esperar até o servidor
+  responder ou um tempo-limite se esgotar; IF o tempo-limite se esgotar,
+  THEN THE SYSTEM SHALL reportar a falha com o caminho desse log.
+- **FR-RV-46**: THE SYSTEM SHALL acessar o modelo de linguagem por uma
+  interface única com dois provedores intercambiáveis sem mudança de código —
+  `ollama` (local, padrão) e `openrouter` (externo, chave em
+  `OPENROUTER_API_KEY`) —, escolhidos por `RVGEN_PROVEDOR` ou `--provedor` e
+  por `RVGEN_MODELO` ou `--modelo`, usando apenas a biblioteca padrão do
+  Python; WHERE nenhum modelo local for informado, THE SYSTEM SHALL escolher
+  um perfil de modelo pela memória de vídeo medida (`nvidia-smi`) e
+  declarar a escolha na saída.
+- **FR-RV-47**: WHEN o usuário executa
+  `python -m rvgen gerar <pasta> --tipo T --isa I`, THE SYSTEM SHALL gerar
+  em `<pasta>` uma entrega completa — `architecture.json` com a
+  decomposição em blocos, cada bloco justificado por requisito (FR-05,
+  FR-06); um arquivo VHDL por bloco, com o comentário `-- REQ:` (FR-09); e um
+  `cpu.toml` montado **deterministicamente** a partir do contrato do tipo —
+  para os tipos `monociclo`, `multiciclo` e `pipeline` e as ISAs `rv32i` e
+  `rv32im`, e SHALL recusar, antes de chamar qualquer modelo, um tipo ou uma
+  ISA que o `rvverify` não saiba julgar (princípios 4 e 11).
+- **FR-RV-48**: WHILE a entrega gerada não estiver aprovada e restar
+  orçamento de iterações (`--iteracoes`), THE SYSTEM SHALL executar o
+  `rvverify` real sobre ela, entregar ao modelo os erros de compilação do
+  GHDL (arquivo, linha, coluna) e os diagnósticos estruturados de FR-RV-28, e
+  aplicar a correção proposta; IF uma correção piorar o placar — compilação
+  que deixa de passar, ou menos casos aprovados —, THEN THE SYSTEM SHALL
+  desfazê-la e informar isso ao modelo na iteração seguinte.
+- **FR-RV-49**: THE SYSTEM SHALL declarar o resultado da geração
+  exclusivamente pelo veredito de FR-RV-27 obtido numa execução completa do
+  `rvverify` — as duas etapas, sem `--casos` —, SHALL restringir toda
+  escrita do agente a arquivos `.vhd` dentro de `<pasta>/src/`, e SHALL
+  recusar o veredito se algum arquivo do validador (`rvverify/`) ou alguma
+  fonte fornecida usada pela entrega mudar durante a geração.
+- **FR-RV-50**: THE SYSTEM SHALL registrar em `<pasta>/.rvgen/` cada chamada
+  ao modelo — provedor, modelo, mensagens, resposta, tokens e duração —,
+  cada execução do `rvverify` com o seu relatório JSON, e o veredito final
+  com o número de iterações, de modo que a geração seja auditável e
+  comparável entre modelos locais e externos.
+- **NFR-RV-07**: THE SYSTEM SHALL manter o `rvverify` sem nenhuma
+  dependência do gerador: o gerador invoca `python -m rvverify` como
+  subprocesso — no host ou dentro da imagem `spechdl-toolchain` —, nunca o
+  contrário, e NFR-RV-04 continua valendo para o validador. A ausência do
+  Ollama, do modelo ou da chave externa nunca afeta a execução do
+  `rvverify`.

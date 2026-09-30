@@ -917,3 +917,89 @@ tabela é a chave para lê-los.
 ser física também: nenhuma delas enxerga, no build, um arquivo da outra. Uma
 imagem nova entra como uma pasta nova em `docker/` e uma linha nova em
 `docker/README.md`.
+
+## ADR-018 — Gerador de CPUs por agente (`rvgen`), com IA local via Ollama e externa via OpenRouter
+
+**Contexto.** Em 2026-09-30 o usuário pediu para gerar CPUs RISC-V dos
+diferentes tipos com um modelo de linguagem **local**, sem perder a opção de
+um modelo externo, e com um comando que confira se o Ollama existe e o
+instale se faltar. Até aqui a geração de CPU por IA só aconteceu fora do
+repositório, com um agente externo operado à mão
+(`implemetation_tests/opus_5_RISCVIM`, aprovada 35/35). As fases 2 a 4 da
+trilha A, onde a geração morava, são pacotes vazios em `legado/`
+(`docs/ESTADO-TRILHA-A.md`), e o princípio 7 proíbe pôr código específico
+de RISC-V ali. Três fatos do ambiente pesam na decisão, verificados nesta
+data: a máquina de referência tem GPU de 12 GB, 64 GB de RAM e Ollama
+0.32.1 instalado, mas só com modelos generalistas pequenos; o GHDL não está
+no host Windows, só na imagem `spechdl-toolchain` (NFR-RV-05); e o
+registro do Ollama confirma os modelos de código dos perfis de `plan.md`,
+seção 9.4, com os tamanhos citados lá.
+
+**Decisão.**
+
+1. **Pacote novo `rvgen/`, na raiz, na trilha B.** É cliente do
+   `rvverify`: roda `python -m rvverify` como subprocesso e lê o
+   `--json` dele. O validador não ganha nenhum import, nenhuma dependência
+   e nenhum conhecimento do gerador (NFR-RV-07); um modelo nunca julga a
+   própria CPU.
+2. **Agente com fases fixas, não agente livre.** O orquestrador fixa a
+   sequência (decomposição → um arquivo por vez → compilação → RV32I →
+   RV32IM → veredito completo) e o modelo só preenche cada passo. O
+   `cpu.toml` e os nomes observáveis vêm do contrato do tipo, não do
+   modelo. Correção que piora o placar é desfeita. Escrita restrita a
+   `<pasta>/src/*.vhd`; hash de `rvverify/` e das fontes fornecidas
+   conferido antes do veredito (FR-RV-49).
+3. **HTTP da biblioteca padrão para os dois provedores.** Ollama pela API
+   nativa (`/api/chat`, que aceita `num_ctx` e saída restrita a JSON
+   Schema) e OpenRouter pela API Chat Completions compatível com OpenAI.
+   Isto **revisa, para o `rvgen`**, a decisão registrada em `plan.md`
+   ("Acesso a LLM — por que OpenRouter") de usar o SDK nativo do
+   OpenRouter: o provedor externo continua sendo o OpenRouter, com a mesma
+   `OPENROUTER_API_KEY` e o mesmo `SPECHDL_LLM_MODEL` como default externo;
+   muda só a biblioteca cliente, para o gerador rodar dentro da imagem
+   `spechdl-toolchain` sem instalar pacote e para local e externo passarem
+   pelo mesmo código. A trilha A não é tocada. Como a escolha original foi
+   do professor, esta revisão precisa ser levada a ele.
+4. **Instalação só com confirmação.** `preparar` oferece `winget` no
+   Windows, o script oficial `https://ollama.com/install.sh` no Linux e
+   `brew` no macOS, e baixa o modelo por `/api/pull` — sempre depois de
+   mostrar origem e tamanho e receber um "sim" (FR-RV-44, FR-RV-20).
+   Iniciar `ollama serve` não pede confirmação: não baixa nem instala nada,
+   e grava log próprio (FR-RV-45).
+5. **Executor do validador em dois modos.** `local` quando GHDL e cocotb
+   estão no `PATH`; `docker` quando não estão e a imagem `spechdl-toolchain`
+   existe. É o segundo que permite, no host Windows, ter o Ollama nativo
+   (com GPU) e o GHDL no container ao mesmo tempo.
+6. **Tipos limitados ao que a suíte julga.** `monociclo`, `multiciclo` e
+   `pipeline`, em `rv32i` e `rv32im`. Qualquer outra ISA é recusada antes de
+   gastar uma chamada de modelo.
+7. **Exceção ao fase gate, registrada.** RV-7 ainda tem tarefas abertas
+   (TRV-7.2 a TRV-7.6). O usuário pediu explicitamente para começar a RV-9
+   agora — o mesmo tipo de exceção já registrado para a RV-8 em `plan.md`,
+   seção 8.4. A RV-9 não depende dessas tarefas: usa o `rvverify` como ele
+   está.
+
+**Alternativas rejeitadas.**
+
+- *Só documentar o uso de um agente de terminal pronto (OpenCode, Aider)
+  apontado para o Ollama.* Serve para experimentar, e continua possível,
+  mas não é um comando único reprodutível (princípio 6), não registra a
+  sessão no formato do projeto e deixa o agente livre para editar o
+  validador ou apagar o caso que falhou.
+- *Chamar o modelo de dentro do `rvverify`.* Viola NFR-RV-04 e mistura o
+  juiz com o julgado.
+- *SDK `openrouter` e pacote `ollama` em Python.* Duas dependências para o
+  que são quatro chamadas HTTP; e a imagem `spechdl-toolchain` não as tem.
+- *Tool calling nativo do modelo.* Os modelos locais dos perfis erram mais
+  no formato de ferramenta do que num bloco de código ou num JSON restrito
+  por schema; o orquestrador faz o papel das ferramentas.
+- *Fine-tuning de um modelo local.* Ainda não existe dado: as sessões
+  registradas por FR-RV-50 (diagnóstico → correção que passou) são o que
+  permitiria isso depois.
+
+**Consequência.** Qualquer pessoa com Ollama e Docker gera e valida uma CPU
+com um comando, sem chave de API; com a chave, troca para um modelo externo
+mudando uma variável. Se um modelo local não conseguir aprovar a CPU, isso
+é resultado de medição, não defeito do gerador. As sessões ficam em
+`<pasta>/.rvgen/` para comparar modelos. Uma ISA nova continua exigindo
+primeiro estender o validador.
