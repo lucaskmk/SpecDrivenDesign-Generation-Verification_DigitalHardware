@@ -935,7 +935,7 @@ da CPU gerada, que é resultado de medição do modelo usado.
     `--verificar` e a ausência de terminal sem `--sim` não instalam nem
     baixam nada; `python -m rvgen preparar --verificar` rodado de verdade
     nesta máquina, com exit code conferido
-- [ ] TRV-9.4 — Executor do validador: local ou Docker
+- [x] TRV-9.4 — Executor do validador: local ou Docker
   - REQ: FR-RV-49, NFR-RV-07
   - ACEITE: testes da montagem do comando nos dois modos (caminhos POSIX
     relativos à raiz no Docker, `RVVERIFY_BUILD_ROOT` próprio da entrega,
