@@ -1086,7 +1086,7 @@ da CPU gerada, que é resultado de medição do modelo usado.
     25 325 tokens, 17,0 e 18,3 min, custo 0 por serem locais). O formato de
     `por_etapa`/`pulado` que o comando lê foi conferido num relatório real
     do rvverify
-- [ ] TRV-9.11 — Descrição da CPU em texto livre (`--descricao`)
+- [x] TRV-9.11 — Descrição da CPU em texto livre (`--descricao`)
   - REQ: FR-RV-52 (ADR-020)
   - ACEITE: testes: a descrição aparece nos pedidos de decomposição,
     escrita e correção, subordinada ao contrato; o mapeamento
@@ -1094,10 +1094,51 @@ da CPU gerada, que é resultado de medição do modelo usado.
     `resultado.json` gravados; `--descricao-arquivo` lido; a comparação
     marca `+descricao`. Uma geração real com descrição roda de verdade e o
     mapeamento aparece no `architecture.json`
-- [ ] TRV-9.12 — Temperatura mantida enquanto o placar não melhora
+  - EXECUÇÃO CONFERIDA (2026-09-30): testes do gerador -> 90, exit 0.
+    Geração real `gerar ia_mono_qwen14b_descricao --descricao "Banco de
+    registradores com reset síncrono. Gerador de imediatos em um bloco
+    separado do decodificador. Comentários em inglês explicando cada bloco."`
+    (`qwen2.5-coder:14b`, sessão `sessao-20260930-210740`): a descrição
+    entrou em 19 de 19 pedidos ao modelo; o modelo criou o bloco
+    `immediate_generator` pedido e mapeou os 2 pedidos em `requests`;
+    `descricao.md` e `resultado.json` gravados, em UTF-8 correto;
+    `rvgen comparar` mostra `qwen2.5-coder:14b (local) +descricao`.
+    Veredito: REPROVADO, não compilou, 12 iterações, 19 chamadas, 16,9 min.
+    O mesmo teste mostrou por que a descrição é "não verificada": o modelo
+    declarou "reset síncrono" no mapeamento, mas o VHDL tem reset assíncrono
+    (`process(clk, rst)`, `if rst = '1'` antes de `rising_edge`), que é o
+    que o contrato exige. Uma execução anterior com a mesma descrição
+    (`sessao-20260930-204726`) foi interrompida pelo fim da sessão do
+    terminal na iteração 11, depois de a CPU compilar pela primeira vez
+    (0/1 casos na fumaça)
+- [x] TRV-9.12 — Temperatura mantida enquanto o placar não melhora
   - REQ: FR-RV-48
   - ACEITE: teste: depois de uma alteração que não melhora o placar, o
     pedido seguinte continua na temperatura alta; só uma melhora volta ao
     normal. Motivo registrado a partir de `experimentos/ia_mono_qwen14b`:
     a 0,2 e 0,6 o modelo repetiu o arquivo nas 3 vezes, a 0,9 mudou nas 4,
     e só 4 das 12 iterações produziram código novo
+  - EXECUÇÃO CONFERIDA (2026-09-30): testes com a regra nova, exit 0. Na
+    geração real com descrição (`sessao-20260930-210740`) a temperatura
+    ficou em 0,9 da 3ª correção em diante, como especificado, e o log do
+    `ollama serve` confirma que ela chega ao servidor (22 pedidos a 0,9).
+    ACHADO: mesmo a 0,9 o modelo devolveu o `cpu_top.vhd` idêntico em 8 de
+    10 correções. Ele copia o arquivo atual, que vai no próprio pedido, e
+    copiar é tão provável que a temperatura não basta. A regra fica, mas
+    não resolve esse caso; o próximo passo é, depois de duas repetições,
+    pedir o arquivo reescrito do zero, sem mostrar o atual
+- [x] TRV-9.13 — Tela do `gerar`: fase, tempo decorrido, contador e estimativa
+  - REQ: FR-RV-47
+  - ACEITE: cada linha com o tempo decorrido; fases `[1/4]` a `[4/4]`;
+    "arquivo k de n" na escrita; durante cada espera, contador vivo no
+    terminal que distingue "aguardando" (fila do Ollama, modelo carregando)
+    de "N caracteres recebidos"; estimativa a partir da média das
+    iterações já feitas, rotulada "se usar as N iterações restantes"
+  - EXECUÇÃO CONFERIDA (2026-09-30): `TestRelator` (carimbo de tempo com
+    relógio falso; contador vivo começa numa linha terminada em "...", mostra
+    "aguardando" e depois os caracteres, e para na linha seguinte) e
+    `test_tela_mostra_as_fases_em_ordem` e
+    `test_estimativa_aparece_a_partir_da_segunda_iteracao` -> 90 testes,
+    exit 0. A duração impressa no cabeçalho cita as execuções reais medidas
+    (16,9, 17,0 e 18,3 min). O contador vivo só aparece em terminal
+    interativo e ainda não foi visto numa geração real

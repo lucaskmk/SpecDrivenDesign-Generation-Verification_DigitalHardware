@@ -1,0 +1,1234 @@
+[
+  {
+    "design": "ia_mono_qwen14b_descricao",
+    "manifest": "/job/experimentos/ia_mono_qwen14b_descricao/cpu.toml",
+    "veredito": "reprovado",
+    "aprovado": false,
+    "codigo_saida": 1,
+    "escopo": {
+      "completo": false,
+      "etapas": [
+        "rv32i"
+      ],
+      "casos_selecionados": 24,
+      "casos_na_suite": 35,
+      "casos_pulados": []
+    },
+    "compilacao": {
+      "ok": true,
+      "erros": [],
+      "segundos": 0.32,
+      "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log"
+    },
+    "por_etapa": {
+      "rv32i": {
+        "total": 24,
+        "passou": 0,
+        "falhou": 24
+      }
+    },
+    "por_requisito": {
+      "FR-RV-04": {
+        "total": 23,
+        "passou": 0,
+        "casos_falhos": [
+          "add",
+          "sub",
+          "and",
+          "or",
+          "xor",
+          "sll",
+          "srl",
+          "sra",
+          "slt",
+          "sltu",
+          "addi",
+          "andi",
+          "ori",
+          "xori",
+          "slti",
+          "sltiu",
+          "slli",
+          "srli",
+          "srai",
+          "x0_imutavel",
+          "load_store_larguras",
+          "branches",
+          "jal_jalr_lui_auipc"
+        ],
+        "titulo": "Sem\u00e2ntica RV32I: registradores, aritm\u00e9tica de 32 bits e load/store",
+        "atendido": false
+      },
+      "FR-RV-05": {
+        "total": 1,
+        "passou": 0,
+        "casos_falhos": [
+          "load_store_larguras"
+        ],
+        "titulo": "Mem\u00f3rias e mapa de endere\u00e7os",
+        "atendido": false
+      },
+      "FR-RV-22": {
+        "total": 21,
+        "passou": 0,
+        "casos_falhos": [
+          "add",
+          "sub",
+          "and",
+          "or",
+          "xor",
+          "sll",
+          "srl",
+          "sra",
+          "slt",
+          "sltu",
+          "addi",
+          "andi",
+          "ori",
+          "xori",
+          "slti",
+          "sltiu",
+          "slli",
+          "srli",
+          "srai",
+          "branches",
+          "laco_com_dependencia"
+        ],
+        "titulo": "Valores de borda e depend\u00eancia entre instru\u00e7\u00f5es",
+        "atendido": false
+      }
+    },
+    "pulado": [],
+    "observabilidade": {
+      "ram": true,
+      "registers": true,
+      "cycles": true,
+      "instructions": false,
+      "m_instructions": true,
+      "unobserved": [
+        "instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel"
+      ]
+    },
+    "casos": [
+      {
+        "name": "add",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "A CPU n\u00e3o terminou o programa: n\u00e3o terminou em 20000 ciclos",
+        "cycles": 20000,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/add",
+        "description": "ADD sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 24.52,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/case_rv32i_add/sim.log",
+        "diagnostico": {
+          "tipo": "travamento",
+          "titulo": "A CPU n\u00e3o terminou o programa",
+          "resumo": "n\u00e3o terminou em 20000 ciclos",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "A CPU n\u00e3o chegou ao auto-la\u00e7o de parada (`halt: j halt`). Causas comuns: salto ou branch com alvo errado, PC que n\u00e3o avan\u00e7a, ou [halt] mal declarado no cpu.toml \u2014 num pipeline com busca especulativa use commit_pc, n\u00e3o fetch_pc (ADR-008). O PC mais visitado foi 0x00000008 (69 ciclos), fora do endere\u00e7o de parada: a execu\u00e7\u00e3o ficou presa ali. Confira a soma na ULA: 32 bits em complemento de dois, com o vai-um do bit 31 descartado (sem satura\u00e7\u00e3o).",
+          "mensagem": "CPU nao terminou em 20000 ciclos (possivel travamento). Modo de parada: fetch_pc. PC de busca = 0x464, PC observado por [halt].pc = 0x464, instrucao buscada = 0xeef58593. Enderecos de parada esperados: ['0x484']. PCs mais visitados: [('0x8', 69), ('0xc', 69), ('0x10', 69), ('0x14', 69), ('0x18', 69)]. Metricas parciais: {'cycles': 20000, 'instructions': None, 'cpi': None, 'halted': False, 'halt_pc': None, 'drain_cycles': 0, 'estimated_time_ns': 200000, 'clock_period_ns': 10, 'estimated_time_note': 'ESTIMATIVA: ciclos x periodo nominal de 10 ns', 'unobserved': ['instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel'], 'instructions_method': 'NAO OBSERVADO: [metrics] do cpu.toml nao declara os sinais de stall/flush necessarios para derivar o numero de instrucoes. instructions e cpi ficam null de proposito -- estimar aqui violaria NFR-RV-02.', 'm_dispatches': 0, 'm_stall_cycles': 0, 'm_stall_note': 'o validador nao conta ciclos de stall atribuiveis a unidade M: [metrics] nao declara sinal para isso, entao 0 aqui significa NAO OBSERVADO, e nao medido como zero', 'cycles_method': 'ciclos do fim do reset ate a parada declarada em [halt]; os ciclos de dreno do pipeline NAO entram na contagem'}",
+          "erros_ghdl": [],
+          "dados": {
+            "max_ciclos": 20000,
+            "modo_parada": "fetch_pc",
+            "pc_busca": 1124,
+            "pc_parada_observado": 1124,
+            "instrucao_buscada": 4009067923,
+            "enderecos_de_parada": [
+              1156
+            ],
+            "pcs_mais_visitados": [
+              [
+                8,
+                69
+              ],
+              [
+                12,
+                69
+              ],
+              [
+                16,
+                69
+              ],
+              [
+                20,
+                69
+              ],
+              [
+                24,
+                69
+              ]
+            ],
+            "pc_observavel": true
+          }
+        }
+      },
+      {
+        "name": "sub",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "A CPU n\u00e3o terminou o programa: n\u00e3o terminou em 20000 ciclos",
+        "cycles": 20000,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sub",
+        "description": "SUB sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 25.04,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/case_rv32i_sub/sim.log",
+        "diagnostico": {
+          "tipo": "travamento",
+          "titulo": "A CPU n\u00e3o terminou o programa",
+          "resumo": "n\u00e3o terminou em 20000 ciclos",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "A CPU n\u00e3o chegou ao auto-la\u00e7o de parada (`halt: j halt`). Causas comuns: salto ou branch com alvo errado, PC que n\u00e3o avan\u00e7a, ou [halt] mal declarado no cpu.toml \u2014 num pipeline com busca especulativa use commit_pc, n\u00e3o fetch_pc (ADR-008). O PC mais visitado foi 0x00000008 (69 ciclos), fora do endere\u00e7o de parada: a execu\u00e7\u00e3o ficou presa ali. Confira a subtra\u00e7\u00e3o rs1 \u2212 rs2 e a ordem dos operandos. SUB e ADD t\u00eam o mesmo funct3 (000); o bit 30 da instru\u00e7\u00e3o (funct7 = 0100000) \u00e9 o que seleciona SUB.",
+          "mensagem": "CPU nao terminou em 20000 ciclos (possivel travamento). Modo de parada: fetch_pc. PC de busca = 0x464, PC observado por [halt].pc = 0x464, instrucao buscada = 0xeef58593. Enderecos de parada esperados: ['0x484']. PCs mais visitados: [('0x8', 69), ('0xc', 69), ('0x10', 69), ('0x14', 69), ('0x18', 69)]. Metricas parciais: {'cycles': 20000, 'instructions': None, 'cpi': None, 'halted': False, 'halt_pc': None, 'drain_cycles': 0, 'estimated_time_ns': 200000, 'clock_period_ns': 10, 'estimated_time_note': 'ESTIMATIVA: ciclos x periodo nominal de 10 ns', 'unobserved': ['instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel'], 'instructions_method': 'NAO OBSERVADO: [metrics] do cpu.toml nao declara os sinais de stall/flush necessarios para derivar o numero de instrucoes. instructions e cpi ficam null de proposito -- estimar aqui violaria NFR-RV-02.', 'm_dispatches': 0, 'm_stall_cycles': 0, 'm_stall_note': 'o validador nao conta ciclos de stall atribuiveis a unidade M: [metrics] nao declara sinal para isso, entao 0 aqui significa NAO OBSERVADO, e nao medido como zero', 'cycles_method': 'ciclos do fim do reset ate a parada declarada em [halt]; os ciclos de dreno do pipeline NAO entram na contagem'}",
+          "erros_ghdl": [],
+          "dados": {
+            "max_ciclos": 20000,
+            "modo_parada": "fetch_pc",
+            "pc_busca": 1124,
+            "pc_parada_observado": 1124,
+            "instrucao_buscada": 4009067923,
+            "enderecos_de_parada": [
+              1156
+            ],
+            "pcs_mais_visitados": [
+              [
+                8,
+                69
+              ],
+              [
+                12,
+                69
+              ],
+              [
+                16,
+                69
+              ],
+              [
+                20,
+                69
+              ],
+              [
+                24,
+                69
+              ]
+            ],
+            "pc_observavel": true
+          }
+        }
+      },
+      {
+        "name": "and",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "A CPU n\u00e3o terminou o programa: n\u00e3o terminou em 20000 ciclos",
+        "cycles": 20000,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/and",
+        "description": "AND sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 47.39,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/case_rv32i_and/sim.log",
+        "diagnostico": {
+          "tipo": "travamento",
+          "titulo": "A CPU n\u00e3o terminou o programa",
+          "resumo": "n\u00e3o terminou em 20000 ciclos",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "A CPU n\u00e3o chegou ao auto-la\u00e7o de parada (`halt: j halt`). Causas comuns: salto ou branch com alvo errado, PC que n\u00e3o avan\u00e7a, ou [halt] mal declarado no cpu.toml \u2014 num pipeline com busca especulativa use commit_pc, n\u00e3o fetch_pc (ADR-008). O PC mais visitado foi 0x00000008 (69 ciclos), fora do endere\u00e7o de parada: a execu\u00e7\u00e3o ficou presa ali. Confira a opera\u00e7\u00e3o bit a bit e o funct3 decodificado (AND = 111).",
+          "mensagem": "CPU nao terminou em 20000 ciclos (possivel travamento). Modo de parada: fetch_pc. PC de busca = 0x464, PC observado por [halt].pc = 0x464, instrucao buscada = 0xeef58593. Enderecos de parada esperados: ['0x484']. PCs mais visitados: [('0x8', 69), ('0xc', 69), ('0x10', 69), ('0x14', 69), ('0x18', 69)]. Metricas parciais: {'cycles': 20000, 'instructions': None, 'cpi': None, 'halted': False, 'halt_pc': None, 'drain_cycles': 0, 'estimated_time_ns': 200000, 'clock_period_ns': 10, 'estimated_time_note': 'ESTIMATIVA: ciclos x periodo nominal de 10 ns', 'unobserved': ['instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel'], 'instructions_method': 'NAO OBSERVADO: [metrics] do cpu.toml nao declara os sinais de stall/flush necessarios para derivar o numero de instrucoes. instructions e cpi ficam null de proposito -- estimar aqui violaria NFR-RV-02.', 'm_dispatches': 0, 'm_stall_cycles': 0, 'm_stall_note': 'o validador nao conta ciclos de stall atribuiveis a unidade M: [metrics] nao declara sinal para isso, entao 0 aqui significa NAO OBSERVADO, e nao medido como zero', 'cycles_method': 'ciclos do fim do reset ate a parada declarada em [halt]; os ciclos de dreno do pipeline NAO entram na contagem'}",
+          "erros_ghdl": [],
+          "dados": {
+            "max_ciclos": 20000,
+            "modo_parada": "fetch_pc",
+            "pc_busca": 1124,
+            "pc_parada_observado": 1124,
+            "instrucao_buscada": 4009067923,
+            "enderecos_de_parada": [
+              1156
+            ],
+            "pcs_mais_visitados": [
+              [
+                8,
+                69
+              ],
+              [
+                12,
+                69
+              ],
+              [
+                16,
+                69
+              ],
+              [
+                20,
+                69
+              ],
+              [
+                24,
+                69
+              ]
+            ],
+            "pc_observavel": true
+          }
+        }
+      },
+      {
+        "name": "or",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "A CPU n\u00e3o terminou o programa: n\u00e3o terminou em 20000 ciclos",
+        "cycles": 20000,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/or",
+        "description": "OR sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 49.26,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/case_rv32i_or/sim.log",
+        "diagnostico": {
+          "tipo": "travamento",
+          "titulo": "A CPU n\u00e3o terminou o programa",
+          "resumo": "n\u00e3o terminou em 20000 ciclos",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "A CPU n\u00e3o chegou ao auto-la\u00e7o de parada (`halt: j halt`). Causas comuns: salto ou branch com alvo errado, PC que n\u00e3o avan\u00e7a, ou [halt] mal declarado no cpu.toml \u2014 num pipeline com busca especulativa use commit_pc, n\u00e3o fetch_pc (ADR-008). O PC mais visitado foi 0x00000008 (69 ciclos), fora do endere\u00e7o de parada: a execu\u00e7\u00e3o ficou presa ali. Confira a opera\u00e7\u00e3o bit a bit e o funct3 decodificado (OR = 110).",
+          "mensagem": "CPU nao terminou em 20000 ciclos (possivel travamento). Modo de parada: fetch_pc. PC de busca = 0x464, PC observado por [halt].pc = 0x464, instrucao buscada = 0xeef58593. Enderecos de parada esperados: ['0x484']. PCs mais visitados: [('0x8', 69), ('0xc', 69), ('0x10', 69), ('0x14', 69), ('0x18', 69)]. Metricas parciais: {'cycles': 20000, 'instructions': None, 'cpi': None, 'halted': False, 'halt_pc': None, 'drain_cycles': 0, 'estimated_time_ns': 200000, 'clock_period_ns': 10, 'estimated_time_note': 'ESTIMATIVA: ciclos x periodo nominal de 10 ns', 'unobserved': ['instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel'], 'instructions_method': 'NAO OBSERVADO: [metrics] do cpu.toml nao declara os sinais de stall/flush necessarios para derivar o numero de instrucoes. instructions e cpi ficam null de proposito -- estimar aqui violaria NFR-RV-02.', 'm_dispatches': 0, 'm_stall_cycles': 0, 'm_stall_note': 'o validador nao conta ciclos de stall atribuiveis a unidade M: [metrics] nao declara sinal para isso, entao 0 aqui significa NAO OBSERVADO, e nao medido como zero', 'cycles_method': 'ciclos do fim do reset ate a parada declarada em [halt]; os ciclos de dreno do pipeline NAO entram na contagem'}",
+          "erros_ghdl": [],
+          "dados": {
+            "max_ciclos": 20000,
+            "modo_parada": "fetch_pc",
+            "pc_busca": 1124,
+            "pc_parada_observado": 1124,
+            "instrucao_buscada": 4009067923,
+            "enderecos_de_parada": [
+              1156
+            ],
+            "pcs_mais_visitados": [
+              [
+                8,
+                69
+              ],
+              [
+                12,
+                69
+              ],
+              [
+                16,
+                69
+              ],
+              [
+                20,
+                69
+              ],
+              [
+                24,
+                69
+              ]
+            ],
+            "pc_observavel": true
+          }
+        }
+      },
+      {
+        "name": "xor",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "A CPU n\u00e3o terminou o programa: n\u00e3o terminou em 20000 ciclos",
+        "cycles": 20000,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/xor",
+        "description": "XOR sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 43.37,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/case_rv32i_xor/sim.log",
+        "diagnostico": {
+          "tipo": "travamento",
+          "titulo": "A CPU n\u00e3o terminou o programa",
+          "resumo": "n\u00e3o terminou em 20000 ciclos",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "A CPU n\u00e3o chegou ao auto-la\u00e7o de parada (`halt: j halt`). Causas comuns: salto ou branch com alvo errado, PC que n\u00e3o avan\u00e7a, ou [halt] mal declarado no cpu.toml \u2014 num pipeline com busca especulativa use commit_pc, n\u00e3o fetch_pc (ADR-008). O PC mais visitado foi 0x00000008 (69 ciclos), fora do endere\u00e7o de parada: a execu\u00e7\u00e3o ficou presa ali. Confira a opera\u00e7\u00e3o bit a bit e o funct3 decodificado (XOR = 100).",
+          "mensagem": "CPU nao terminou em 20000 ciclos (possivel travamento). Modo de parada: fetch_pc. PC de busca = 0x464, PC observado por [halt].pc = 0x464, instrucao buscada = 0xeef58593. Enderecos de parada esperados: ['0x484']. PCs mais visitados: [('0x8', 69), ('0xc', 69), ('0x10', 69), ('0x14', 69), ('0x18', 69)]. Metricas parciais: {'cycles': 20000, 'instructions': None, 'cpi': None, 'halted': False, 'halt_pc': None, 'drain_cycles': 0, 'estimated_time_ns': 200000, 'clock_period_ns': 10, 'estimated_time_note': 'ESTIMATIVA: ciclos x periodo nominal de 10 ns', 'unobserved': ['instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel'], 'instructions_method': 'NAO OBSERVADO: [metrics] do cpu.toml nao declara os sinais de stall/flush necessarios para derivar o numero de instrucoes. instructions e cpi ficam null de proposito -- estimar aqui violaria NFR-RV-02.', 'm_dispatches': 0, 'm_stall_cycles': 0, 'm_stall_note': 'o validador nao conta ciclos de stall atribuiveis a unidade M: [metrics] nao declara sinal para isso, entao 0 aqui significa NAO OBSERVADO, e nao medido como zero', 'cycles_method': 'ciclos do fim do reset ate a parada declarada em [halt]; os ciclos de dreno do pipeline NAO entram na contagem'}",
+          "erros_ghdl": [],
+          "dados": {
+            "max_ciclos": 20000,
+            "modo_parada": "fetch_pc",
+            "pc_busca": 1124,
+            "pc_parada_observado": 1124,
+            "instrucao_buscada": 4009067923,
+            "enderecos_de_parada": [
+              1156
+            ],
+            "pcs_mais_visitados": [
+              [
+                8,
+                69
+              ],
+              [
+                12,
+                69
+              ],
+              [
+                16,
+                69
+              ],
+              [
+                20,
+                69
+              ],
+              [
+                24,
+                69
+              ]
+            ],
+            "pc_observavel": true
+          }
+        }
+      },
+      {
+        "name": "sll",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "A CPU n\u00e3o terminou o programa: n\u00e3o terminou em 20000 ciclos",
+        "cycles": 20000,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sll",
+        "description": "SLL sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 67.82,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/case_rv32i_sll/sim.log",
+        "diagnostico": {
+          "tipo": "travamento",
+          "titulo": "A CPU n\u00e3o terminou o programa",
+          "resumo": "n\u00e3o terminou em 20000 ciclos",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "A CPU n\u00e3o chegou ao auto-la\u00e7o de parada (`halt: j halt`). Causas comuns: salto ou branch com alvo errado, PC que n\u00e3o avan\u00e7a, ou [halt] mal declarado no cpu.toml \u2014 num pipeline com busca especulativa use commit_pc, n\u00e3o fetch_pc (ADR-008). O PC mais visitado foi 0x00000008 (69 ciclos), fora do endere\u00e7o de parada: a execu\u00e7\u00e3o ficou presa ali. Deslocamento l\u00f3gico \u00e0 esquerda: s\u00f3 os 5 bits baixos de rs2 contam (shamt = rs2[4:0]); valores como 0xFFFFFFFF deslocam 31 posi\u00e7\u00f5es.",
+          "mensagem": "CPU nao terminou em 20000 ciclos (possivel travamento). Modo de parada: fetch_pc. PC de busca = 0x464, PC observado por [halt].pc = 0x464, instrucao buscada = 0xeef58593. Enderecos de parada esperados: ['0x484']. PCs mais visitados: [('0x8', 69), ('0xc', 69), ('0x10', 69), ('0x14', 69), ('0x18', 69)]. Metricas parciais: {'cycles': 20000, 'instructions': None, 'cpi': None, 'halted': False, 'halt_pc': None, 'drain_cycles': 0, 'estimated_time_ns': 200000, 'clock_period_ns': 10, 'estimated_time_note': 'ESTIMATIVA: ciclos x periodo nominal de 10 ns', 'unobserved': ['instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel'], 'instructions_method': 'NAO OBSERVADO: [metrics] do cpu.toml nao declara os sinais de stall/flush necessarios para derivar o numero de instrucoes. instructions e cpi ficam null de proposito -- estimar aqui violaria NFR-RV-02.', 'm_dispatches': 0, 'm_stall_cycles': 0, 'm_stall_note': 'o validador nao conta ciclos de stall atribuiveis a unidade M: [metrics] nao declara sinal para isso, entao 0 aqui significa NAO OBSERVADO, e nao medido como zero', 'cycles_method': 'ciclos do fim do reset ate a parada declarada em [halt]; os ciclos de dreno do pipeline NAO entram na contagem'}",
+          "erros_ghdl": [],
+          "dados": {
+            "max_ciclos": 20000,
+            "modo_parada": "fetch_pc",
+            "pc_busca": 1124,
+            "pc_parada_observado": 1124,
+            "instrucao_buscada": 4009067923,
+            "enderecos_de_parada": [
+              1156
+            ],
+            "pcs_mais_visitados": [
+              [
+                8,
+                69
+              ],
+              [
+                12,
+                69
+              ],
+              [
+                16,
+                69
+              ],
+              [
+                20,
+                69
+              ],
+              [
+                24,
+                69
+              ]
+            ],
+            "pc_observavel": true
+          }
+        }
+      },
+      {
+        "name": "srl",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/srl",
+        "description": "SRL sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.37,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "sra",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sra",
+        "description": "SRA sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "slt",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/slt",
+        "description": "SLT sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.39,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "sltu",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sltu",
+        "description": "SLTU sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.41,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "addi",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/addi",
+        "description": "ADDI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "andi",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/andi",
+        "description": "ANDI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.42,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "ori",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/ori",
+        "description": "ORI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "xori",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/xori",
+        "description": "XORI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.42,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "slti",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/slti",
+        "description": "SLTI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.41,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "sltiu",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sltiu",
+        "description": "SLTIU sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.39,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "slli",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/slli",
+        "description": "SLLI sobre 40 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "srli",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/srli",
+        "description": "SRLI sobre 40 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.41,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "srai",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/srai",
+        "description": "SRAI sobre 40 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "x0_imutavel",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/x0_imutavel",
+        "description": "x0 le zero e descarta escrita",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "load_store_larguras",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-05"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/load_store_larguras",
+        "description": "LB/LBU/LH/LHU/LW e SB/SH/SW: largura e extensao de sinal",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "branches",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/branches",
+        "description": "Os seis branches, tomados e nao tomados",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "jal_jalr_lui_auipc",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/jal_jalr_lui_auipc",
+        "description": "JAL/JALR com retorno, LUI e AUIPC",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.4,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "laco_com_dependencia",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/laco_com_dependencia",
+        "description": "Laco com dependencia entre instrucoes (soma de 1 a 10)",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.38,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:75: signal \"write_reg_index\" is not an interface name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/experimentos/ia_mono_qwen14b_descricao/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/rv32i/ia_mono_qwen14b_descricao/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/experimentos/ia_mono_qwen14b_descricao/src/cpu_top.vhd",
+              "linha": 75,
+              "coluna": 13,
+              "tempo": null,
+              "mensagem": "signal \"write_reg_index\" is not an interface name"
+            }
+          ],
+          "dados": {}
+        }
+      }
+    ]
+  }
+]

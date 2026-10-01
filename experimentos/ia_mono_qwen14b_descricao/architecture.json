@@ -1,0 +1,142 @@
+{
+  "design": "ia_mono_qwen14b_descricao",
+  "tipo": "monociclo",
+  "isa": "rv32im",
+  "top": "cpu_top",
+  "origem": "modelo",
+  "provided": [
+    "cpus/rv32i_pipeline/src/cpu_package.vhd",
+    "cpus/rv32i_pipeline/src/memory_package.vhd",
+    "cpus/rv32i_pipeline/src/mul_div_unit.vhd",
+    "cpus/rv32i_pipeline/src/data_ram.vhd",
+    "cpus/rv32i_pipeline/src/data_rom.vhd",
+    "cpus/rv32i_pipeline/src/data_memory.vhd",
+    "cpus/rv32i_pipeline/src/instruction_memory.vhd"
+  ],
+  "blocks": [
+    {
+      "name": "register_file",
+      "file": "src/register_file.vhd",
+      "responsibility": "Stores and retrieves register values.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "reg_write_enable : in std_logic",
+        "write_register : in std_logic_vector(4 downto 0)",
+        "read_register1 : in std_logic_vector(4 downto 0)",
+        "read_register2 : in std_logic_vector(4 downto 0)",
+        "data_in : in std_logic_vector(31 downto 0)",
+        "data_out1 : out std_logic_vector(31 downto 0)",
+        "data_out2 : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [
+        "FR-RV-06",
+        "FR-RV-15"
+      ],
+      "design_rationale": "Separating the register file allows for easier testing and verification of register operations."
+    },
+    {
+      "name": "alu",
+      "file": "src/alu.vhd",
+      "responsibility": "Performs arithmetic and logical operations.",
+      "ports": [
+        "op1 : in std_logic_vector(31 downto 0)",
+        "op2 : in std_logic_vector(31 downto 0)",
+        "alu_op_type : in ALU_OP_TYPE_t",
+        "result : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [
+        "FR-RV-04"
+      ],
+      "design_rationale": "The ALU is a critical component for executing instructions, and separating it allows for easier testing and verification."
+    },
+    {
+      "name": "decoder",
+      "file": "src/decoder.vhd",
+      "responsibility": "Decodes the instruction into control signals.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "alu_op_type : out ALU_OP_TYPE_t",
+        "reg_write_enable : out std_logic",
+        "write_register : out std_logic_vector(4 downto 0)",
+        "read_register1 : out std_logic_vector(4 downto 0)",
+        "read_register2 : out std_logic_vector(4 downto 0)",
+        "mem_access_width : out MEM_ACCESS_WIDTH_t",
+        "mem_write_enable : out std_logic",
+        "pc_next_src : out PC_NEXT_SRC_t",
+        "branch_type : out BRANCH_TYPE_t"
+      ],
+      "satisfies": [
+        "FR-RV-04"
+      ],
+      "design_rationale": "The decoder is responsible for interpreting the instruction and generating control signals, which makes it easier to verify the correctness of each instruction."
+    },
+    {
+      "name": "immediate_generator",
+      "file": "src/immediate_generator.vhd",
+      "responsibility": "Generates immediate values from instructions.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "immediate_value : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [
+        "FR-RV-04"
+      ],
+      "design_rationale": "Separating the immediate generator allows for easier testing and verification of immediate value generation."
+    },
+    {
+      "name": "control_unit",
+      "file": "src/control_unit.vhd",
+      "responsibility": "Generates control signals based on instruction type.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "alu_op_type : out ALU_OP_TYPE_t",
+        "reg_write_enable : out std_logic",
+        "write_register : out std_logic_vector(4 downto 0)",
+        "read_register1 : out std_logic_vector(4 downto 0)",
+        "read_register2 : out std_logic_vector(4 downto 0)",
+        "mem_access_width : out MEM_ACCESS_WIDTH_t",
+        "mem_write_enable : out std_logic",
+        "pc_next_src : out PC_NEXT_SRC_t",
+        "branch_type : out BRANCH_TYPE_t"
+      ],
+      "satisfies": [
+        "FR-RV-04"
+      ],
+      "design_rationale": "The control unit is responsible for generating control signals based on the instruction type, which makes it easier to verify the correctness of each instruction."
+    },
+    {
+      "name": "cpu_top",
+      "file": "src/cpu_top.vhd",
+      "responsibility": "Top level entity that instantiates other components and connects them.",
+      "ports": [
+        "rst : in std_logic",
+        "clk : in std_logic"
+      ],
+      "satisfies": [
+        "FR-RV-05",
+        "FR-RV-16"
+      ],
+      "design_rationale": "The top level entity is responsible for instantiating other components and connecting them, which makes it easier to verify the correctness of the entire CPU."
+    }
+  ],
+  "notes": "The decomposition of the monociclo RV32IM CPU into hardware blocks allows for easier testing and verification of each component. The register_file, alu, decoder, immediate_generator, control_unit, and cpu_top blocks are responsible for storing and retrieving register values, performing arithmetic and logical operations, decoding instructions, generating immediate values, generating control signals based on instruction type, and instantiating other components and connecting them, respectively.",
+  "descricao": "Banco de registradores com reset síncrono. Gerador de imediatos em um bloco separado do decodificador. Comentários em inglês explicando cada bloco.",
+  "requests": [
+    {
+      "request": "Banco de registradores com reset síncrono",
+      "blocks": [
+        "register_file"
+      ],
+      "how": "Implemented in the register_file block with a synchronous reset."
+    },
+    {
+      "request": "Gerador de imediatos em um bloco separado do decodificador",
+      "blocks": [
+        "immediate_generator"
+      ],
+      "how": "Implemented in the immediate_generator block, which is separate from the decoder."
+    }
+  ],
+  "requests_note": "declared by the model; NOT verified by rvverify"
+}

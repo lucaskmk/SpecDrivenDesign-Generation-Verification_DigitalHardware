@@ -1,0 +1,128 @@
+[
+  {
+    "design": "ia_mono_qwen14b_descricao",
+    "manifest": "/job/experimentos/ia_mono_qwen14b_descricao/cpu.toml",
+    "veredito": "reprovado",
+    "aprovado": false,
+    "codigo_saida": 1,
+    "escopo": {
+      "completo": false,
+      "etapas": [
+        "rv32i"
+      ],
+      "casos_selecionados": 1,
+      "casos_na_suite": 35,
+      "casos_pulados": []
+    },
+    "compilacao": {
+      "ok": true,
+      "erros": [],
+      "segundos": 0.29,
+      "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/it11-fumaca/ia_mono_qwen14b_descricao/build.log"
+    },
+    "por_etapa": {
+      "rv32i": {
+        "total": 1,
+        "passou": 0,
+        "falhou": 1
+      }
+    },
+    "por_requisito": {
+      "FR-RV-04": {
+        "total": 1,
+        "passou": 0,
+        "casos_falhos": [
+          "add"
+        ],
+        "titulo": "Sem\u00e2ntica RV32I: registradores, aritm\u00e9tica de 32 bits e load/store",
+        "atendido": false
+      },
+      "FR-RV-22": {
+        "total": 1,
+        "passou": 0,
+        "casos_falhos": [
+          "add"
+        ],
+        "titulo": "Valores de borda e depend\u00eancia entre instru\u00e7\u00f5es",
+        "atendido": false
+      }
+    },
+    "pulado": [],
+    "observabilidade": {
+      "ram": true,
+      "registers": true,
+      "cycles": true,
+      "instructions": false,
+      "m_instructions": true,
+      "unobserved": [
+        "instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel"
+      ]
+    },
+    "casos": [
+      {
+        "name": "add",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "A CPU n\u00e3o terminou o programa: n\u00e3o terminou em 20000 ciclos",
+        "cycles": 20000,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/add",
+        "description": "ADD sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 24.25,
+        "log": "/job/experimentos/ia_mono_qwen14b_descricao/.rvgen/sessao-20260930-204726/sim/it11-fumaca/ia_mono_qwen14b_descricao/case_rv32i_add/sim.log",
+        "diagnostico": {
+          "tipo": "travamento",
+          "titulo": "A CPU n\u00e3o terminou o programa",
+          "resumo": "n\u00e3o terminou em 20000 ciclos",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "A CPU n\u00e3o chegou ao auto-la\u00e7o de parada (`halt: j halt`). Causas comuns: salto ou branch com alvo errado, PC que n\u00e3o avan\u00e7a, ou [halt] mal declarado no cpu.toml \u2014 num pipeline com busca especulativa use commit_pc, n\u00e3o fetch_pc (ADR-008). O PC mais visitado foi 0x00000008 (69 ciclos), fora do endere\u00e7o de parada: a execu\u00e7\u00e3o ficou presa ali. Confira a soma na ULA: 32 bits em complemento de dois, com o vai-um do bit 31 descartado (sem satura\u00e7\u00e3o).",
+          "mensagem": "CPU nao terminou em 20000 ciclos (possivel travamento). Modo de parada: fetch_pc. PC de busca = 0x464, PC observado por [halt].pc = 0x464, instrucao buscada = 0xeef58593. Enderecos de parada esperados: ['0x484']. PCs mais visitados: [('0x8', 69), ('0xc', 69), ('0x10', 69), ('0x14', 69), ('0x18', 69)]. Metricas parciais: {'cycles': 20000, 'instructions': None, 'cpi': None, 'halted': False, 'halt_pc': None, 'drain_cycles': 0, 'estimated_time_ns': 200000, 'clock_period_ns': 10, 'estimated_time_note': 'ESTIMATIVA: ciclos x periodo nominal de 10 ns', 'unobserved': ['instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel'], 'instructions_method': 'NAO OBSERVADO: [metrics] do cpu.toml nao declara os sinais de stall/flush necessarios para derivar o numero de instrucoes. instructions e cpi ficam null de proposito -- estimar aqui violaria NFR-RV-02.', 'm_dispatches': 0, 'm_stall_cycles': 0, 'm_stall_note': 'o validador nao conta ciclos de stall atribuiveis a unidade M: [metrics] nao declara sinal para isso, entao 0 aqui significa NAO OBSERVADO, e nao medido como zero', 'cycles_method': 'ciclos do fim do reset ate a parada declarada em [halt]; os ciclos de dreno do pipeline NAO entram na contagem'}",
+          "erros_ghdl": [],
+          "dados": {
+            "max_ciclos": 20000,
+            "modo_parada": "fetch_pc",
+            "pc_busca": 1124,
+            "pc_parada_observado": 1124,
+            "instrucao_buscada": 4009067923,
+            "enderecos_de_parada": [
+              1156
+            ],
+            "pcs_mais_visitados": [
+              [
+                8,
+                69
+              ],
+              [
+                12,
+                69
+              ],
+              [
+                16,
+                69
+              ],
+              [
+                20,
+                69
+              ],
+              [
+                24,
+                69
+              ]
+            ],
+            "pc_observavel": true
+          }
+        }
+      }
+    ]
+  }
+]

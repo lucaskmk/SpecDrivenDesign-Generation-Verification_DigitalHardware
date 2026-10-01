@@ -144,9 +144,31 @@ python -m rvgen gerar ia_mono_luna --tipo monociclo --isa rv32im --provedor open
 
 O agente decompõe, escreve um arquivo por vez, roda o `rvverify` no Docker,
 corrige a partir dos erros e termina com o veredito, as iterações, os tokens
-e o tempo. Com modelo local de 14B, conte de 20 minutos a mais de uma hora;
-com um modelo externo, alguns minutos. Rode no seu terminal: pelo terminal
-do Claude aparecem janelas piscando.
+e o tempo. Com o modelo local de 14B, as gerações reais levaram de 17 a 18
+minutos com as 12 iterações. Rode no seu terminal: pelo terminal do Claude
+aparecem janelas piscando.
+
+A tela mostra onde ele está. Abaixo, o **formato** (os números são de
+exemplo, não de uma execução):
+
+```text
+[00:00] [1/4] decompondo a CPU em blocos ...
+           aguardando, 12 s                    <- contador vivo enquanto espera
+[00:41] decomposicao: 5 blocos propostos pelo modelo
+[00:41] [2/4] escrevendo src/register_file.vhd (arquivo 1 de 5) ...
+           380 caracteres recebidos, 9 s
+...
+[04:30] [3/4] validacao e correcao (ate 12 iteracoes)
+[05:42]   ~13 min se usar as 11 iteracoes restantes (media de 72 s por iteracao)
+...
+[17:05] [4/4] veredito
+```
+
+"aguardando" significa que o modelo ainda não começou a responder: está
+carregando, ou atendendo outro pedido (o Ollama atende um por vez, então duas
+gerações locais ao mesmo tempo ficam na fila uma da outra). A estimativa é a
+média das iterações já feitas vezes as que faltam; ela vale se o modelo usar
+todas, e a geração termina antes se a CPU for aprovada.
 
 O resultado fica em (detalhe em [`experimentos/README.md`](../experimentos/README.md)):
 
