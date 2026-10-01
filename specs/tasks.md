@@ -1001,9 +1001,103 @@ da CPU gerada, que é resultado de medição do modelo usado.
     `sessao.jsonl` e os relatórios JSON continuam versionáveis;
     `rvgen.config.carregar_env(.env.example)` lê só as chaves não comentadas.
     `CLAUDE.md` ganhou uma frase apontando para o `rvgen/`
-- [ ] TRV-9.8 — Execução real ponta a ponta com modelo local
+- [x] TRV-9.8 — Execução real ponta a ponta com modelo local
   - REQ: FR-RV-43 a FR-RV-50
   - ACEITE: `python -m rvgen preparar` sem pendências e
     `python -m rvgen gerar entregas/<nome> --tipo monociclo --isa rv32im`
     executados de verdade, com Ollama e `rvverify` reais; veredito,
     iterações e sessão registrados aqui, seja APROVADO ou REPROVADO
+  - EXECUÇÃO CONFERIDA (2026-09-30, Windows 11, RTX 5070 de 12 GB, Ollama
+    0.32.1, `qwen2.5-coder:14b`, executor docker com a imagem
+    `spechdl-toolchain` publicada): `python -m rvgen preparar` -> exit 0,
+    "Tudo pronto" (subiu o `ollama serve` sozinho). Antes do gerador, o
+    validador foi conferido nesta máquina: `docker run --rm -v
+    "${PWD}:/job" spechdl-toolchain python3 -m rvverify cpus/rv32i_monociclo`
+    -> APROVADO, 35/35, exit 0.
+    Três execuções de `gerar entregas/ia_mono --tipo monociclo --isa
+    rv32im` (pasta movida para `experimentos/ia_mono/` pela TRV-9.9, com
+    as três sessões), cada uma achando um defeito, corrigido antes da
+    seguinte:
+    1. `sessao-20260930-193829`: parou no `alu.vhd` com "resposta terminou
+       sem done". O servidor do Ollama encerra o streaming, sem erro, quando
+       o modelo repete um token por muito tempo (literal
+       `"000...0001"`). Reproduzido com `curl`, o mesmo corte; uma regra no
+       prompt não evitou (o modelo a ignora). Correção: o `ClienteOllama`
+       retoma com o texto parcial como início da resposta do assistente
+       (conferido à mão: a emenda sai sem costura), até 8 cortes por
+       chamada.
+    2. `sessao-20260930-194435`: os 4 arquivos foram escritos, mas o
+       `rvverify` reportou a falha de compilação como "manifesto", sem as
+       linhas do GHDL, e o modelo, sem evidência, devolveu o mesmo
+       `cpu_top.vhd` 6 vezes. Causa no validador: o cocotb 2.0.0 da imagem
+       sinaliza a falha do `ghdl -m` com `subprocess.CalledProcessError`,
+       que `rvverify/builder.build_design` não tratava. Correção no
+       builder, com regressão em `rvverify/tests/test_builder.py`, com GHDL
+       real: falha contra o builder antigo e passa com o novo. No gerador:
+       sem erros no relatório, o agente lê o `build.log` da sessão, e cada
+       erro vai ao modelo com a linha do fonte apontada. Junto, corrigido
+       `rvverify/tests/test_nao_aprova_em_vazio.py`, que ainda apontava
+       para `examples/RISCV32I` (ADR-013). Suíte do validador no Docker:
+       `python3 -m pytest rvverify/tests` -> exit 0 (oráculo pulado: sem
+       Docker dentro do container).
+    3. `sessao-20260930-195755`: o laço completo rodou. O modelo corrigiu
+       os erros de `alu.vhd` e `decoder.vhd`, mas travou num erro do
+       `cpu_top.vhd` (escreve em `register_file_inst.registers(...)`,
+       nome hierárquico que o VHDL não permite, e rotulou a instância
+       `register_file_inst`, contra o contrato) e devolveu respostas
+       idênticas em 10 das 12 correções. **Veredito: REPROVADO, não
+       compilou**, 12 iterações, 17 chamadas ao modelo, 108 065 tokens de
+       entrada e 23 648 de saída, 17,0 min, exit 1. Resultado de medição do
+       modelo, não defeito do gerador (`plan.md`, seção 9.5). Testes do
+       gerador: `python -m unittest discover -s rvgen/tests -t .` -> 67,
+       exit 0
+- [x] TRV-9.9 — CPUs geradas em `experimentos/`, fora de `entregas/`
+  - REQ: FR-RV-47 (ADR-019)
+  - ACEITE: `python -m rvgen gerar <nome>` sem diretório grava em
+    `experimentos/<nome>/` (teste); os experimentos da TRV-9.8 movidos para
+    `experimentos/` com os caminhos de `tasks.md` acompanhando;
+    `experimentos/README.md` explica a estrutura e o que é versionado;
+    `git check-ignore` confirma `sim/` e `build/` fora do Git e o resto
+    dentro; `REPO_MAP.md` com a pasta nova
+  - EXECUÇÃO CONFERIDA (2026-09-30): `rvgen.tests.test_comparar` cobre o
+    nome sem diretório indo para `experimentos/`. `entregas/ia_mono` movida
+    para `experimentos/ia_mono` (as três sessões da TRV-9.8) e
+    `entregas/ia_mono_qwen14b` para `experimentos/ia_mono_qwen14b`; o
+    `cpu.toml` de cada uma continua válido (`load_manifest` +
+    `source_paths()` acham as 11 fontes: a profundidade relativa é a mesma).
+    `entregas/` voltou a ter só `_modelo/` e o README. `git check-ignore`:
+    `sim/` e `build/` de cada sessão fora do Git; `sessao.jsonl`,
+    `contrato.txt`, `rvverify/*.json`, `resultado.json`, `src/`, `cpu.toml`
+    e `experimentos/README.md` versionados (cerca de 600 KB por experimento)
+- [x] TRV-9.10 — `rvgen comparar`: tabela de experimentos lado a lado
+  - REQ: FR-RV-51
+  - ACEITE: testes com sessões e relatórios montados à mão (a sessão mais
+    recente por pasta, `--todas`, placar por etapa lido do relatório final,
+    custo zero para local, estimado para externo e "?" sem preço);
+    `python -m rvgen comparar` rodado de verdade sobre os experimentos
+    reais, com saída em terminal e em Markdown; o passo a passo de "como
+    comparar duas CPUs" no `rvgen/README.md`
+  - EXECUÇÃO CONFERIDA (2026-09-30): `python -m unittest
+    rvgen.tests.test_comparar` -> 6 testes, exit 0 (suíte do gerador: 81).
+    `python -m rvgen comparar --markdown experimentos/COMPARACAO.md` rodado
+    sobre os dois experimentos reais -> exit 0; as duas linhas batem com os
+    `resultado.json` e com o relatório final (REPROVADO, "nao compilou" nas
+    duas etapas, 12 iterações, 17 chamadas, 108 065 + 23 648 e 111 918 +
+    25 325 tokens, 17,0 e 18,3 min, custo 0 por serem locais). O formato de
+    `por_etapa`/`pulado` que o comando lê foi conferido num relatório real
+    do rvverify
+- [ ] TRV-9.11 — Descrição da CPU em texto livre (`--descricao`)
+  - REQ: FR-RV-52 (ADR-020)
+  - ACEITE: testes: a descrição aparece nos pedidos de decomposição,
+    escrita e correção, subordinada ao contrato; o mapeamento
+    item → bloco vai para `architecture.json`; `descricao.md` e
+    `resultado.json` gravados; `--descricao-arquivo` lido; a comparação
+    marca `+descricao`. Uma geração real com descrição roda de verdade e o
+    mapeamento aparece no `architecture.json`
+- [ ] TRV-9.12 — Temperatura mantida enquanto o placar não melhora
+  - REQ: FR-RV-48
+  - ACEITE: teste: depois de uma alteração que não melhora o placar, o
+    pedido seguinte continua na temperatura alta; só uma melhora volta ao
+    normal. Motivo registrado a partir de `experimentos/ia_mono_qwen14b`:
+    a 0,2 e 0,6 o modelo repetiu o arquivo nas 3 vezes, a 0,9 mudou nas 4,
+    e só 4 das 12 iterações produziram código novo

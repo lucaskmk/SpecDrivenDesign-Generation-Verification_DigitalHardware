@@ -1003,3 +1003,87 @@ mudando uma variável. Se um modelo local não conseguir aprovar a CPU, isso
 é resultado de medição, não defeito do gerador. As sessões ficam em
 `<pasta>/.rvgen/` para comparar modelos. Uma ISA nova continua exigindo
 primeiro estender o validador.
+
+## ADR-019 — CPUs geradas por IA em `experimentos/`, separadas de `entregas/`
+
+**Contexto.** As primeiras gerações reais do `rvgen` (TRV-9.8) foram para
+`entregas/ia_mono*`. Isso mistura duas coisas diferentes: `entregas/` é onde
+entra a CPU de um aluno, e `python -m rvverify` sem argumento valida tudo o
+que está lá — uma CPU gerada por IA apareceria como se fosse entrega. Além
+disso, uma geração é um **experimento**: o que interessa guardar não é só o
+VHDL, é qual modelo, com qual contrato, em quantas iterações, a que custo e
+com que veredito — é o que permite comparar modelos (FR-RV-51) e o que
+sustentaria um resultado apresentado fora da disciplina.
+
+**Decisão.**
+
+1. Nova pasta de topo `experimentos/`, uma subpasta por geração
+   (`experimentos/<nome>/`). `python -m rvgen gerar <nome>`, sem diretório,
+   grava ali; um caminho explícito continua valendo.
+2. `experimentos/` é **versionada**: o VHDL, o `architecture.json`, o
+   `cpu.toml` e, de cada sessão, o `contrato.txt`, o `sessao.jsonl`, os
+   relatórios do `rvverify` e o `resultado.json`. Só `sim/` e `build/` de
+   cada sessão ficam fora do Git (já cobertos pelo `.gitignore`).
+3. `python -m rvgen comparar` lê `experimentos/` por padrão (FR-RV-51).
+4. `python -m rvverify` sem argumento continua validando só `entregas/`;
+   um experimento se valida apontando a pasta dele.
+
+**Alternativas rejeitadas.**
+
+- *Deixar em `entregas/`* — mistura CPU de aluno com CPU de modelo e faz o
+  validador padrão julgar as duas como entregas.
+- *Pôr `experimentos/` no `.gitignore`* — perde a evidência: sem o contrato
+  e as sessões versionados, uma tabela de comparação vira afirmação sem
+  prova (princípio 10).
+- *Guardar só o `resultado.json`* — o VHDL e os prompts são o que permite
+  repetir e auditar a geração.
+
+**Consequência.** Os experimentos da TRV-9.8 saem de `entregas/` e vão para
+`experimentos/`; os caminhos citados em `specs/tasks.md` acompanham. Cada
+comparação de modelos passa a ter, no próprio repositório, as sessões que a
+produziram.
+
+## ADR-020 — Descrição da CPU em texto livre, como diretriz não verificada
+
+**Contexto.** Até aqui o `rvgen` só aceitava dois parâmetros estruturados,
+`--tipo` e `--isa`. A regra vinha do `CLAUDE.md` da trilha A — "não tentar
+extrair requisitos de texto livre; a entrada é sempre o formulário
+estruturado" — e do fato de que o `rvverify` só julga o comportamento
+definido pelo contrato. Em 2026-09-30 o usuário removeu o `CLAUDE.md`, por
+descrever a trilha A e não o trabalho atual, e pediu para poder **descrever
+a CPU que quer** ao gerar (por exemplo: "banco de registradores com reset
+síncrono", "decodificador separado da unidade de controle", "comentários
+explicando cada estágio").
+
+**Decisão.** `rvgen gerar` aceita `--descricao TEXTO` ou
+`--descricao-arquivo ARQUIVO` (FR-RV-52), com quatro travas:
+
+1. **O contrato vence.** A descrição entra nos pedidos como diretriz
+   subordinada ao contrato: o que o contrato fixa (top-level, memórias,
+   nomes observados, `mul_div_unit` fornecida) não é negociável, porque é o
+   que torna a CPU observável pelo `rvverify`.
+2. **Rastreável.** Na decomposição o modelo mapeia cada item da descrição
+   para o bloco que o atende, ou diz por que não atende; o mapeamento vai para
+   `architecture.json` (princípio 2).
+3. **Registrada.** A descrição fica em `<pasta>/descricao.md` e no registro da
+   sessão; a comparação (FR-RV-51) marca os experimentos que a usaram, porque
+   uma CPU descrita e uma não descrita não se comparam de igual para igual.
+4. **Rotulada como não verificada.** O veredito continua sendo só o do
+   `rvverify` sobre o contrato. Que a CPU gerada "usa reset síncrono" é
+   declaração do modelo, não medição (princípio 10); conferir isso exige ler
+   o VHDL.
+
+**Alternativas rejeitadas (por ora).**
+
+- *Só opções estruturadas novas* (`--mul iterativa`, `--forwarding nao`...)
+  — continuam o caminho certo para o que for **medível**, e podem vir depois
+  para as opções que valerem a comparação; mas não cobrem desejos de projeto
+  que o validador não mede.
+- *A rubrica da trilha A como entrada* (`--rubrica rubrica.md`) — continua
+  possível e é compatível: a rubrica pode virar uma descrição gerada.
+- *Descrição que muda o contrato* — tornaria a CPU inobservável, e o
+  veredito sem sentido.
+
+**Consequência.** O usuário descreve o que quer sem perder a medição: o que
+o `rvverify` julga continua igual, e o que ele não julga fica registrado como
+pedido e como declaração do modelo, nunca como resultado.

@@ -656,6 +656,26 @@ contrato do tipo, os nomes observáveis (`pc`, `register_file.registers`,
 `data_memory.data_ram.memory`) são fixados no prompt, e o veredito é sempre
 o do `rvverify`. Detalhe e alternativas na ADR-018.
 
+Duas defesas vieram da primeira execução real (TRV-9.8), em que o modelo
+local travou 10 iterações devolvendo o mesmo `cpu_top.vhd` com um rótulo
+errado e um acesso hierárquico ao banco de registradores:
+
+- **checagem estática do contrato** (`contrato.verificar_contrato`): antes
+  e além do GHDL, o texto das fontes é conferido contra o contrato do tipo
+  — rótulos `instruction_memory`, `data_memory` e `register_file`, os três
+  generics, os sinais observados, o sinal `registers` no banco e nenhum
+  `rotulo.sinal` dentro do top. As divergências entram na evidência como
+  sugestão; não mudam o veredito, que continua sendo só do `rvverify`;
+- **temperatura alta enquanto travado**: resposta idêntica ao arquivo atual
+  faz o próximo pedido sair a 0,9, e ele fica a 0,9 enquanto as alterações
+  não melhorarem o placar; só uma melhora volta ao normal (0,2). A escada
+  anterior (0,6 e depois 0,9) foi medida e descartada na TRV-9.12: a 0,6 o
+  modelo repetiu nas 3 vezes, a 0,9 mudou nas 4.
+
+A descrição em texto livre (`--descricao`, FR-RV-52, ADR-020) entra nos
+pedidos abaixo do contrato, com o mapeamento item → bloco no
+`architecture.json`, e é registrada como não verificada.
+
 ### 9.3 Contrato de cada tipo
 
 | tipo | parada (`[halt]`) | o que o prompt fixa |
