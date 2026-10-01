@@ -61,7 +61,8 @@ class Cliente(Protocol):
     modelo: str
 
     def conversar(self, mensagens: list[dict[str, str]], *,
-                  schema: dict | None = None) -> Resposta: ...
+                  schema: dict | None = None,
+                  temperatura: float | None = None) -> Resposta: ...
 
 
 class ErroGeracao(RuntimeError):
@@ -73,6 +74,13 @@ class ErroIntegridade(ErroGeracao):
 
 
 _ARQUIVO_RE = re.compile(r"^src/[a-z][a-z0-9_]*\.vhd$")
+
+# FR-RV-48: resposta identica ao arquivo atual -> o proximo pedido sai mais
+# "quente", e fica assim enquanto as alteracoes nao melhorarem o placar. Com
+# a temperatura padrao (0,2) o modelo local devolveu o mesmo cpu_top.vhd em
+# 10 de 12 correcoes (TRV-9.8); com a escada 0,2 -> 0,6 -> 0,9, repetiu nas 3
+# vezes a 0,6 e mudou nas 4 a 0,9 (TRV-9.12). None = a do cliente.
+TEMPERATURAS_NA_REPETICAO: tuple[float | None, ...] = (None, 0.9)
 _NOME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 SCHEMA_ARQUITETURA: dict = {
@@ -97,6 +105,37 @@ SCHEMA_ARQUITETURA: dict = {
     },
     "required": ["blocks"],
 }
+
+
+def _schema_arquitetura(com_descricao: bool) -> dict:
+    """Com descricao do usuario, a decomposicao tambem mapeia cada pedido
+    para o bloco que o atende (FR-RV-52)."""
+    if not com_descricao:
+        return SCHEMA_ARQUITETURA
+    schema = json.loads(json.dumps(SCHEMA_ARQUITETURA))
+    schema["properties"]["requests"] = {
+        "type": "array",
+        "items": {"type": "object",
+                  "properties": {"request": {"type": "string"},
+                                 "blocks": {"type": "array", "items": {"type": "string"}},
+                                 "how": {"type": "string"}},
+                  "required": ["request", "blocks", "how"]},
+    }
+    schema["required"] = ["blocks", "requests"]
+    return schema
+
+
+def _pedidos(bruta: Any) -> list[dict]:
+    """O mapeamento item da descricao -> bloco, so com texto (declaracao do modelo)."""
+    if not isinstance(bruta, dict) or not isinstance(bruta.get("requests"), list):
+        return []
+    out = []
+    for p in bruta["requests"]:
+        if isinstance(p, dict) and str(p.get("request", "")).strip():
+            out.append({"request": str(p["request"]).strip(),
+                        "blocks": [str(b) for b in (p.get("blocks") or [])],
+                        "how": str(p.get("how", "")).strip()})
+    return out
 
 
 def _schema_escolha(arquivos: list[str]) -> dict:
@@ -195,6 +234,32 @@ def _nome_base(caminho: str) -> str:
     return PurePosixPath(str(caminho).replace("\\", "/")).name
 
 
+# `arquivo.vhd:12:5: mensagem` -- o formato das mensagens do GHDL com posicao
+_GHDL_ERRO_RE = re.compile(
+    r"^(?P<arquivo>[^\s:][^:]*\.vhdl?):(?P<linha>\d+):(?P<coluna>\d+):\s*(?P<mensagem>.*)$")
+
+
+def erros_do_log(texto: str, limite: int = 20) -> list[dict]:
+    """Mensagens do GHDL com posicao no fonte, lidas de um log.
+
+    O `rvverify.builder` tem o equivalente, mas importa o cocotb; aqui o
+    gerador precisa ler o log no host, onde o cocotb pode nao existir. As
+    mensagens da biblioteca IEEE ficam de fora: nao apontam para o que o
+    modelo escreveu.
+    """
+    out: list[dict] = []
+    for bruta in texto.splitlines():
+        m = _GHDL_ERRO_RE.match(bruta.strip())
+        if not m or "ieee" in m["arquivo"].replace("\\", "/").lower().split("/")[0:-1] \
+                or _nome_base(m["arquivo"]).startswith(("numeric_std", "std_logic_1164")):
+            continue
+        out.append({"arquivo": m["arquivo"], "linha": int(m["linha"]),
+                    "coluna": int(m["coluna"]), "mensagem": m["mensagem"].strip()})
+        if len(out) >= limite:
+            break
+    return out
+
+
 def _caso_de_fumaca() -> str:
     """O primeiro caso da etapa RV32I no catalogo do proprio validador."""
     from rvverify.conformance import catalog
@@ -224,7 +289,8 @@ class Agente:
 
     def __init__(self, *, cliente: Cliente, executor: Executor, pasta: Path,
                  tipo: ct.Tipo, isa: str, iteracoes: int = 12,
-                 exemplo: Path | None = None, forcar: bool = False,
+                 exemplo: Path | None = None, descricao: str | None = None,
+                 forcar: bool = False,
                  relatar: Callable[[str], None] = print,
                  protegidos: Callable[[], str] | None = None,
                  caso_de_fumaca: Callable[[], str] = _caso_de_fumaca) -> None:
@@ -235,6 +301,7 @@ class Agente:
         self.isa = isa
         self.iteracoes = iteracoes
         self.exemplo = Path(exemplo).resolve() if exemplo else None
+        self.descricao = (descricao or "").strip() or None
         self.forcar = forcar
         self.relatar = relatar
         self.protegidos = protegidos or (lambda: hash_de(arquivos_protegidos()))
@@ -269,11 +336,12 @@ class Agente:
         return p.read_text(encoding="utf-8") if p.exists() else ""
 
     def _chamar(self, fase: str, alvo: str, mensagens: list[dict],
-                schema: dict | None = None) -> Resposta:
+                schema: dict | None = None,
+                temperatura: float | None = None) -> Resposta:
         """Uma chamada ao modelo, sempre registrada (FR-RV-50)."""
         self._chamadas += 1
         try:
-            r = self.cliente.conversar(mensagens, schema=schema)
+            r = self.cliente.conversar(mensagens, schema=schema, temperatura=temperatura)
         except ErroLLM as e:
             self._log({"evento": "llm_erro", "fase": fase, "alvo": alvo, "erro": str(e)})
             raise
@@ -285,7 +353,9 @@ class Agente:
         self._log({"evento": "llm", "fase": fase, "alvo": alvo,
                    "provedor": r.provedor, "modelo": r.modelo,
                    "tokens_entrada": r.tokens_entrada, "tokens_saida": r.tokens_saida,
-                   "segundos": r.segundos, "mensagens": registradas,
+                   "segundos": r.segundos, "cortes": r.cortes,
+                   "temperatura": temperatura,
+                   "mensagens": registradas,
                    "resposta": r.texto})
         return r
 
@@ -298,6 +368,16 @@ class Agente:
             if decl:
                 partes.append(f"-- {b['file']}\n{decl[0]}")
         return "\n\n".join(partes) or "(none yet)"
+
+    def _texto_descricao(self) -> str:
+        """FR-RV-52: o que o usuario pediu, sempre abaixo do contrato."""
+        if not self.descricao:
+            return ""
+        return ("# Designer's description of the CPU (free text from the user)\n"
+                f"{self.descricao}\n"
+                "Follow this description wherever it does not conflict with the "
+                "contract in the system message. Where it conflicts, the contract "
+                "wins: it is what the validator checks.\n\n")
 
     def _texto_exemplo(self) -> str:
         if not self.exemplo:
@@ -318,14 +398,29 @@ class Agente:
         (self.pasta / "src").mkdir(parents=True, exist_ok=True)
         (self.sessao / "rvverify").mkdir(parents=True, exist_ok=True)
         (self.sessao / "contrato.txt").write_text(self.contrato, encoding="utf-8")
+        if self.descricao:
+            (self.pasta / "descricao.md").write_text(
+                "# Descricao da CPU pedida ao modelo\n\n"
+                "Texto livre passado a `rvgen gerar` (FR-RV-52). NAO verificado pelo\n"
+                "rvverify: o veredito julga so o contrato; o mapeamento destes pedidos\n"
+                "para os blocos, em `architecture.json` (`requests`), e declaracao do\n"
+                "modelo.\n\n" + self.descricao + "\n", encoding="utf-8")
 
     def _planejar(self) -> dict:
         padrao = ct.arquitetura_padrao(self.tipo, self.isa, self.nome)
+        if self.descricao:
+            padrao.update(descricao=self.descricao, requests=[],
+                          requests_note="declared by the model; NOT verified by rvverify")
         sugestao = ", ".join(b["name"] for b in padrao["blocks"])
+        pedidos = (
+            "\nAlso answer `requests`: one entry per item of the designer's "
+            "description, with the `blocks` that implement it and `how`; if the "
+            "contract prevents an item, say so in `how` and leave `blocks` empty."
+            if self.descricao else "")
         mensagens = [
             {"role": "system", "content": self.contrato},
             {"role": "user", "content": (
-                f"{self._texto_exemplo()}"
+                f"{self._texto_exemplo()}{self._texto_descricao()}"
                 f"Decompose this {self.tipo.nome} {self.isa.upper()} CPU into hardware "
                 f"blocks. Answer ONLY with JSON: {{\"blocks\": [{{\"name\", "
                 f"\"responsibility\", \"ports\", \"satisfies\", \"design_rationale\"}}], "
@@ -337,12 +432,12 @@ class Agente:
                 f"declarations such as \"clk : in std_logic\"; `satisfies` lists "
                 f"requirement IDs (FR-RV-xx); `design_rationale` justifies the "
                 f"block by area, speed or verifiability. A sound decomposition "
-                f"for this type is: {sugestao}.")},
+                f"for this type is: {sugestao}.{pedidos}")},
         ]
         motivo = ""
         for tentativa in (1, 2):
             r = self._chamar("decomposicao", "architecture.json", mensagens,
-                             schema=SCHEMA_ARQUITETURA)
+                             schema=_schema_arquitetura(bool(self.descricao)))
             try:
                 bruta = extrair_json(r.texto)
             except ErroLLM as e:
@@ -351,7 +446,11 @@ class Agente:
             if blocos:
                 arq = dict(padrao, origem="modelo", blocks=blocos,
                            notes=str((bruta or {}).get("notes", "")))
-                self.relatar(f"  decomposicao: {len(blocos)} blocos propostos pelo modelo")
+                if self.descricao:
+                    arq["requests"] = _pedidos(bruta)
+                self.relatar(f"  decomposicao: {len(blocos)} blocos propostos pelo modelo"
+                             + (f", {len(arq['requests'])} pedidos da descricao mapeados"
+                                if self.descricao else ""))
                 return arq
             mensagens += [{"role": "assistant", "content": r.texto},
                           {"role": "user", "content":
@@ -373,7 +472,7 @@ class Agente:
         mensagens = [
             {"role": "system", "content": self.contrato},
             {"role": "user", "content": (
-                f"{self._texto_exemplo()}"
+                f"{self._texto_exemplo()}{self._texto_descricao()}"
                 f"Architecture of this CPU:\n{plano}\n\n"
                 f"Entity declarations already written:\n"
                 f"{self._declaracoes(arq['blocks'], exceto=bloco['file'])}\n\n"
@@ -422,22 +521,48 @@ class Agente:
             return p.compilou and p.total > 0 and p.passou == p.total
         return p.veredito == "aprovado"
 
+    def _erros_dos_logs(self, ex: Execucao) -> list[dict]:
+        """Erros do GHDL lidos do `build.log` que o rvverify deixou na sessao."""
+        workdir = self.sessao / "sim" / ex.json_path.stem
+        erros: list[dict] = []
+        for log in sorted(workdir.rglob("build.log")):
+            erros += erros_do_log(log.read_text(encoding="utf-8", errors="replace"))
+        return erros
+
+    def _linha_do_fonte(self, arquivo: str, linha: int) -> str:
+        texto = self._ler(arquivo).splitlines()
+        return texto[linha - 1].strip() if 0 < linha <= len(texto) else ""
+
     def _evidencia(self, ex: Execucao, arquivos: list[str]) -> tuple[str | None, str]:
         """(arquivo a corrigir, se o GHDL ja o apontou; evidencia em texto)."""
         from rvverify.feedback import resumo_em_texto
 
         rel = ex.relatorio or {}
         comp = rel.get("compilacao") or {}
-        if comp.get("ok") is False:
-            erros = comp.get("erros") or []
+        erros = comp.get("erros") or []
+        nao_compilou = comp.get("ok") is False
+        # Relatorio sem as linhas do GHDL (o rvverify ja perdeu esse erro uma
+        # vez, TRV-9.8): sem elas o modelo corrige as cegas e devolve o mesmo
+        # arquivo. O build.log da sessao continua tendo tudo.
+        if not erros and comp.get("ok") is not True and \
+                not any(c.get("passed") for c in rel.get("casos", [])):
+            erros = self._erros_dos_logs(ex)
+            nao_compilou = nao_compilou or bool(erros)
+        if nao_compilou:
             por_nome = {PurePosixPath(a).name: a for a in arquivos}
-            linhas = [f"{_nome_base(e.get('arquivo', '?'))}:{e.get('linha')}:"
-                      f"{e.get('coluna')}: {e.get('mensagem')}" for e in erros[:12]]
+            linhas = []
+            for e in erros[:12]:
+                nome = _nome_base(e.get("arquivo", "?"))
+                linhas.append(f"{nome}:{e.get('linha')}:{e.get('coluna')}: {e.get('mensagem')}")
+                if nome in por_nome:
+                    fonte = self._linha_do_fonte(por_nome[nome], int(e.get("linha") or 0))
+                    if fonte:
+                        linhas.append(f"    {fonte}")
             alvo = next((por_nome[_nome_base(e.get("arquivo", ""))] for e in erros
                          if _nome_base(e.get("arquivo", "")) in por_nome), None)
             texto = "GHDL compilation failed:\n" + ("\n".join(linhas) or
                                                     str(comp.get("mensagem", ""))[:1500])
-            return alvo, texto
+            return self._com_contrato(alvo, texto, arquivos)
         falhas = [c for c in rel.get("casos", []) if not c.get("passed")]
         blocos = []
         for c in falhas[:6]:
@@ -450,7 +575,22 @@ class Agente:
         tipos = {(c.get("diagnostico") or {}).get("tipo") for c in falhas}
         # caminho de observacao inexistente: os nomes observados vivem no top
         alvo = f"src/{ct.TOP}.vhd" if tipos == {"observacao"} else None
-        return alvo, "Failing test cases:\n" + "\n".join(blocos)
+        return self._com_contrato(alvo, "Failing test cases:\n" + "\n".join(blocos),
+                                  arquivos)
+
+    def _com_contrato(self, alvo: str | None, texto: str,
+                      arquivos: list[str]) -> tuple[str | None, str]:
+        """Acrescenta a checagem estatica do contrato a evidencia (FR-RV-48).
+
+        Um erro do GHDL continua mandando no alvo: nada roda antes de compilar.
+        Sem ele, a primeira divergencia do contrato aponta o arquivo.
+        """
+        avisos = ct.verificar_contrato(self.tipo, {a: self._ler(a) for a in arquivos})
+        if not avisos:
+            return alvo, texto
+        texto += ("\n\nContract check (static inspection of the text; a suggestion):\n"
+                  + "\n".join(f"- {a}: {m}" for a, m in avisos))
+        return alvo or avisos[0][0], texto
 
     def _escolher(self, evidencia: str, arq: dict) -> str:
         arquivos = [b["file"] for b in arq["blocks"]]
@@ -470,12 +610,13 @@ class Agente:
         return escolhido if escolhido in arquivos else f"src/{ct.TOP}.vhd"
 
     def _reescrever(self, alvo: str, evidencia: str, arq: dict,
-                    nota: str | None) -> str | None:
+                    nota: str | None, temperatura: float | None = None) -> str | None:
         nome = PurePosixPath(alvo).stem
         atual = self._ler(alvo)
         mensagens = [
             {"role": "system", "content": self.contrato},
             {"role": "user", "content": (
+                f"{self._texto_descricao()}"
                 f"The CPU was run by the validator and failed.\n{evidencia}\n\n"
                 + (f"NOTE: {nota}\n\n" if nota else "")
                 + f"Entity declarations of the other files (keep compatible):\n"
@@ -486,7 +627,7 @@ class Agente:
                 f"complete corrected file in one ```vhdl block.")},
         ]
         for tentativa in (1, 2):
-            r = self._chamar("correcao", alvo, mensagens)
+            r = self._chamar("correcao", alvo, mensagens, temperatura=temperatura)
             vhdl = extrair_vhdl(r.texto)
             if vhdl and re.search(rf"\bentity\s+{nome}\s+is\b", vhdl, re.IGNORECASE):
                 return None if vhdl.strip() == atual.strip() else vhdl
@@ -505,6 +646,7 @@ class Agente:
         atual = self._validar(etapas[0][0], etapas[0][1], etapas[0][2])
         iteracao = 0
         nota: str | None = None
+        repeticoes = 0          # respostas seguidas sem mudanca efetiva
         while True:
             nome_etapa, etapa, casos = etapas[i]
             if self._objetivo(nome_etapa, atual):
@@ -521,13 +663,19 @@ class Agente:
             alvo, evidencia = self._evidencia(atual, arquivos)
             motivo = "apontado pelo GHDL/diagnostico" if alvo else "escolhido pelo modelo"
             alvo = alvo or self._escolher(evidencia, arq)
-            self.relatar(f"  iteracao {iteracao}/{self.iteracoes}: corrigindo {alvo} ({motivo})")
+            temperatura = TEMPERATURAS_NA_REPETICAO[
+                min(repeticoes, len(TEMPERATURAS_NA_REPETICAO) - 1)]
+            extra = f", temperatura {temperatura}" if temperatura is not None else ""
+            self.relatar(f"  iteracao {iteracao}/{self.iteracoes}: corrigindo {alvo} "
+                         f"({motivo}{extra})")
             antes = self._ler(alvo)
-            novo = self._reescrever(alvo, evidencia, arq, nota)
+            novo = self._reescrever(alvo, evidencia, arq, nota, temperatura)
             if novo is None:
+                repeticoes += 1
                 nota = (f"Your last answer for {alvo} was unusable or identical to the "
                         f"current file. Make a real change.")
-                self._log({"evento": "correcao_vazia", "alvo": alvo, "iteracao": iteracao})
+                self._log({"evento": "correcao_vazia", "alvo": alvo, "iteracao": iteracao,
+                           "temperatura": temperatura})
                 continue
             self._escrever(alvo, novo)
             depois = self._validar(f"it{iteracao:02d}-{nome_etapa}", etapa, casos)
@@ -541,6 +689,10 @@ class Agente:
                            "antes": placar_de(atual).texto(),
                            "depois": placar_de(depois).texto()})
             else:
+                # so uma MELHORA devolve a temperatura normal; mudar sem
+                # melhorar ainda e estar travado (TRV-9.12)
+                if placar_de(depois).chave() > placar_de(atual).chave():
+                    repeticoes = 0
                 atual, nota = depois, None
 
     # -- ponta a ponta -----------------------------------------------------
@@ -553,7 +705,8 @@ class Agente:
                    "isa": self.isa, "provedor": self.cliente.provedor,
                    "modelo": self.cliente.modelo, "executor": self.executor.nome,
                    "iteracoes": self.iteracoes,
-                   "exemplo": str(self.exemplo) if self.exemplo else None})
+                   "exemplo": str(self.exemplo) if self.exemplo else None,
+                   "descricao": self.descricao})
 
         arq = self._planejar()
         (self.pasta / "architecture.json").write_text(
@@ -599,6 +752,7 @@ class Agente:
                   "provedor": self.cliente.provedor, "modelo": self.cliente.modelo,
                   "tipo": self.tipo.nome, "isa": self.isa,
                   "exemplo": str(self.exemplo) if self.exemplo else None,
+                  "descricao": self.descricao,
                   "relatorio": final.json_path.relative_to(self.pasta).as_posix()}
         (self.sessao / "resultado.json").write_text(
             json.dumps(resumo, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
