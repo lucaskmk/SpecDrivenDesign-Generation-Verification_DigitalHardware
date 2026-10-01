@@ -29,28 +29,35 @@ python -m rvverify entregas/seu_nome --eventos --json relatorio.json
 
 `--eventos` emite JSON Lines com progresso. `--casos sra,mul` executa apenas
 casos selecionados e sempre produz veredito `PARCIAL`; isso serve para depurar,
-nunca para declarar aprovação. `--workdir` preserva `sim.log`, imagens `.ram`,
+nunca para declarar aprovação. `--workdir` preserva `sim.log`, imagens `.ram`
+e os demais artefatos de cada caso, para inspeção depois da execução.
 
 ## Gerar uma CPU com IA, local ou externa
 
-O `rvgen` escreve uma entrega em `entregas/<nome>/` com um agente de IA e a
-submete ao **mesmo** `rvverify`, corrigindo a partir do diagnóstico até o
-veredito. Por padrão usa um modelo local no Ollama, escolhido pela memória
-da GPU; com `OPENROUTER_API_KEY` no `.env`, `--provedor openrouter` usa um
-modelo externo. Só biblioteca padrão do Python.
+O `rvgen` escreve uma CPU com um agente de IA e a submete ao **mesmo**
+`rvverify`, corrigindo a partir do diagnóstico até o veredito. Por padrão
+usa um modelo local no Ollama, escolhido pela memória da GPU; com
+`OPENROUTER_API_KEY` no `.env`, `--provedor openrouter` usa um modelo
+externo. Só biblioteca padrão do Python. Cada geração é um experimento em
+`experimentos/<nome>/`, separado das entregas de alunos.
 
 ```bash
 python -m rvgen preparar     # confere Ollama, modelo e onde o GHDL roda; oferece instalar/baixar
 python -m rvgen tipos        # monociclo, multiciclo, pipeline; rv32i ou rv32im
-python -m rvgen gerar entregas/ia_mono --tipo monociclo --isa rv32im
-python -m rvgen gerar entregas/ia_pipe --tipo pipeline --isa rv32im --provedor openrouter
+python -m rvgen gerar ia_mono_qwen14b --tipo monociclo --isa rv32im
+python -m rvgen gerar ia_mono_luna --tipo monociclo --isa rv32im --provedor openrouter --modelo openai/gpt-5.6-luna
+python -m rvgen comparar     # experimentos lado a lado: veredito, casos, iteracoes, tokens, custo
 ```
 
 Nada é instalado nem baixado sem confirmação (`--verificar` só confere).
 Sem GHDL no host — o caso do Windows —, o validador roda na imagem
 `spechdl-toolchain` com o Docker Desktop aberto. Cada geração fica registrada
-em `<pasta>/.rvgen/` (prompts, respostas, tokens, relatórios do `rvverify`).
-Reprovar continua sendo resultado legítimo. Detalhes em `specs/plan.md`,
+em `experimentos/<nome>/.rvgen/` (prompts, respostas, tokens, relatórios do
+`rvverify`).
+Reprovar continua sendo resultado legítimo. O **passo a passo completo**
+(preparar a máquina, escolher a IA, descrever a CPU, gerar, testar e
+comparar IAs) e os prompts que o agente manda ao modelo estão em
+[`rvgen/README.md`](rvgen/README.md); a arquitetura, em `specs/plan.md`,
 seção 9, e na ADR-018.
 
 ## Estrutura curta
@@ -62,6 +69,7 @@ cpus/rv32i_pipeline/       CPU de referência em pipeline
 cpus/rv32i_monociclo/      CPU de referência monociclo
 entregas/_modelo/          manifesto inicial para copiar
 entregas/<nome>/           CPU avaliada
+experimentos/<nome>/       CPU gerada por IA, com as sessoes do gerador
 specs/                     requisitos, decisões, plano e backlog
 legado/                    trilha genérica antiga (SpecHDL Streamlit) e smoke tests
 ```

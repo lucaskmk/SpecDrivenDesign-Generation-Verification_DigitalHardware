@@ -559,7 +559,7 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
 
 ---
 
-## Gerador de CPUs por agente, com IA local ou externa (FR-RV-43 a FR-RV-50, NFR-RV-07)
+## Gerador de CPUs por agente, com IA local ou externa (FR-RV-43 a FR-RV-52, NFR-RV-07)
 
 > Acrescentado em 2026-09-30, a pedido do usuário: gerar CPUs RISC-V
 > inteiras com um modelo de linguagem rodando **na própria máquina**
@@ -603,7 +603,9 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   declarar a escolha na saída.
 - **FR-RV-47**: WHEN o usuário executa
   `python -m rvgen gerar <pasta> --tipo T --isa I`, THE SYSTEM SHALL gerar
-  em `<pasta>` uma entrega completa — `architecture.json` com a
+  em `<pasta>` — por padrão `experimentos/<nome>/`, separada das entregas de
+  alunos em `entregas/` (ADR-019), e em `experimentos/<nome>/` sempre que
+  `<pasta>` for só um nome, sem diretório — uma entrega completa — `architecture.json` com a
   decomposição em blocos, cada bloco justificado por requisito (FR-05,
   FR-06); um arquivo VHDL por bloco, com o comentário `-- REQ:` (FR-09); e um
   `cpu.toml` montado **deterministicamente** a partir do contrato do tipo —
@@ -616,7 +618,15 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   GHDL (arquivo, linha, coluna) e os diagnósticos estruturados de FR-RV-28, e
   aplicar a correção proposta; IF uma correção piorar o placar — compilação
   que deixa de passar, ou menos casos aprovados —, THEN THE SYSTEM SHALL
-  desfazê-la e informar isso ao modelo na iteração seguinte.
+  desfazê-la e informar isso ao modelo na iteração seguinte. THE SYSTEM
+  SHALL acrescentar à evidência, rotuladas como sugestão, as divergências do
+  contrato visíveis no próprio texto das fontes geradas (rótulo de instância,
+  generic ou sinal obrigatório ausente, acesso hierárquico a sinal de outra
+  entidade), sem que essa inspeção altere o veredito; e IF o modelo devolver
+  o arquivo inalterado, THEN THE SYSTEM SHALL repetir o pedido com
+  temperatura de amostragem maior, e SHALL mantê-la maior enquanto as
+  alterações não melhorarem o placar, voltando à normal só depois da
+  primeira alteração que o melhore.
 - **FR-RV-49**: THE SYSTEM SHALL declarar o resultado da geração
   exclusivamente pelo veredito de FR-RV-27 obtido numa execução completa do
   `rvverify` — as duas etapas, sem `--casos` —, SHALL restringir toda
@@ -628,6 +638,30 @@ Notação EARS (Easy Approach to Requirements Syntax). Cada requisito tem um ID
   cada execução do `rvverify` com o seu relatório JSON, e o veredito final
   com o número de iterações, de modo que a geração seja auditável e
   comparável entre modelos locais e externos.
+- **FR-RV-51**: WHEN o usuário executa `python -m rvgen comparar
+  [pastas...]`, THE SYSTEM SHALL listar lado a lado, para cada experimento —
+  a sessão mais recente de cada pasta de `experimentos/`, ou das pastas
+  indicadas; todas as sessões com `--todas` —, o modelo, o provedor, o tipo,
+  a ISA, o veredito, o placar de cada etapa (RV32I e RV32IM), as iterações,
+  as chamadas ao modelo, os tokens, o tempo e o custo, lendo os números
+  exclusivamente dos registros de FR-RV-50 e do relatório final do
+  `rvverify`, sem re-medir nem inferir nada; THE SYSTEM SHALL rotular o custo
+  como **estimativa** — tokens registrados × preço público do provedor na
+  data da comparação, e zero para modelo local — e marcá-lo como
+  desconhecido quando o preço não puder ser obtido; e SHALL oferecer a mesma
+  tabela em Markdown (`--markdown ARQUIVO`), para relatório.
+- **FR-RV-52**: WHERE o usuário descreve a CPU em texto livre
+  (`--descricao TEXTO` ou `--descricao-arquivo ARQUIVO`), THE SYSTEM SHALL
+  incluir essa descrição nos pedidos de decomposição, de escrita e de
+  correção como diretriz de projeto **subordinada ao contrato** — em conflito,
+  vale o contrato, porque é o que o `rvverify` julga —; SHALL pedir, na
+  decomposição, o mapeamento de cada item da descrição para o bloco que o
+  atende (ou o motivo de não atender), gravado em `architecture.json`; SHALL
+  gravar a descrição em `<pasta>/descricao.md` e no registro da sessão; e
+  SHALL rotulá-la como **não verificada**: o veredito continua sendo só o do
+  `rvverify` sobre o contrato, o mapeamento é declaração do modelo e não
+  medição, e a comparação de FR-RV-51 SHALL marcar os experimentos que
+  usaram descrição.
 - **NFR-RV-07**: THE SYSTEM SHALL manter o `rvverify` sem nenhuma
   dependência do gerador: o gerador invoca `python -m rvverify` como
   subprocesso — no host ou dentro da imagem `spechdl-toolchain` —, nunca o

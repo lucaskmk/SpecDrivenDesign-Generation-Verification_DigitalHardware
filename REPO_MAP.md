@@ -12,15 +12,16 @@ que foi de fato movido.
 
 ## As pastas de topo
 
-As cinco da ADR-013, mais `rvgen/`, acrescentada pela ADR-018.
+As cinco da ADR-013, mais `rvgen/` (ADR-018) e `experimentos/` (ADR-019).
 
 | pasta | o que é | leia primeiro |
 |---|---|---|
 | [`rvverify/`](rvverify/) | **O validador.** Manifesto (`cpu.toml`), montador, modelo de referência, harness cocotb, suíte de conformidade e diagnóstico. É o que julga uma CPU entregue. Roda por `python -m rvverify`. | [`README.md`](README.md) |
-| [`rvgen/`](rvgen/) | **O gerador** (RV-9, ADR-018). Agente de fases fixas que escreve uma entrega com IA local (Ollama) ou externa (OpenRouter) e a submete ao `rvverify`, corrigindo pelo diagnóstico. Cliente do validador, nunca o contrário (NFR-RV-07). Roda por `python -m rvgen`. | [`README.md`](README.md), [`specs/plan.md`](specs/plan.md) seção 9 |
+| [`rvgen/`](rvgen/) | **O gerador** (RV-9, ADR-018). Agente de fases fixas que escreve uma entrega com IA local (Ollama) ou externa (OpenRouter) e a submete ao `rvverify`, corrigindo pelo diagnóstico. Cliente do validador, nunca o contrário (NFR-RV-07). Roda por `python -m rvgen`. | [`rvgen/README.md`](rvgen/README.md) (uso e modelo dos prompts), [`specs/plan.md`](specs/plan.md) seção 9 |
 | [`cpus/rv32i_pipeline/`](cpus/rv32i_pipeline/) | **A CPU de referência de 5 estágios** — o ponto de partida de quem vai modificar uma CPU. Traz `src/` (RTL), `test/` (suítes próprias), `tools/`, `programs/` (benchmarks `.asm`/`.ram`) e `compilation/`. | [`cpus/rv32i_pipeline/README.md`](cpus/rv32i_pipeline/README.md), [`RELATORIO.md`](cpus/rv32i_pipeline/RELATORIO.md) |
 | [`cpus/rv32i_monociclo/`](cpus/rv32i_monociclo/) | **A CPU monociclo.** Existe como prova de que a suíte julga comportamento e não formato: outra microarquitetura, mesmo contrato, mesma suíte. | [`cpus/rv32i_monociclo/README.md`](cpus/rv32i_monociclo/README.md) |
 | [`entregas/`](entregas/) | **Onde a CPU avaliada entra.** Copie `_modelo/` para `entregas/<seu_nome>/`, preencha o `cpu.toml` e ponha o VHDL em `src/`. | [`entregas/README.md`](entregas/README.md) |
+| [`experimentos/`](experimentos/) | **CPUs geradas por IA** (ADR-019), uma pasta por geração do `rvgen`, com o VHDL, o manifesto e as sessões (contrato, prompts, respostas, relatórios, resultado). Versionada como registro de experimento, fora de `entregas/`. `python -m rvgen comparar` as põe lado a lado. | [`experimentos/README.md`](experimentos/README.md) |
 | [`legado/`](legado/) | **A trilha A inteira, congelada.** O pipeline SpecHDL com formulário Streamlit (`src/spechdl/`, `templates/`, `scripts/`, `.streamlit/`, `abrir_formulario.bat`), mais os exercícios de ULA e o smoke test de toolchain. Preservada pelo princípio 8, fora do caminho. | [`docs/ESTADO-TRILHA-A.md`](docs/ESTADO-TRILHA-A.md) |
 
 O montador (`rvverify/asm.py`) e o modelo de referência
@@ -38,7 +39,7 @@ dependência.
 | [`implemetation_tests/`](implemetation_tests/) | **Saídas do pipeline, não o pipeline.** CPUs geradas pelas fases 1–5 da metodologia e depois submetidas ao mesmo `rvverify` que julga as de `cpus/`. Hoje só [`opus_5_RISCVIM/`](implemetation_tests/opus_5_RISCVIM/) (RV32IM monociclo, aprovada 35/35). A subpasta [`fpga/`](implemetation_tests/opus_5_RISCVIM/fpga/) traz o projeto Quartus da fase 5b — a análise de FPGA real da RV-8 aplicada a essa CPU (TRV-8.9). |
 | [`specs/`](specs/) | `constitution.md` (princípios), `spec.md` (requisitos EARS), `plan.md` (arquitetura), `tasks.md` (backlog), `decisions.md` (ADRs). |
 | [`docs/`](docs/) | `MUDANCAS.md` e `mudancas-riscv.html` (o que a trilha RISC-V mudou), `ESTADO-TRILHA-A.md`, `mapa-do-projeto.html` e `archive/`. |
-| [`README.md`](README.md), [`PROMPT_RISCV.md`](PROMPT_RISCV.md), [`CLAUDE.md`](CLAUDE.md) | porta de entrada, enunciado para modelos de IA, instruções para o Claude Code. |
+| [`README.md`](README.md), [`PROMPT_RISCV.md`](PROMPT_RISCV.md) | porta de entrada e enunciado para modelos de IA. (O `CLAUDE.md`, que descrevia a trilha A, foi removido em 2026-09-30.) |
 | [`pyproject.toml`](pyproject.toml) | só a configuração do pytest: `testpaths = ["rvverify/tests", "cpus"]`. `legado/` fica de fora de propósito — a trilha A não tem nenhum teste. |
 
 ## Notas
