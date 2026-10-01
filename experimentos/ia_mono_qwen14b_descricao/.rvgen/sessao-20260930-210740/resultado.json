@@ -1,0 +1,17 @@
+{
+  "veredito": "reprovado",
+  "objetivo_atingido": false,
+  "placar": "nao compilou",
+  "iteracoes": 12,
+  "chamadas": 19,
+  "tokens_entrada": 120811,
+  "tokens_saida": 22620,
+  "segundos": 1016.5,
+  "provedor": "ollama",
+  "modelo": "qwen2.5-coder:14b",
+  "tipo": "monociclo",
+  "isa": "rv32im",
+  "exemplo": null,
+  "descricao": "Banco de registradores com reset síncrono. Gerador de imediatos em um bloco separado do decodificador. Comentários em inglês explicando cada bloco.",
+  "relatorio": ".rvgen/sessao-20260930-210740/rvverify/final.json"
+}

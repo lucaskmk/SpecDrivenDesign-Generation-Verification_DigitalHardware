@@ -1,0 +1,230 @@
+You write VHDL for a RISC-V CPU that an automatic conformance suite
+(GHDL + cocotb, the `rvverify` validator) will judge by running real RISC-V
+programs and comparing the data RAM with a reference model. Follow this
+contract exactly: a CPU that deviates from it cannot be observed and fails.
+
+# Target
+ISA: RV32I (lui auipc jal jalr beq bne blt bge bltu bgeu lb lh lw lbu lhu sb sh sw addi slti sltiu xori ori andi slli srli srai add sub sll slt sltu xor srl sra or and).
+RV32M (mul mulh mulhsu mulhu div divu rem remu) when the generic RV32M_ENABLE is true: decode opcode 0110011 with funct7 = 0000001 into ALU_OP_TYPE_MUL .. ALU_OP_TYPE_REMU and instantiate the PROVIDED mul_div_unit inside `if RV32M_ENABLE generate` (it is combinational and already implements division by zero and overflow). When RV32M_ENABLE is false the M instructions need not execute. The test bench runs the same CPU twice: first with RV32M_ENABLE = false, then true.
+Not required: FENCE, ECALL, EBREAK, CSRs, interrupts, misaligned accesses.
+Microarchitecture (monociclo): Single-cycle datapath: every instruction completes in exactly one clock cycle. Fetch, decode, register read, ALU/branch, data memory access and writeback are combinational within the cycle; the PC, the register file and the data RAM commit on the rising edge. Branches and jumps are resolved in the same cycle, so there is no speculation and no flush.
+
+# Provided files (compiled BEFORE yours; never rewrite, copy or redeclare them)
+cpu_package.vhd, memory_package.vhd, mul_div_unit.vhd, data_ram.vhd, data_rom.vhd, data_memory.vhd, instruction_memory.vhd
+Use `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+use work.cpu_package.all; use work.memory_package.all;` as needed.
+
+# Top level: file src/cpu_top.vhd, exactly this interface
+entity cpu_top is
+    generic(
+        ROM_INIT_FILE  : string  := "";
+        ROM_SIZE_WORDS : integer := 0;
+        RV32M_ENABLE   : boolean := false
+    );
+    port(
+        rst : in std_logic;   -- asynchronous, ACTIVE HIGH
+        clk : in std_logic
+    );
+end cpu_top;
+
+Inside cpu_top the test bench reads these by hierarchical name, so the labels
+and signal names are mandatory:
+- instance label `instruction_memory`: entity work.instruction_memory, with
+  generic map (ROM_INIT_FILE => ROM_INIT_FILE, ROM_SIZE_WORDS => ROM_SIZE_WORDS);
+  asynchronous read of the instruction at `addr`.
+- instance label `data_memory`: entity work.data_memory. Pass the full byte
+  address (it routes DATA_ROM at 0x00FC8000 and DATA_RAM at 0x00FC8100 by
+  itself). Reads are asynchronous, writes happen on the rising edge. Byte and
+  halfword loads come back ZERO-extended: the core must sign-extend LB and LH.
+- instance label `register_file`: your register file entity, whose storage is
+  a signal named `registers` of type `array (0 to 31) of
+  std_logic_vector(31 downto 0)` (declare the type in that file).
+- signals declared in cpu_top:
+- `pc` : std_logic_vector(31 downto 0): the PC register, address of the instruction executing in this cycle
+- `instr` : std_logic_vector(31 downto 0): the instruction read from instruction_memory
+- `m_dispatch` : std_logic: '1' in a cycle where a real RV32M instruction executes; constant '0' when RV32M_ENABLE is false
+
+Those labels and names are READ by the test bench from outside; use them
+exactly as written (`register_file`, not `register_file_inst`). cpu_top itself
+must never reach inside another entity: VHDL has no hierarchical names, so
+`register_file.registers(...)` or `data_memory.data_ram...` inside cpu_top does
+not compile. Connect every block only through its ports: the register file is
+written through its own write port.
+
+Reset: while rst = '1' (asynchronous), the PC is RESET_HANDLER_ADDRESS
+(0x00000000) and all registers are 0. Programs end in the self-loop
+`halt: j halt` (JAL x0, 0); nothing special is needed for it.
+
+# VHDL rules (each one already broke a real design in this project)
+1. VHDL-2008 analyzed by `ghdl -a --std=08`. Use only ieee.std_logic_1164 and
+   ieee.numeric_std (never std_logic_arith / std_logic_unsigned).
+2. Every array the test bench reads is a 1-D array of 32-bit words, never 2-D.
+3. Never compute an array index in one signal and its range guard in another
+   signal: keep the guard and the indexing in the same conditional expression.
+4. Write combinational logic as concurrent assignments; in a combinational
+   process assign every output on every path, so no latch is inferred.
+5. One entity per file, entity name = file name, English identifiers and
+   comments.
+6. Start every file with a comment header containing `-- REQ:` and the
+   requirement IDs it implements: FR-RV-04 (RV32I semantics), FR-RV-05 (top
+   level and memories), FR-RV-06 (observable state), FR-RV-12/FR-RV-13/FR-RV-14
+   (M extension), FR-RV-15 (reset), FR-RV-16 (RV32M_ENABLE).
+7. When asked for a file, answer with the COMPLETE file in a single ```vhdl
+   block: no placeholders, no "...", no other files.
+
+# Provided declarations
+-- cpu_package.vhd (types and constants you must use)
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+package cpu_package is
+    type ALU_OP_TYPE_t is (ALU_OP_TYPE_ADD, ALU_OP_TYPE_SUB, ALU_OP_TYPE_SLT, ALU_OP_TYPE_SLTU,
+                            ALU_OP_TYPE_AND, ALU_OP_TYPE_OR, ALU_OP_TYPE_XOR, ALU_OP_TYPE_SLL, ALU_OP_TYPE_SRL, ALU_OP_TYPE_SRA,
+                            ALU_OP_TYPE_MUL, ALU_OP_TYPE_MULH, ALU_OP_TYPE_MULHSU, ALU_OP_TYPE_MULHU,
+                            ALU_OP_TYPE_DIV, ALU_OP_TYPE_DIVU, ALU_OP_TYPE_REM, ALU_OP_TYPE_REMU);
+    subtype ALU_OP_TYPE_M_t is ALU_OP_TYPE_t range ALU_OP_TYPE_MUL to ALU_OP_TYPE_REMU;
+    function is_rv32m_op(op : ALU_OP_TYPE_t) return boolean;
+    type ALU_OP_SRC_t is (ALU_OP_SRC_IMM, ALU_OP_SRC_ALU_RES, ALU_OP_SRC_REG, ALU_OP_SRC_PC_IMM, ALU_OP_SRC_PC_4, ALU_OP_SRC_RD_DATA);
+    type BRANCH_TYPE_t is (BRANCH_TYPE_NONE, BRANCH_TYPE_BEQ, BRANCH_TYPE_BNE, BRANCH_TYPE_BLT, BRANCH_TYPE_BGE);
+    type RD_DATA_SOURCE_t is (RD_DATA_SOURCE_PC_IMM, RD_DATA_SOURCE_PC_4, RD_DATA_SOURCE_IMM, RD_DATA_SOURCE_ALU_RESULT, RD_DATA_SOURCE_MEM_DATA_OUT);
+    type MEM_ACCESS_WIDTH_t is (MEM_ACCESS_WIDTH_8, MEM_ACCESS_WIDTH_16, MEM_ACCESS_WIDTH_32);
+    type PC_NEXT_SRC_t is (PC_NEXT_SRC_PC_ALU_RES, PC_NEXT_SRC_PC_IMM, PC_NEXT_SRC_PC_4);
+    constant INSTR_NOP              : std_logic_vector(31 downto 0) := x"00000013"; -- ADDI x0, x0, 0
+    constant INSTR_OPCODE_LUI       : std_logic_vector(6 downto 0) := "0110111"; -- LUI
+    constant INSTR_OPCODE_AUIPC     : std_logic_vector(6 downto 0) := "0010111"; -- AUIPC
+    constant INSTR_OPCODE_JAL       : std_logic_vector(6 downto 0) := "1101111"; -- JAL
+    constant INSTR_OPCODE_JALR      : std_logic_vector(6 downto 0) := "1100111"; -- JALR
+    constant INSTR_OPCODE_BRANCH    : std_logic_vector(6 downto 0) := "1100011"; -- BEQ, BNE, BLT[U], BGE[U]
+    constant INSTR_OPCODE_LOAD      : std_logic_vector(6 downto 0) := "0000011"; -- LB[U], LH[U], LW
+    constant INSTR_OPCODE_STORE     : std_logic_vector(6 downto 0) := "0100011"; -- SB, SH, SW
+    constant INSTR_OPCODE_REG_IMM   : std_logic_vector(6 downto 0) := "0010011"; -- ADDI, SLTI[U], XORI, ORI, ANDI, SLLI, SRLI, SRAI
+    constant INSTR_OPCODE_REG_REG   : std_logic_vector(6 downto 0) := "0110011"; -- ADD, SUB, SLT[U], XOR, OR, AND, SLL, SRL, SRA
+    constant INSTR_OPCODE_FENCE     : std_logic_vector(6 downto 0) := "0001111"; -- FENCE
+    constant INSTR_OPCODE_SYSTEM    : std_logic_vector(6 downto 0) := "1110011"; -- ECALL, EBREAK
+    constant INSTR_FUNCT3_JALR      : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_BEQ       : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_BNE       : std_logic_vector(2 downto 0) := "001";
+    constant INSTR_FUNCT3_BLT       : std_logic_vector(2 downto 0) := "100";
+    constant INSTR_FUNCT3_BGE       : std_logic_vector(2 downto 0) := "101";
+    constant INSTR_FUNCT3_BLTU      : std_logic_vector(2 downto 0) := "110";
+    constant INSTR_FUNCT3_BGEU      : std_logic_vector(2 downto 0) := "111";
+    constant INSTR_FUNCT3_LB        : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_LH        : std_logic_vector(2 downto 0) := "001";
+    constant INSTR_FUNCT3_LW        : std_logic_vector(2 downto 0) := "010";
+    constant INSTR_FUNCT3_LBU       : std_logic_vector(2 downto 0) := "100";
+    constant INSTR_FUNCT3_LHU       : std_logic_vector(2 downto 0) := "101";
+    constant INSTR_FUNCT3_SB        : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_SH        : std_logic_vector(2 downto 0) := "001";
+    constant INSTR_FUNCT3_SW        : std_logic_vector(2 downto 0) := "010";
+    constant INSTR_FUNCT3_ADDI      : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_SLTI      : std_logic_vector(2 downto 0) := "010";
+    constant INSTR_FUNCT3_SLTIU     : std_logic_vector(2 downto 0) := "011";
+    constant INSTR_FUNCT3_XORI      : std_logic_vector(2 downto 0) := "100";
+    constant INSTR_FUNCT3_ORI       : std_logic_vector(2 downto 0) := "110";
+    constant INSTR_FUNCT3_ANDI      : std_logic_vector(2 downto 0) := "111";
+    constant INSTR_FUNCT3_SLLI      : std_logic_vector(2 downto 0) := "001";
+    constant INSTR_FUNCT3_SRLI      : std_logic_vector(2 downto 0) := "101";
+    constant INSTR_FUNCT3_SRAI      : std_logic_vector(2 downto 0) := "101";
+    constant INSTR_FUNCT3_ADD       : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_SUB       : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_SLL       : std_logic_vector(2 downto 0) := "001";
+    constant INSTR_FUNCT3_SLT       : std_logic_vector(2 downto 0) := "010";
+    constant INSTR_FUNCT3_SLTU      : std_logic_vector(2 downto 0) := "011";
+    constant INSTR_FUNCT3_XOR       : std_logic_vector(2 downto 0) := "100";
+    constant INSTR_FUNCT3_SRL       : std_logic_vector(2 downto 0) := "101";
+    constant INSTR_FUNCT3_SRA       : std_logic_vector(2 downto 0) := "101";
+    constant INSTR_FUNCT3_OR        : std_logic_vector(2 downto 0) := "110";
+    constant INSTR_FUNCT3_AND       : std_logic_vector(2 downto 0) := "111";
+    constant INSTR_FUNCT3_FENCE     : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_ECALL     : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_EBREAK    : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT7_SLLI      : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_SRLI      : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_SRAI      : std_logic_vector(6 downto 0) := "0100000";
+    constant INSTR_FUNCT7_ADD       : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_SUB       : std_logic_vector(6 downto 0) := "0100000";
+    constant INSTR_FUNCT7_SLL       : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_SLT       : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_SLTU      : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_XOR       : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_SRL       : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_SRA       : std_logic_vector(6 downto 0) := "0100000";
+    constant INSTR_FUNCT7_OR        : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_AND       : std_logic_vector(6 downto 0) := "0000000";
+    constant INSTR_FUNCT7_M         : std_logic_vector(6 downto 0) := "0000001";
+    constant INSTR_FUNCT3_MUL       : std_logic_vector(2 downto 0) := "000";
+    constant INSTR_FUNCT3_MULH      : std_logic_vector(2 downto 0) := "001";
+    constant INSTR_FUNCT3_MULHSU    : std_logic_vector(2 downto 0) := "010";
+    constant INSTR_FUNCT3_MULHU     : std_logic_vector(2 downto 0) := "011";
+    constant INSTR_FUNCT3_DIV       : std_logic_vector(2 downto 0) := "100";
+    constant INSTR_FUNCT3_DIVU      : std_logic_vector(2 downto 0) := "101";
+    constant INSTR_FUNCT3_REM       : std_logic_vector(2 downto 0) := "110";
+    constant INSTR_FUNCT3_REMU      : std_logic_vector(2 downto 0) := "111";
+end package cpu_package;
+package body cpu_package is
+    function is_rv32m_op(op : ALU_OP_TYPE_t) return boolean is
+    begin
+        return op >= ALU_OP_TYPE_MUL;
+    end function;
+end package body cpu_package;
+
+-- memory_package.vhd (integer constants of the memory map)
+
+constant DATA_MEMORY_BASE_ADDRESS : integer := 16#00FC8000#;
+constant RESET_HANDLER_ADDRESS          : integer := 16#00000000#;
+constant INSTRUCTION_MEMORY_SIZE_BYTES  : integer := 388;     -- in bytes, must be a multiple of 4 (32-bits instructions) and must contain at least 2 instructions
+constant INSTRUCTION_MEMORY_SIZE_WORDS  : integer := INSTRUCTION_MEMORY_SIZE_BYTES/4;     -- in 32-bit words
+constant DATA_ROM_MEMORY_SIZE_BYTES     : integer := 8;     -- in bytes, must be a multiple of 4 and must be >= 8 (fill with 0s if needed)
+constant DATA_ROM_MEMORY_SIZE_WORDS     : integer := DATA_ROM_MEMORY_SIZE_BYTES/4;     -- in 32-bit words
+constant DATA_RAM_BASE_ADDRESS        : integer := 16#00FC8100#;
+constant DATA_RAM_MEMORY_SIZE_BYTES   : integer := 512;     -- in bytes, must be a multiple of 4
+constant DATA_RAM_MEMORY_SIZE_WORDS   : integer := DATA_RAM_MEMORY_SIZE_BYTES/4;     -- in 32-bit words
+
+-- instruction_memory.vhd
+
+entity instruction_memory is
+    generic(
+        ROM_INIT_FILE   : string  := "";     -- "" keeps INSTRUCTION_MEMORY_CONTENT
+        ROM_SIZE_WORDS  : integer := 0       -- 0 keeps INSTRUCTION_MEMORY_SIZE_WORDS
+    );
+    port(
+        addr        : in std_logic_vector(31 downto 0);
+
+        instr       : out std_logic_vector(31 downto 0)
+    );
+end instruction_memory;
+
+-- data_memory.vhd
+
+entity data_memory is
+    port(
+        clk                 : in std_logic;
+        addr                : in std_logic_vector(31 downto 0);
+        mem_write_enable    : in std_logic;
+        access_width        : in MEM_ACCESS_WIDTH_t;
+        data_in             : in std_logic_vector(31 downto 0);
+        
+        data_out            : out std_logic_vector(31 downto 0)
+    );
+end data_memory;
+
+-- mul_div_unit.vhd
+
+entity mul_div_unit is
+    port(
+        op1         : in std_logic_vector(31 downto 0);     -- rs1
+        op2         : in std_logic_vector(31 downto 0);     -- rs2
+        op_type     : in ALU_OP_TYPE_t;
+
+        -- Observability only, for the cocotb efficiency metrics (FR-RV-24).
+        -- `start` is driven high by CPU.vhd when a real (non-bubble) RV32M
+        -- instruction is in the Execute stage.
+        start       : in std_logic;
+
+        res         : out std_logic_vector(31 downto 0);
+        -- Always '0': this unit completes in the same cycle it is issued.
+        -- Kept as a port so that an iterative variant can replace this one
+        -- without changing the CPU interface.
+        busy        : out std_logic
+    );
+end mul_div_unit;

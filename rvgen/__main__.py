@@ -256,22 +256,69 @@ def cmd_tipos(args: argparse.Namespace) -> int:
 
 
 class Relator:
-    """Linhas do agente, mais um contador vivo enquanto o modelo responde."""
+    """A tela do `gerar`: cada linha com o tempo decorrido e, enquanto o
+    agente espera (o modelo responder, o rvverify rodar), um contador vivo.
 
-    def __init__(self, interativo: bool) -> None:
+    O agente marca uma espera terminando a linha em "...". No terminal, um
+    relogio de fundo reescreve a linha seguinte a cada segundo com os
+    segundos de espera e, quando o modelo ja esta respondendo, os caracteres
+    recebidos -- assim da para distinguir "o Ollama ainda nem comecou" (fila,
+    modelo carregando) de "esta gerando". Fora de terminal, so as linhas.
+    """
+
+    def __init__(self, interativo: bool, relogio=None) -> None:
+        import threading
+        import time
+
         self.interativo = interativo
-        self._contador = False
+        self._relogio = relogio or time.monotonic
+        self.inicio = self._relogio()
+        self._trava = threading.Lock()
+        self._parar = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._espera_desde = 0.0
+        self._caracteres = 0
+        self._viva = False
+
+    def decorrido(self) -> str:
+        s = int(self._relogio() - self.inicio)
+        return f"{s // 60:02d}:{s % 60:02d}"
 
     def progresso(self, caracteres: int) -> None:
-        if self.interativo:
-            print(f"\r           {caracteres} caracteres recebidos", end="", flush=True)
-            self._contador = True
+        self._caracteres = caracteres
+
+    def _tique(self) -> None:
+        while not self._parar.wait(1.0):
+            with self._trava:
+                s = int(self._relogio() - self._espera_desde)
+                estado = (f"{self._caracteres} caracteres recebidos" if self._caracteres
+                          else "aguardando")
+                print(f"\r           {estado}, {s} s", end="   ", flush=True)
+                self._viva = True
+
+    def _parar_relogio(self) -> None:
+        if self._thread is not None:
+            self._parar.set()
+            self._thread.join()
+            self._thread = None
+        if self._viva:
+            print("\r" + " " * 60 + "\r", end="", flush=True)
+            self._viva = False
 
     def linha(self, texto: str) -> None:
-        if self._contador:
-            print("\r" + " " * 48 + "\r", end="")
-            self._contador = False
-        print(texto, flush=True)
+        import threading
+
+        self._parar_relogio()
+        print(f"[{self.decorrido()}] {texto}", flush=True)
+        if self.interativo and texto.rstrip().endswith("..."):
+            self._espera_desde = self._relogio()
+            self._caracteres = 0
+            self._parar = threading.Event()
+            self._thread = threading.Thread(target=self._tique, daemon=True)
+            self._thread.start()
+
+    def fechar(self) -> None:
+        self._parar_relogio()
 
 
 def resolver_pasta(texto: str) -> Path:
@@ -368,6 +415,13 @@ def cmd_gerar(args: argparse.Namespace) -> int:
     if descricao:
         print(f"  descricao: {len(descricao.strip())} caracteres, orienta o modelo abaixo "
               f"do contrato; NAO verificada pelo rvverify (vai para descricao.md)")
+    print("  fases    : [1/4] decomposicao  [2/4] escrita  [3/4] validacao e correcao"
+          "  [4/4] veredito")
+    if provedor == "ollama":
+        # tempos medidos nas execucoes reais (16,9, 17,0 e 18,3 min)
+        print("  duracao  : com modelo local de 14B, as execucoes reais levaram de 17 a 18 min;"
+              " outro pedido no mesmo Ollama entra na fila")
+    print()
     agente = Agente(cliente=cliente, executor=executor, pasta=pasta, tipo=tipo,
                     isa=args.isa, iteracoes=args.iteracoes,
                     exemplo=Path(args.exemplo) if args.exemplo else None,
@@ -375,13 +429,16 @@ def cmd_gerar(args: argparse.Namespace) -> int:
     try:
         r = agente.gerar()
     except ErroIntegridade as e:
+        relator.fechar()
         print(f"\nVEREDITO RECUSADO: {e}", file=sys.stderr)
         return 1
     except (ErroGeracao, ErroLLM, ex.ErroExecutor) as e:
+        relator.fechar()
         # a pasta da sessao so existe se a geracao chegou a comecar
         onde = f"\n(sessao em {agente.sessao})" if agente.sessao.exists() else ""
         return erro(f"{e}{onde}")
 
+    relator.fechar()
     selo = "OBJETIVO ATINGIDO" if r.objetivo_atingido else "OBJETIVO NAO ATINGIDO"
     print(f"\n{'=' * 66}")
     print(f"{rel_pasta}   {r.veredito.upper()}   ({selo})")

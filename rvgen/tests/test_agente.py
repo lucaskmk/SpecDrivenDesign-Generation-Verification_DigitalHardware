@@ -170,6 +170,26 @@ class TestAgente(unittest.TestCase):
         resultado = json.loads((r.sessao / "resultado.json").read_text(encoding="utf-8"))
         self.assertEqual((resultado["veredito"], resultado["modelo"]), ("aprovado", "falso:1b"))
 
+    def test_tela_mostra_as_fases_em_ordem(self):
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        self.agente(modelo, ExecutorFalso([ok(1), ok(24), ok(35)])).gerar()
+        fases = [l.split("]")[0] + "]" for l in self.linhas if l.startswith("[")]
+        self.assertEqual(fases, ["[1/4]", "[2/4]", "[2/4]", "[2/4]", "[3/4]", "[4/4]"])
+        self.assertIn("[2/4] escrevendo src/alu.vhd (arquivo 1 de 3) ...", self.linhas)
+        self.assertIn("  rvverify fumaca: compila? (1 caso) ...", self.linhas)
+        self.assertIn("  rvverify completa: suite completa, RV32I + RV32IM ...", self.linhas)
+
+    def test_estimativa_aparece_a_partir_da_segunda_iteracao(self):
+        falha = relatorio(casos=[("rv32i/c0", False, "valor"), ("rv32i/c1", True, "")])
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        # fumaca, etapa RV32I, uma execucao por iteracao (3) e o veredito final
+        ex = ExecutorFalso([ok(1), falha, falha, falha, falha,
+                            relatorio(casos=[("rv32i/c0", False, "valor")])])
+        self.agente(modelo, ex, iteracoes=3).gerar()
+        estimativas = [l for l in self.linhas if "iteracoes restantes" in l]
+        self.assertEqual(len(estimativas), 2)                 # antes da 2a e da 3a
+        self.assertIn("se usar as 2 iteracoes restantes", estimativas[0])
+
     def test_decomposicao_invalida_cai_no_padrao_do_tipo(self):
         modelo = ModeloFalso({"decomposicao": ['{"blocks": []}', "texto sem json"]})
         self.agente(modelo, ExecutorFalso([ok(1), ok(24), ok(35)])).gerar()
@@ -487,6 +507,47 @@ _init_original = Agente.__init__
 def _init_com_selo_fixo(self, **kw):
     """O Agente de verdade, mas sem hashear o rvverify real nem ler o catalogo."""
     _init_original(self, protegidos=lambda: "selo", caso_de_fumaca=lambda: "rv32i/add", **kw)
+
+
+class TestRelator(unittest.TestCase):
+    """A tela do `gerar`: tempo decorrido e contador vivo durante as esperas."""
+
+    def test_cada_linha_leva_o_tempo_decorrido(self):
+        import io
+        from contextlib import redirect_stdout
+
+        from rvgen.__main__ import Relator
+        agora = iter([100.0, 100.0, 165.0])          # inicio, 1a linha, 2a linha
+        r = Relator(interativo=False, relogio=lambda: next(agora))
+        saida = io.StringIO()
+        with redirect_stdout(saida):
+            r.linha("[1/4] decompondo ...")
+            r.linha("  pronto")
+            r.fechar()
+        self.assertEqual(saida.getvalue().splitlines(),
+                         ["[00:00] [1/4] decompondo ...", "[01:05]   pronto"])
+
+    def test_contador_vivo_so_no_terminal_e_para_na_linha_seguinte(self):
+        import io
+        import time
+        from contextlib import redirect_stdout
+
+        from rvgen.__main__ import Relator
+        r = Relator(interativo=True)
+        saida = io.StringIO()
+        with redirect_stdout(saida):
+            r.linha("  rvverify fumaca: compila? (1 caso) ...")
+            time.sleep(1.3)
+            r.progresso(512)
+            time.sleep(1.1)
+            r.linha("  pronto")
+            depois = saida.getvalue()
+            time.sleep(1.2)                              # o relogio parou mesmo
+            self.assertEqual(saida.getvalue(), depois)
+            r.fechar()
+        self.assertIn("aguardando, 1 s", depois)
+        self.assertIn("512 caracteres recebidos, 2 s", depois)
+        self.assertTrue(depois.rstrip().endswith("pronto"))
 
 
 class TestValidarArquitetura(unittest.TestCase):

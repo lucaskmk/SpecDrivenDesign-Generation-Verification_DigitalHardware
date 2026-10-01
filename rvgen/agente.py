@@ -435,6 +435,7 @@ class Agente:
                 f"for this type is: {sugestao}.{pedidos}")},
         ]
         motivo = ""
+        self.relatar("[1/4] decompondo a CPU em blocos ...")
         for tentativa in (1, 2):
             r = self._chamar("decomposicao", "architecture.json", mensagens,
                              schema=_schema_arquitetura(bool(self.descricao)))
@@ -460,7 +461,7 @@ class Agente:
         self._log({"evento": "decomposicao_padrao", "motivo": motivo})
         return dict(padrao, notes=f"decomposicao padrao: a do modelo foi recusada ({motivo})")
 
-    def _escrever_bloco(self, bloco: dict, arq: dict) -> None:
+    def _escrever_bloco(self, bloco: dict, arq: dict, k: int = 1, n: int = 1) -> None:
         plano = "\n".join(
             f"- {b['file']}: entity {b['name']} -- {b['responsibility']}\n"
             f"  ports: {'; '.join(b['ports']) or '(see contract)'}"
@@ -480,7 +481,7 @@ class Agente:
                 f"{bloco['name']}.\nResponsibility: {bloco['responsibility']}\n"
                 f"Ports: {'; '.join(bloco['ports']) or '(see contract)'}{topo}")},
         ]
-        self.relatar(f"  escrevendo {bloco['file']} ...")
+        self.relatar(f"[2/4] escrevendo {bloco['file']} (arquivo {k} de {n}) ...")
         for tentativa in (1, 2):
             r = self._chamar("escrita", bloco["file"], mensagens)
             vhdl = extrair_vhdl(r.texto)
@@ -496,6 +497,11 @@ class Agente:
         raise ErroGeracao(f"o modelo nao produziu {bloco['file']} em 2 tentativas")
 
     def _validar(self, rotulo: str, etapa: str, casos: list[str] | None) -> Execucao:
+        o_que = {"rv32i": "etapa RV32I", "rv32m": "etapa RV32IM",
+                 "ambas": "suite completa, RV32I + RV32IM"}[etapa]
+        if casos:
+            o_que = f"compila? ({len(casos)} caso)"
+        self.relatar(f"  rvverify {rotulo}: {o_que} ...")
         ex = self.executor.rodar(
             self.pasta, json_saida=self.sessao / "rvverify" / f"{rotulo}.json",
             workdir=self.sessao / "sim" / rotulo, build_root=self.sessao / "build",
@@ -602,6 +608,7 @@ class Agente:
                 f"Which ONE file most likely contains the bug? Answer ONLY with JSON "
                 f"{{\"file\": one of {arquivos}, \"reason\": \"...\"}}.")},
         ]
+        self.relatar("  escolhendo o arquivo a corrigir ...")
         r = self._chamar("escolha", "-", mensagens, schema=_schema_escolha(arquivos))
         try:
             escolhido = str(extrair_json(r.texto).get("file", ""))
@@ -638,6 +645,7 @@ class Agente:
 
     def _corrigir(self, arq: dict) -> tuple[Execucao, str, int]:
         """FR-RV-48: mede, corrige um arquivo, mede de novo; desfaz o que piora."""
+        self.relatar(f"[3/4] validacao e correcao (ate {self.iteracoes} iteracoes)")
         etapas = [("fumaca", "rv32i", [self.caso_de_fumaca()]), ("rv32i", "rv32i", None)]
         if self.isa == "rv32im":
             etapas.append(("completa", "ambas", None))
@@ -647,6 +655,8 @@ class Agente:
         iteracao = 0
         nota: str | None = None
         repeticoes = 0          # respostas seguidas sem mudanca efetiva
+        duracoes: list[float] = []              # segundos de cada iteracao, para a estimativa
+        inicio_iteracao: float | None = None
         while True:
             nome_etapa, etapa, casos = etapas[i]
             if self._objetivo(nome_etapa, atual):
@@ -659,6 +669,14 @@ class Agente:
             if iteracao >= self.iteracoes:
                 self.relatar(f"  orcamento de {self.iteracoes} iteracoes esgotado")
                 return atual, nome_etapa, iteracao
+            if inicio_iteracao is not None:
+                duracoes.append(time.monotonic() - inicio_iteracao)
+            if duracoes:
+                media = sum(duracoes) / len(duracoes)
+                restantes = self.iteracoes - iteracao
+                self.relatar(f"  ~{media * restantes / 60:.0f} min se usar as {restantes} "
+                             f"iteracoes restantes (media de {media:.0f} s por iteracao)")
+            inicio_iteracao = time.monotonic()
             iteracao += 1
             alvo, evidencia = self._evidencia(atual, arquivos)
             motivo = "apontado pelo GHDL/diagnostico" if alvo else "escolhido pelo modelo"
@@ -667,7 +685,7 @@ class Agente:
                 min(repeticoes, len(TEMPERATURAS_NA_REPETICAO) - 1)]
             extra = f", temperatura {temperatura}" if temperatura is not None else ""
             self.relatar(f"  iteracao {iteracao}/{self.iteracoes}: corrigindo {alvo} "
-                         f"({motivo}{extra})")
+                         f"({motivo}{extra}) ...")
             antes = self._ler(alvo)
             novo = self._reescrever(alvo, evidencia, arq, nota, temperatura)
             if novo is None:
@@ -711,8 +729,8 @@ class Agente:
         arq = self._planejar()
         (self.pasta / "architecture.json").write_text(
             json.dumps(arq, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        for bloco in arq["blocks"]:
-            self._escrever_bloco(bloco, arq)
+        for k, bloco in enumerate(arq["blocks"], start=1):
+            self._escrever_bloco(bloco, arq, k, len(arq["blocks"]))
         arquivos = [b["file"] for b in arq["blocks"]]
         (self.pasta / "cpu.toml").write_text(
             ct.renderizar_cpu_toml(self.nome, self.pasta, self.tipo, self.isa, arquivos),
@@ -728,7 +746,12 @@ class Agente:
                 "um arquivo de rvverify/ ou uma fonte fornecida mudou durante a "
                 "geracao; o veredito foi recusado")
         # o veredito vem de uma execucao COMPLETA (as duas etapas, sem --casos)
-        final = ultima if etapa == "completa" else self._validar("final", "ambas", None)
+        if etapa == "completa":
+            self.relatar("[4/4] veredito: a ultima execucao ja foi a suite completa")
+            final = ultima
+        else:
+            self.relatar("[4/4] veredito")
+            final = self._validar("final", "ambas", None)
         p = placar_de(final)
         rel = final.relatorio or {}
         base = (rel.get("por_etapa") or {}).get("rv32i") or {}
