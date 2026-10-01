@@ -64,6 +64,56 @@ class TestClienteOllama(unittest.TestCase):
             with self.assertRaisesRegex(ErroLLM, r"HTTP 404: model \"x\" not found"):
                 ClienteOllama(s.url, "x").conversar([])
 
+    def test_corte_do_servidor_e_retomado_com_o_texto_parcial(self):
+        # o que o Ollama 0.32.1 fez de verdade na TRV-9.8: encerrou o streaming
+        # no meio de um literal "000...0", sem `done` e sem erro
+        def rota(corpo, h):
+            ultima = corpo["messages"][-1]
+            if ultima["role"] != "assistant":                  # 1o pedido: cortado
+                return 200, [{"message": {"content": 'r <= "000'}, "done": False},
+                             {"message": {"content": "0"}, "done": False}]
+            self.assertEqual(ultima["content"], 'r <= "0000')  # retoma do ponto exato
+            return 200, [{"message": {"content": '0";'}, "done": False},
+                         {"message": {"content": ""}, "done": True,
+                          "prompt_eval_count": 9, "eval_count": 3}]
+
+        progresso: list[int] = []
+        with ServidorFalso({("POST", "/api/chat"): rota}) as s:
+            r = ClienteOllama(s.url, "m", ao_progredir=progresso.append).conversar(
+                [{"role": "system", "content": "c"}, {"role": "user", "content": "u"}])
+            pedidos = [q["corpo"]["messages"] for q in s.recebidas]
+        self.assertEqual(r.texto, 'r <= "00000";')
+        self.assertEqual(r.cortes, 1)
+        self.assertEqual(r.tokens_saida, 3 + 2)       # 2 linhas do trecho cortado
+        self.assertEqual(len(pedidos), 2)
+        self.assertEqual(len(pedidos[0]), 2)          # o pedido original nao muda
+        self.assertEqual(progresso[-1], len(r.texto))
+
+    def test_corte_sem_texto_novo_ou_repetido_demais_vira_erro(self):
+        vazio = [{"message": {"content": ""}, "done": False}]
+        with ServidorFalso({("POST", "/api/chat"): lambda c, h: (200, vazio)}) as s:
+            with self.assertRaisesRegex(ErroLLM, "sem texto novo"):
+                ClienteOllama(s.url, "m").conversar([{"role": "user", "content": "u"}])
+        sempre = [{"message": {"content": "0"}, "done": False}]
+        with ServidorFalso({("POST", "/api/chat"): lambda c, h: (200, sempre)}) as s:
+            with self.assertRaisesRegex(ErroLLM, "cortada pelo servidor 3 vezes"):
+                ClienteOllama(s.url, "m", max_cortes=2).conversar(
+                    [{"role": "user", "content": "u"}])
+            self.assertEqual(len(s.recebidas), 3)
+
+    def test_temperatura_por_chamada_chega_a_api_nos_dois_provedores(self):
+        fim = [{"message": {"content": "x"}, "done": True}]
+        resposta = {"choices": [{"message": {"content": "x"}}]}
+        with ServidorFalso({("POST", "/api/chat"): lambda c, h: (200, fim),
+                            ("POST", "/v1/chat/completions"): lambda c, h: (200, resposta)}) as s:
+            ClienteOllama(s.url, "m", temperatura=0.2).conversar([], temperatura=0.9)
+            ClienteOllama(s.url, "m", temperatura=0.2).conversar([])
+            ClienteOpenAI(f"{s.url}/v1", "sk", "m", temperatura=0.2).conversar([], temperatura=0.6)
+            enviados = [q["corpo"] for q in s.recebidas]
+        self.assertEqual(enviados[0]["options"]["temperature"], 0.9)
+        self.assertEqual(enviados[1]["options"]["temperature"], 0.2)
+        self.assertEqual(enviados[2]["temperature"], 0.6)
+
     def test_sem_servidor_diz_que_nao_conectou(self):
         with self.assertRaisesRegex(ErroLLM, "sem conexao"):
             ClienteOllama("http://127.0.0.1:9", "x", timeout=2).conversar([])

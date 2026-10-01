@@ -12,6 +12,8 @@ REQ: FR-RV-43 a FR-RV-50.
                                           gera, valida e corrige ate o veredito
     python -m rvgen gerar ... --provedor openrouter
                                           o mesmo, com um modelo externo
+    python -m rvgen gerar ia_mono ...     so um nome: grava em experimentos/ia_mono
+    python -m rvgen comparar              experimentos lado a lado (FR-RV-51)
 
 Codigo de saida: 0 quando tudo esta pronto (preparar) ou a CPU atingiu o
 objetivo (gerar), 1 com pendencia ou CPU reprovada, 2 com erro de uso, de
@@ -25,6 +27,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from . import comparar as cmp
 from . import contrato as ct
 from . import executor as ex
 from . import ollama as ol
@@ -271,6 +274,36 @@ class Relator:
         print(texto, flush=True)
 
 
+def resolver_pasta(texto: str) -> Path:
+    """ADR-019: so um nome, sem diretorio, vira `experimentos/<nome>`."""
+    p = Path(texto)
+    if not p.is_absolute() and len(p.parts) == 1:
+        p = cmp.PASTA_PADRAO / p
+    return p.resolve()
+
+
+def cmd_comparar(args: argparse.Namespace) -> int:
+    alvos = [Path(a) for a in args.pastas] or [cmp.PASTA_PADRAO]
+    sessoes = cmp.sessoes(alvos, todas=args.todas)
+    if not sessoes:
+        onde = ", ".join(str(a) for a in alvos)
+        print(f"Nenhuma sessao com resultado em {onde}. Gere uma CPU com "
+              f"`python -m rvgen gerar <nome> --tipo ... --isa ...`.", file=sys.stderr)
+        return 1
+    # so vai a rede buscar preco se houver algum experimento com modelo externo
+    externos = any(cmp.provedor_de(s) != "ollama" for s in sessoes)
+    precos = None if (args.sem_rede or not externos) else cmp.precos_openrouter()
+    linhas = [cmp.linha_de(s, precos) for s in sessoes]
+    precos_ok = precos is not None or not externos
+    print(cmp.tabela_texto(linhas, precos_ok), end="")
+    if args.markdown:
+        destino = Path(args.markdown)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(cmp.tabela_markdown(linhas, precos_ok), encoding="utf-8")
+        print(f"\ntabela em Markdown: {destino}")
+    return 0
+
+
 def cmd_gerar(args: argparse.Namespace) -> int:
     def erro(texto: str) -> int:
         print(f"ERRO: {texto}", file=sys.stderr)
@@ -281,13 +314,21 @@ def cmd_gerar(args: argparse.Namespace) -> int:
         tipo = ct.validar(args.tipo, args.isa)       # antes de qualquer modelo
     except (ErroConfig, ct.ErroContrato) as e:
         return erro(str(e))
-    pasta = Path(args.pasta).resolve()
+    pasta = resolver_pasta(args.pasta)
     try:
         pasta.relative_to(REPO_ROOT)
     except ValueError:
         return erro(f"{pasta} esta fora do repositorio; use entregas/<nome>.")
     if args.exemplo and not any(Path(args.exemplo).glob("src/*.vhd")):
         return erro(f"--exemplo {args.exemplo}: nenhum src/*.vhd ali.")
+    descricao = args.descricao
+    if args.descricao_arquivo:
+        try:
+            descricao = Path(args.descricao_arquivo).read_text(encoding="utf-8-sig")
+        except OSError as e:
+            return erro(f"--descricao-arquivo {args.descricao_arquivo}: {e}")
+    if descricao is not None and not descricao.strip():
+        return erro("a descricao esta vazia.")
     try:
         executor = ex.escolher_executor(args.executor or cfg.executor, cfg.imagem_docker)
     except ex.ErroExecutor as e:
@@ -324,17 +365,22 @@ def cmd_gerar(args: argparse.Namespace) -> int:
     print(f"  modelo  : {onde}")
     print(f"  executor: {executor.nome}; ate {args.iteracoes} iteracoes de correcao"
           + (f"; exemplo: {args.exemplo}" if args.exemplo else ""))
+    if descricao:
+        print(f"  descricao: {len(descricao.strip())} caracteres, orienta o modelo abaixo "
+              f"do contrato; NAO verificada pelo rvverify (vai para descricao.md)")
     agente = Agente(cliente=cliente, executor=executor, pasta=pasta, tipo=tipo,
                     isa=args.isa, iteracoes=args.iteracoes,
                     exemplo=Path(args.exemplo) if args.exemplo else None,
-                    forcar=args.forcar, relatar=relator.linha)
+                    descricao=descricao, forcar=args.forcar, relatar=relator.linha)
     try:
         r = agente.gerar()
     except ErroIntegridade as e:
         print(f"\nVEREDITO RECUSADO: {e}", file=sys.stderr)
         return 1
     except (ErroGeracao, ErroLLM, ex.ErroExecutor) as e:
-        return erro(f"{e}\n(sessao em {agente.sessao})")
+        # a pasta da sessao so existe se a geracao chegou a comecar
+        onde = f"\n(sessao em {agente.sessao})" if agente.sessao.exists() else ""
+        return erro(f"{e}{onde}")
 
     selo = "OBJETIVO ATINGIDO" if r.objetivo_atingido else "OBJETIVO NAO ATINGIDO"
     print(f"\n{'=' * 66}")
@@ -375,7 +421,8 @@ def main(argv: list[str] | None = None) -> int:
     t.set_defaults(func=cmd_tipos)
 
     g = sub.add_parser("gerar", help="gera uma CPU, valida no rvverify e corrige")
-    g.add_argument("pasta", help="pasta da entrega, dentro do repositorio (ex.: entregas/ia_mono)")
+    g.add_argument("pasta", help="nome do experimento (grava em experimentos/<nome>) "
+                                 "ou uma pasta dentro do repositorio")
     g.add_argument("--tipo", required=True, choices=list(ct.TIPOS))
     g.add_argument("--isa", required=True,
                    help=f"ISA da CPU; o rvverify julga {', '.join(ct.ISAS)}")
@@ -393,7 +440,24 @@ def main(argv: list[str] | None = None) -> int:
                         "(ex.: cpus/rv32i_monociclo); fica registrado na sessao")
     g.add_argument("--forcar", action="store_true",
                    help="sobrescreve os arquivos gerados numa pasta que ja existe")
+    d = g.add_mutually_exclusive_group()
+    d.add_argument("--descricao", metavar="TEXTO",
+                   help="descricao da CPU em texto livre; orienta o modelo abaixo do "
+                        "contrato e NAO e verificada pelo rvverify (FR-RV-52)")
+    d.add_argument("--descricao-arquivo", metavar="ARQUIVO",
+                   help="o mesmo, lido de um arquivo de texto (UTF-8)")
     g.set_defaults(func=cmd_gerar)
+
+    c = sub.add_parser("comparar", help="experimentos lado a lado: veredito, custo, tokens")
+    c.add_argument("pastas", nargs="*",
+                   help="experimentos ou pastas de experimentos (padrao: experimentos/)")
+    c.add_argument("--todas", action="store_true",
+                   help="todas as sessoes de cada experimento, nao so a mais recente")
+    c.add_argument("--markdown", metavar="ARQUIVO",
+                   help="grava a mesma tabela em Markdown (ex.: experimentos/COMPARACAO.md)")
+    c.add_argument("--sem-rede", action="store_true",
+                   help="nao busca precos no OpenRouter; custo externo sai como ?")
+    c.set_defaults(func=cmd_comparar)
 
     args = ap.parse_args(argv)
     return args.func(args)

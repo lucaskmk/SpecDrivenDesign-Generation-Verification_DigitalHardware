@@ -14,6 +14,15 @@ diferencas ficam aqui dentro:
     ela restringe a saida a um JSON Schema (`format`), o que faz um modelo
     local de 7B devolver JSON valido sempre. A resposta vem em streaming,
     para a tela nao ficar muda durante minutos.
+
+    O servidor do Ollama 0.32.1 ENCERRA o streaming, sem `done` e sem erro,
+    quando o modelo repete o mesmo token por muito tempo -- visto de verdade
+    num literal VHDL de 32 bits, "000...0001", em que cada `0` e um token
+    (TRV-9.8). A regra no prompt nao evita isso: o modelo de 14B a ignora.
+    Por isso um corte com texto ja recebido e RETOMADO: o pedido e reenviado
+    com o texto parcial como inicio da resposta do assistente, e o modelo
+    continua exatamente de onde parou (conferido: a emenda sai sem costura).
+    O numero de cortes vai na `Resposta`, para a sessao registrar.
   * `ClienteOpenAI` fala Chat Completions (`/chat/completions`) -- o formato
     do OpenRouter e de qualquer servidor compativel. O schema, quando pedido,
     vai no texto do prompt pelo agente; aqui ele nao e enviado, porque nem
@@ -60,6 +69,7 @@ class Resposta:
     tokens_entrada: int | None
     tokens_saida: int | None
     segundos: float
+    cortes: int = 0          # vezes que o servidor encerrou o streaming e ele foi retomado
 
 
 # --------------------------------------------------------------------------
@@ -138,49 +148,77 @@ class ClienteOllama:
 
     def __init__(self, base: str, modelo: str, *, num_ctx: int = 16384,
                  temperatura: float = 0.2, timeout: float = 900.0,
-                 ao_progredir: Progresso | None = None) -> None:
+                 ao_progredir: Progresso | None = None,
+                 max_cortes: int = 8) -> None:
         self.base = base.rstrip("/")
         self.modelo = modelo
         self.num_ctx = num_ctx
         self.temperatura = temperatura
         self.timeout = timeout
         self.ao_progredir = ao_progredir
+        self.max_cortes = max_cortes
 
-    def conversar(self, mensagens: Mensagens, *,
-                  schema: dict | None = None) -> Resposta:
-        corpo: dict[str, Any] = {
-            "model": self.modelo,
-            "messages": mensagens,
-            "stream": True,
-            "options": {"num_ctx": self.num_ctx, "temperature": self.temperatura},
-        }
-        if schema is not None:
-            corpo["format"] = schema
-        inicio = time.monotonic()
+    def _um_trecho(self, corpo: dict, ja_recebido: int) -> tuple[str, dict, int]:
+        """Um streaming: (texto, evento final ou {} se cortado, linhas recebidas)."""
         partes: list[str] = []
-        total = 0
         final: dict = {}
+        linhas = 0
         for evento in post_linhas_json(f"{self.base}/api/chat", corpo,
                                        timeout=self.timeout):
             if evento.get("error"):
                 raise ErroLLM(f"ollama ({self.modelo}): {evento['error']}")
+            linhas += 1
             pedaco = (evento.get("message") or {}).get("content") or ""
             if pedaco:
                 partes.append(pedaco)
-                total += len(pedaco)
+                ja_recebido += len(pedaco)
                 if self.ao_progredir:
-                    self.ao_progredir(total)
+                    self.ao_progredir(ja_recebido)
             if evento.get("done"):
                 final = evento
-        if not final:
-            raise ErroLLM(f"ollama ({self.modelo}): a resposta terminou sem `done`.")
+        return "".join(partes), final, linhas
+
+    def conversar(self, mensagens: Mensagens, *, schema: dict | None = None,
+                  temperatura: float | None = None) -> Resposta:
+        corpo: dict[str, Any] = {
+            "model": self.modelo,
+            "messages": list(mensagens),
+            "stream": True,
+            "options": {"num_ctx": self.num_ctx,
+                        "temperature": self.temperatura if temperatura is None
+                        else temperatura},
+        }
+        if schema is not None:
+            corpo["format"] = schema
+        inicio = time.monotonic()
+        texto = ""
+        cortes = 0
+        tokens_cortados = 0      # cada linha do streaming e um token gerado
+        while True:
+            pedaco, final, linhas = self._um_trecho(corpo, len(texto))
+            texto += pedaco
+            if final:
+                break
+            # cortado pelo servidor (ver a docstring do modulo): retoma
+            if not pedaco:
+                raise ErroLLM(f"ollama ({self.modelo}): o servidor encerrou a resposta "
+                              f"sem `done` e sem texto novo.")
+            cortes += 1
+            tokens_cortados += linhas
+            if cortes > self.max_cortes:
+                raise ErroLLM(f"ollama ({self.modelo}): a resposta foi cortada pelo "
+                              f"servidor {cortes} vezes seguidas (texto repetitivo?).")
+            corpo = dict(corpo, messages=list(mensagens) +
+                         [{"role": "assistant", "content": texto}])
+        saida = final.get("eval_count")
         return Resposta(
-            texto="".join(partes),
+            texto=texto,
             provedor=self.provedor,
             modelo=self.modelo,
             tokens_entrada=final.get("prompt_eval_count"),
-            tokens_saida=final.get("eval_count"),
+            tokens_saida=None if saida is None else saida + tokens_cortados,
             segundos=round(time.monotonic() - inicio, 2),
+            cortes=cortes,
         )
 
 
@@ -197,8 +235,8 @@ class ClienteOpenAI:
         self.temperatura = temperatura
         self.timeout = timeout
 
-    def conversar(self, mensagens: Mensagens, *,
-                  schema: dict | None = None) -> Resposta:
+    def conversar(self, mensagens: Mensagens, *, schema: dict | None = None,
+                  temperatura: float | None = None) -> Resposta:
         del schema  # ver a docstring do modulo: vai no prompt, nao na API
         if not self.chave:
             raise ErroLLM(
@@ -211,7 +249,7 @@ class ClienteOpenAI:
             "X-Title": "rvgen",
         }
         corpo = {"model": self.modelo, "messages": mensagens,
-                 "temperature": self.temperatura}
+                 "temperature": self.temperatura if temperatura is None else temperatura}
         inicio = time.monotonic()
         dados = post_json(f"{self.base_url}/chat/completions", corpo,
                           headers=headers, timeout=self.timeout)

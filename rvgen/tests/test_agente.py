@@ -41,6 +41,8 @@ class ModeloFalso:
     def __init__(self, roteiro: dict[str, list] | None = None) -> None:
         self.roteiro = roteiro or {}
         self.pedidos: list[tuple[str, str]] = []
+        self.temperaturas: list[tuple[str, float | None]] = []
+        self.schemas: list[tuple[str, dict | None]] = []
 
     def _fase(self, texto: str) -> tuple[str, str]:
         if "Decompose this" in texto:
@@ -52,12 +54,14 @@ class ModeloFalso:
         m = re.search(r"Write the complete file (src/\w+\.vhd)", texto)
         return "escrita", m.group(1)
 
-    def conversar(self, mensagens, *, schema=None):
+    def conversar(self, mensagens, *, schema=None, temperatura=None):
         # a fase se le no PRIMEIRO pedido: uma nova tentativa so acrescenta
         # "mande de novo" ao fim da conversa
         pedido = mensagens[1]["content"]
         fase, alvo = self._fase(pedido)
         self.pedidos.append((fase, alvo, pedido))
+        self.temperaturas.append((fase, temperatura))
+        self.schemas.append((fase, schema))
         fila = self.roteiro.get(fase)
         if fila:
             texto = fila.pop(0)
@@ -101,6 +105,10 @@ class ExecutorFalso(Executor):
               etapa="ambas", timeout=0):
         self.chamadas.append({"etapa": etapa, "casos": casos, "rotulo": json_saida.stem})
         rel = self.relatorios.pop(0)
+        if isinstance(rel, tuple):          # (relatorio, texto do build.log)
+            rel, log = rel
+            (workdir / "gerada").mkdir(parents=True, exist_ok=True)
+            (workdir / "gerada" / "build.log").write_text(log, encoding="utf-8")
         json_saida.parent.mkdir(parents=True, exist_ok=True)
         json_saida.write_text(json.dumps([rel]), encoding="utf-8")
         return Execucao(["rvverify"], 0 if rel["veredito"] == "aprovado" else 1,
@@ -186,6 +194,121 @@ class TestAgente(unittest.TestCase):
         self.assertIn("alu.vhd:12:5: no declaration", correcoes[0][1])
         self.assertNotIn("escolha", [f for f, _, _ in modelo.pedidos])
         self.assertIn("correcao", (self.pasta / "src" / "alu.vhd").read_text(encoding="utf-8"))
+
+    def test_relatorio_sem_os_erros_le_o_build_log_e_mostra_a_linha(self):
+        # o que o rvverify mandou de verdade na TRV-9.8, antes da correcao do
+        # builder: a falha do `ghdl -m` virou "manifesto", sem erro nenhum
+        manifesto = relatorio(compilou=None, casos=[("-/manifesto", False, "manifesto")])
+        log = ("/job/entregas/gerada/src/alu.vhd:3:10: no declaration for \"x\"\n"
+               "   y <= x;\n         ^\n"
+               "/usr/lib/ghdl/ieee/v08/numeric_std-body.vhdl:1:1: aviso da IEEE\n")
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        ex = ExecutorFalso([(manifesto, log), ok(1), ok(24), ok(35)])
+        self.agente(modelo, ex).gerar()
+        correcoes = [(a, p) for f, a, p in modelo.pedidos if f == "correcao"]
+        self.assertEqual([a for a, _ in correcoes], ["src/alu.vhd"])     # nao o top
+        self.assertIn('alu.vhd:3:10: no declaration for "x"', correcoes[0][1])
+        self.assertNotIn("numeric_std", correcoes[0][1])
+        self.assertNotIn("escolha", [f for f, _, _ in modelo.pedidos])
+
+    def test_erro_de_compilacao_vem_com_a_linha_do_fonte(self):
+        erro = {"arquivo": "alu.vhd", "linha": 3, "coluna": 1, "mensagem": "erro aqui"}
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        ex = ExecutorFalso([relatorio(compilou=False, erros=[erro],
+                                      casos=[("rv32i/add", False, "compilacao")]),
+                            ok(1), ok(24), ok(35)])
+        self.agente(modelo, ex).gerar()
+        pedido = next(p for f, a, p in modelo.pedidos if f == "correcao")
+        # a linha 3 do alu.vhd gerado pelo modelo falso e "end alu;"
+        self.assertIn("alu.vhd:3:1: erro aqui\n    end alu;", pedido)
+
+    def test_resposta_repetida_sobe_a_temperatura_ate_mudar(self):
+        # TRV-9.8: com temperatura 0,2 o modelo devolveu o mesmo arquivo 10 vezes
+        erro = {"arquivo": "alu.vhd", "linha": 2, "coluna": 1, "mensagem": "erro"}
+        alu = vhdl("alu", "versao original")
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO],
+                              "escrita": [alu],
+                              "correcao": [alu, alu, vhdl("alu", "versao nova")]})
+        ex = ExecutorFalso([relatorio(compilou=False, erros=[erro],
+                                      casos=[("rv32i/add", False, "compilacao")]),
+                            ok(1), ok(24), ok(35)])
+        r = self.agente(modelo, ex).gerar()
+        self.assertTrue(r.objetivo_atingido)
+        # 0,2 repetiu -> 0,9; repetiu de novo -> continua 0,9; mudou
+        self.assertEqual([t for f, t in modelo.temperaturas if f == "correcao"],
+                         [None, 0.9, 0.9])
+        self.assertTrue(any("temperatura 0.9" in l for l in self.linhas))
+        self.assertIn("versao nova", (self.pasta / "src" / "alu.vhd").read_text(encoding="utf-8"))
+
+    def test_mudar_sem_melhorar_mantem_a_temperatura_alta(self):
+        # TRV-9.12: so uma MELHORA do placar devolve a temperatura normal
+        erro = {"arquivo": "alu.vhd", "linha": 2, "coluna": 1, "mensagem": "erro"}
+        nao_compila = relatorio(compilou=False, erros=[erro],
+                                casos=[("rv32i/add", False, "compilacao")])
+        alu = vhdl("alu", "original")
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO], "escrita": [alu],
+                              "correcao": [alu, vhdl("alu", "a"), vhdl("alu", "b")]})
+        # original repete; "a" muda mas nao compila (igual); "b" compila (melhora)
+        ex = ExecutorFalso([nao_compila, nao_compila, ok(1),
+                            relatorio(casos=[("rv32i/c0", False, "valor")]), ok(24), ok(35)])
+        self.agente(modelo, ex).gerar()
+        self.assertEqual([t for f, t in modelo.temperaturas if f == "correcao"],
+                         [None, 0.9, 0.9, None])
+
+    def test_descricao_vai_nos_pedidos_e_fica_registrada(self):
+        descricao = "Register file with synchronous reset.\nSeparate decoder block."
+        plano = json.loads(PLANO_VALIDO)
+        plano["requests"] = [{"request": "synchronous reset", "blocks": ["regs"],
+                              "how": "reset inside the clocked process"},
+                             {"request": "", "blocks": [], "how": "vazio: descartado"}]
+        erro = {"arquivo": "alu.vhd", "linha": 2, "coluna": 1, "mensagem": "erro"}
+        modelo = ModeloFalso({"decomposicao": [json.dumps(plano)]})
+        ex = ExecutorFalso([relatorio(compilou=False, erros=[erro],
+                                      casos=[("rv32i/add", False, "compilacao")]),
+                            ok(1), ok(24), ok(35)])
+        r = self.agente(modelo, ex, descricao=f"  {descricao}  ").gerar()
+
+        # nos tres tipos de pedido, com o contrato por cima
+        for fase in ("decomposicao", "escrita", "correcao"):
+            pedido = next(p for f, a, p in modelo.pedidos if f == fase)
+            self.assertIn(f"# Designer's description of the CPU (free text from the user)\n"
+                          f"{descricao}\n", pedido, fase)
+            self.assertIn("the contract wins", pedido)
+        decomp = next(p for f, a, p in modelo.pedidos if f == "decomposicao")
+        self.assertIn("Also answer `requests`", decomp)
+        schema = next(s for f, s in modelo.schemas if f == "decomposicao")
+        self.assertIn("requests", schema["required"])
+        # rastreabilidade (declaracao do modelo) e registro
+        arq = json.loads((self.pasta / "architecture.json").read_text(encoding="utf-8"))
+        self.assertEqual(arq["descricao"], descricao)
+        self.assertEqual(arq["requests"], [{"request": "synchronous reset", "blocks": ["regs"],
+                                            "how": "reset inside the clocked process"}])
+        self.assertIn("NOT verified", arq["requests_note"])
+        md = (self.pasta / "descricao.md").read_text(encoding="utf-8")
+        self.assertIn("NAO verificado", md)
+        self.assertTrue(md.rstrip().endswith("Separate decoder block."))
+        resultado = json.loads((r.sessao / "resultado.json").read_text(encoding="utf-8"))
+        self.assertEqual(resultado["descricao"], descricao)
+
+    def test_sem_descricao_nada_muda(self):
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        r = self.agente(modelo, ExecutorFalso([ok(1), ok(24), ok(35)])).gerar()
+        self.assertFalse(any("Designer's description" in p for _, _, p in modelo.pedidos))
+        self.assertNotIn("requests", next(s for f, s in modelo.schemas if f == "decomposicao")["properties"])
+        self.assertFalse((self.pasta / "descricao.md").exists())
+        self.assertIsNone(json.loads((r.sessao / "resultado.json").read_text(encoding="utf-8"))["descricao"])
+
+    def test_checagem_do_contrato_entra_na_evidencia_e_aponta_o_top(self):
+        # o valor errado nao aponta arquivo nenhum; a checagem estatica sim
+        falhas = [("rv32i/add", False, "valor")]
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        ex = ExecutorFalso([ok(1), relatorio(casos=falhas), ok(24), ok(35)])
+        self.agente(modelo, ex).gerar()
+        pedido = next(p for f, a, p in modelo.pedidos if f == "correcao")
+        self.assertIn("Contract check (static inspection of the text; a suggestion):", pedido)
+        self.assertIn("must instantiate the label `register_file` exactly", pedido)
+        self.assertIn(("correcao", "src/cpu_top.vhd"), [(f, a) for f, a, _ in modelo.pedidos])
+        self.assertNotIn("escolha", [f for f, _, _ in modelo.pedidos])
 
     def test_correcao_que_piora_e_desfeita_e_o_modelo_fica_sabendo(self):
         falhas = [(f"rv32i/c{k}", k < 20, "valor") for k in range(24)]
@@ -305,19 +428,57 @@ class TestComandoGerar(unittest.TestCase):
 
         modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
         executor = ExecutorFalso([ok(1), ok(24), ok(35)])
-        with tempfile.TemporaryDirectory(dir=REPO_ROOT / "entregas",
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / "experimentos",
                                          prefix="_teste_rvgen_") as d:
-            codigo, saida, erros = self._main(
-                ["gerar", d, "--tipo", "monociclo", "--isa", "rv32im", "--modelo", "m:1"],
-                {(cli.ex, "escolher_executor"): lambda *a, **k: executor,
-                   (ol, "localizar_servidor"): lambda *a, **k: ("http://falso", "0.32.1"),
-                   (ol, "modelos_instalados"): lambda *a, **k: ["m:1"],
-                   (cli, "ClienteOllama"): lambda *a, **k: modelo,
-                   (cli.Agente, "__init__"): _init_com_selo_fixo})
-            self.assertTrue((Path(d) / "cpu.toml").exists())
+            arquivo = Path(d).parent / f"{Path(d).name}_descricao.txt"
+            arquivo.write_text("Use a separate immediate generator block.\n", encoding="utf-8")
+            try:
+                codigo, saida, erros = self._main(
+                    ["gerar", d, "--tipo", "monociclo", "--isa", "rv32im", "--modelo", "m:1",
+                     "--descricao-arquivo", str(arquivo)],
+                    {(cli.ex, "escolher_executor"): lambda *a, **k: executor,
+                     (ol, "localizar_servidor"): lambda *a, **k: ("http://falso", "0.32.1"),
+                     (ol, "modelos_instalados"): lambda *a, **k: ["m:1"],
+                     (cli, "ClienteOllama"): lambda *a, **k: modelo,
+                     (cli.Agente, "__init__"): _init_com_selo_fixo})
+                self.assertTrue((Path(d) / "cpu.toml").exists())
+                self.assertIn("separate immediate generator",
+                              (Path(d) / "descricao.md").read_text(encoding="utf-8"))
+            finally:
+                arquivo.unlink()
         self.assertEqual(codigo, 0, erros)
         self.assertIn("APROVADO   (OBJETIVO ATINGIDO)", saida)
-        self.assertIn("validar de novo: python -m rvverify entregas/_teste_rvgen_", saida)
+        self.assertIn("descricao: 41 caracteres", saida)
+        self.assertIn("validar de novo: python -m rvverify experimentos/_teste_rvgen_", saida)
+
+    def test_pasta_existente_nao_cita_sessao_que_nao_existe(self):
+        from rvgen import __main__ as cli
+        from rvgen import ollama as ol
+        from rvgen.config import REPO_ROOT
+
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT / "experimentos",
+                                         prefix="_teste_rvgen_") as d:
+            (Path(d) / "cpu.toml").write_text("", encoding="utf-8")
+            codigo, _, erros = self._main(
+                ["gerar", d, "--tipo", "monociclo", "--isa", "rv32im", "--modelo", "m:1"],
+                {(cli.ex, "escolher_executor"): lambda *a, **k: ExecutorFalso([]),
+                 (ol, "localizar_servidor"): lambda *a, **k: ("http://falso", "0.32.1"),
+                 (ol, "modelos_instalados"): lambda *a, **k: ["m:1"],
+                 (cli, "ClienteOllama"): lambda *a, **k: ModeloFalso(),
+                 (cli.Agente, "__init__"): _init_com_selo_fixo})
+            self.assertFalse((Path(d) / ".rvgen").exists())
+        self.assertEqual(codigo, 2)
+        self.assertIn("use --forcar", erros)
+        self.assertNotIn("sessao em", erros)
+
+    def test_descricao_vazia_e_recusada(self):
+        from rvgen import ollama as ol
+        nunca = lambda *a, **k: self.fail("nao deveria procurar o Ollama")  # noqa: E731
+        codigo, _, erros = self._main(
+            ["gerar", "x", "--tipo", "monociclo", "--isa", "rv32im", "--descricao", "   "],
+            {(ol, "localizar_servidor"): nunca})
+        self.assertEqual(codigo, 2)
+        self.assertIn("descricao esta vazia", erros)
 
 
 _init_original = Agente.__init__

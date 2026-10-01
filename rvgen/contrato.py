@@ -37,6 +37,7 @@ __all__ = [
     "ENTIDADES_RESERVADAS",
     "validar",
     "declaracoes_de_entidade",
+    "verificar_contrato",
     "interfaces_fornecidas",
     "texto_do_contrato",
     "arquitetura_padrao",
@@ -385,6 +386,13 @@ and signal names are mandatory:
 - signals declared in {TOP}:
 {sinais}
 
+Those labels and names are READ by the test bench from outside; use them
+exactly as written (`register_file`, not `register_file_inst`). {TOP} itself
+must never reach inside another entity: VHDL has no hierarchical names, so
+`register_file.registers(...)` or `data_memory.data_ram...` inside {TOP} does
+not compile. Connect every block only through its ports: the register file is
+written through its own write port.
+
 Reset: while rst = '1' (asynchronous), the PC is RESET_HANDLER_ADDRESS
 (0x00000000) and all registers are 0. Programs end in the self-loop
 `halt: j halt` (JAL x0, 0); nothing special is needed for it.
@@ -409,6 +417,68 @@ Reset: while rst = '1' (asynchronous), the PC is RESET_HANDLER_ADDRESS
 # Provided declarations
 {interfaces_fornecidas()}
 """
+
+
+_ROTULOS_OBRIGATORIOS = ("instruction_memory", "data_memory", "register_file")
+_GENERICS_OBRIGATORIOS = ("ROM_INIT_FILE", "ROM_SIZE_WORDS", "RV32M_ENABLE")
+
+
+def _sem_comentarios_vhdl(texto: str) -> str:
+    return "\n".join(ln.split("--", 1)[0] for ln in texto.splitlines())
+
+
+def _instancias(texto: str) -> dict[str, str]:
+    """{rotulo: entidade} das instancias `rotulo : entity work.x` e de componente."""
+    out: dict[str, str] = {}
+    for m in re.finditer(r"(?im)^\s*(\w+)\s*:\s*entity\s+\w+\.(\w+)", texto):
+        out[m.group(1).lower()] = m.group(2).lower()
+    for m in re.finditer(r"(?is)(?:^|\n)\s*(\w+)\s*:\s*(\w+)\s+(?:generic|port)\s+map", texto):
+        if m.group(2).lower() not in ("entity", "in", "out", "inout", "buffer"):
+            out.setdefault(m.group(1).lower(), m.group(2).lower())
+    return out
+
+
+def verificar_contrato(tipo: Tipo, fontes: dict[str, str]) -> list[tuple[str, str]]:
+    """Divergencias do contrato visiveis no texto das fontes, antes do GHDL.
+
+    REQ: FR-RV-48. Inspecao estatica por expressao regular: aponta o que o
+    GHDL ou o testbench vao reclamar depois -- um rotulo de instancia errado
+    so aparece como "caminho de observacao inexistente" DEPOIS de compilar,
+    e um acesso hierarquico da um erro de compilacao que o modelo local nao
+    soube ler (TRV-9.8). Devolve (arquivo, aviso em ingles, para o prompt).
+    E sugestao: nunca muda o veredito, que e so do rvverify.
+    """
+    arq_top = f"src/{TOP}.vhd"
+    top = _sem_comentarios_vhdl(fontes.get(arq_top, ""))
+    avisos: list[tuple[str, str]] = []
+    if not re.search(rf"(?i)\bentity\s+{TOP}\s+is\b", top):
+        return [(arq_top, f"{arq_top} does not declare `entity {TOP}`.")]
+    for g in _GENERICS_OBRIGATORIOS:
+        if not re.search(rf"(?i)\b{g}\s*:", top):
+            avisos.append((arq_top, f"{TOP} must declare the generic `{g}`."))
+    instancias = _instancias(top)
+    for rotulo in _ROTULOS_OBRIGATORIOS:
+        if rotulo in instancias:
+            continue
+        parecidos = [r for r in instancias if rotulo in r or r in rotulo]
+        dica = f" (found `{parecidos[0]}`; rename it)" if parecidos else ""
+        avisos.append((arq_top, f"{TOP} must instantiate the label `{rotulo}` exactly{dica}."))
+    for nome, _ in tipo.sinais:
+        if not re.search(rf"(?i)\bsignal\s+[\w\s,]*\b{nome}\b[\w\s,]*:", top):
+            avisos.append((arq_top, f"{TOP} must declare the signal `{nome}`."))
+    for rotulo in instancias:
+        m = re.search(rf"(?i)\b{rotulo}\.(\w+)", top)
+        if m:
+            avisos.append((arq_top, f"{TOP} uses `{rotulo}.{m.group(1)}`: VHDL has no "
+                                    f"hierarchical access; connect through ports."))
+    ent_regs = instancias.get("register_file")
+    if ent_regs:
+        arq_regs = f"src/{ent_regs}.vhd"
+        texto_regs = _sem_comentarios_vhdl(fontes.get(arq_regs, ""))
+        if texto_regs and not re.search(r"(?i)\bsignal\s+registers\s*:", texto_regs):
+            avisos.append((arq_regs, f"{arq_regs} must keep its storage in a signal named "
+                                     f"`registers` (1-D array of 32 words)."))
+    return avisos
 
 
 def arquitetura_padrao(tipo: Tipo, isa: str, nome: str) -> dict:

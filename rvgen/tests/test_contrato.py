@@ -73,6 +73,78 @@ class TestManifesto(unittest.TestCase):
         self.assertEqual(set(m.metrics), {"stall", "flush_d", "flush_f", "m_dispatch"})
 
 
+TOP_BOM = """-- REQ: FR-RV-05
+entity cpu_top is
+    generic(ROM_INIT_FILE : string := ""; ROM_SIZE_WORDS : integer := 0;
+            RV32M_ENABLE : boolean := false);
+    port(rst : in std_logic; clk : in std_logic);
+end cpu_top;
+architecture rtl of cpu_top is
+    signal pc, pc_next : std_logic_vector(31 downto 0);
+    signal instr : std_logic_vector(31 downto 0);
+    signal m_dispatch : std_logic;
+begin
+    instruction_memory : entity work.instruction_memory
+        generic map(ROM_INIT_FILE => ROM_INIT_FILE, ROM_SIZE_WORDS => ROM_SIZE_WORDS)
+        port map(addr => pc, instr => instr);
+    data_memory : entity work.data_memory port map(clk => clk, addr => pc);
+    register_file : entity work.regs port map(clk => clk);
+end rtl;
+"""
+REGS_BOM = "entity regs is end regs;\narchitecture a of regs is\n  signal registers : t;\nbegin end a;\n"
+
+
+class TestChecagemDoContrato(unittest.TestCase):
+    """`verificar_contrato`: o que o GHDL e o testbench reclamariam depois."""
+
+    def _avisos(self, top, regs=REGS_BOM, tipo="monociclo"):
+        return [m for _, m in ct.verificar_contrato(
+            ct.TIPOS[tipo], {"src/cpu_top.vhd": top, "src/regs.vhd": regs})]
+
+    def test_top_que_cumpre_o_contrato_nao_gera_aviso(self):
+        self.assertEqual(self._avisos(TOP_BOM), [])
+
+    def test_o_erro_real_da_trv_9_8(self):
+        # rotulo com _inst e escrita direta no banco de registradores
+        top = TOP_BOM.replace("register_file :", "register_file_inst :") \
+                     .replace("begin\n", "begin\n    register_file_inst.registers(0) <= pc;\n", 1)
+        avisos = self._avisos(top)
+        self.assertIn("cpu_top must instantiate the label `register_file` exactly "
+                      "(found `register_file_inst`; rename it).", avisos)
+        self.assertTrue(any("uses `register_file_inst.registers`" in a for a in avisos))
+
+    def test_generic_sinal_e_registers_ausentes(self):
+        top = TOP_BOM.replace("RV32M_ENABLE : boolean := false", "X : boolean := false") \
+                     .replace("signal m_dispatch : std_logic;", "")
+        avisos = self._avisos(top, regs="entity regs is end regs;\n"
+                                        "architecture a of regs is\n  signal mem : t;\n"
+                                        "begin end a;\n")
+        self.assertIn("cpu_top must declare the generic `RV32M_ENABLE`.", avisos)
+        self.assertIn("cpu_top must declare the signal `m_dispatch`.", avisos)
+        self.assertTrue(any("signal named `registers`" in a for a in avisos))
+
+    def test_comentario_nao_conta_como_declaracao(self):
+        top = TOP_BOM.replace("signal instr :", "-- signal instr :\n    signal instrx :")
+        self.assertIn("cpu_top must declare the signal `instr`.", self._avisos(top))
+
+    def test_zero_avisos_nas_cpus_de_referencia(self):
+        # as duas passam no rvverify: a checagem nao pode reclamar delas
+        import re
+        from rvgen.config import REPO_ROOT
+        for pasta, top, tipo in (("rv32i_monociclo", "cpu_monocycle", "monociclo"),
+                                 ("rv32i_pipeline", "CPU", "pipeline")):
+            fontes = {}
+            for p in (REPO_ROOT / "cpus" / pasta / "src").glob("*.vhd"):
+                texto = p.read_text(encoding="utf-8")
+                nome = p.name
+                if p.stem == top:
+                    texto = re.sub(rf"\b{top}\b", "cpu_top", texto, flags=re.I)
+                    nome = "cpu_top.vhd"
+                fontes[f"src/{nome}"] = texto
+            with self.subTest(cpu=pasta):
+                self.assertEqual(ct.verificar_contrato(ct.TIPOS[tipo], fontes), [])
+
+
 class TestPrompt(unittest.TestCase):
 
     def test_interfaces_vem_dos_arquivos_reais(self):
