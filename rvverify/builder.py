@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -188,7 +189,12 @@ def build_design(manifest: CpuManifest, *, src_dir: Path | None = None,
             always=True,
             log_file=log_file,
         )
-    except (RuntimeError, SystemExit) as e:
+    except (RuntimeError, SystemExit, subprocess.CalledProcessError) as e:
+        # O cocotb 2.0.0 (imagem spechdl-toolchain) sinaliza a falha do
+        # `ghdl -m` com CalledProcessError, que nao e RuntimeError: sem esta
+        # linha a falha de compilacao escapava como erro generico, reportada
+        # como "manifesto" e sem as linhas do GHDL (FR-RV-28; achado na
+        # primeira execucao real do rvgen, TRV-9.8).
         text = ""
         if log_file is not None and Path(log_file).exists():
             text = Path(log_file).read_text(encoding="utf-8", errors="replace")
