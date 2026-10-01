@@ -1,0 +1,16 @@
+{
+  "veredito": "reprovado",
+  "objetivo_atingido": false,
+  "placar": "nao compilou",
+  "iteracoes": 12,
+  "chamadas": 17,
+  "tokens_entrada": 111918,
+  "tokens_saida": 25325,
+  "segundos": 1097.2,
+  "provedor": "ollama",
+  "modelo": "qwen2.5-coder:14b",
+  "tipo": "monociclo",
+  "isa": "rv32im",
+  "exemplo": null,
+  "relatorio": ".rvgen/sessao-20260930-202050/rvverify/final.json"
+}

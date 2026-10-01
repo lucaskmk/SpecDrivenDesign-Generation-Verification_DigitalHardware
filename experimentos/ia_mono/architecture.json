@@ -1,0 +1,94 @@
+{
+  "design": "ia_mono",
+  "tipo": "monociclo",
+  "isa": "rv32im",
+  "top": "cpu_top",
+  "origem": "modelo",
+  "provided": [
+    "cpus/rv32i_pipeline/src/cpu_package.vhd",
+    "cpus/rv32i_pipeline/src/memory_package.vhd",
+    "cpus/rv32i_pipeline/src/mul_div_unit.vhd",
+    "cpus/rv32i_pipeline/src/data_ram.vhd",
+    "cpus/rv32i_pipeline/src/data_rom.vhd",
+    "cpus/rv32i_pipeline/src/data_memory.vhd",
+    "cpus/rv32i_pipeline/src/instruction_memory.vhd"
+  ],
+  "blocks": [
+    {
+      "name": "register_file",
+      "file": "src/register_file.vhd",
+      "responsibility": "Stores and retrieves values of general-purpose registers.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "rd_addr1 : in std_logic_vector(4 downto 0)",
+        "rd_addr2 : in std_logic_vector(4 downto 0)",
+        "wr_addr : in std_logic_vector(4 downto 0)",
+        "wr_data : in std_logic_vector(31 downto 0)",
+        "wr_en : in std_logic",
+        "rd_data1 : out std_logic_vector(31 downto 0)",
+        "rd_data2 : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [
+        "FR-RV-06"
+      ],
+      "design_rationale": "Separating the register file allows for easier testing and verification of register operations."
+    },
+    {
+      "name": "alu",
+      "file": "src/alu.vhd",
+      "responsibility": "Performs arithmetic, logical, and shift operations.",
+      "ports": [
+        "op1 : in std_logic_vector(31 downto 0)",
+        "op2 : in std_logic_vector(31 downto 0)",
+        "alu_op_type : in ALU_OP_TYPE_t",
+        "result : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [
+        "FR-RV-04"
+      ],
+      "design_rationale": "The ALU is a critical component for executing most instructions, and separating it simplifies the design and verification process."
+    },
+    {
+      "name": "decoder",
+      "file": "src/decoder.vhd",
+      "responsibility": "Decodes instructions into control signals and determines the operation type.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "alu_op_type : out ALU_OP_TYPE_t",
+        "rd_addr1 : out std_logic_vector(4 downto 0)",
+        "rd_addr2 : out std_logic_vector(4 downto 0)",
+        "wr_addr : out std_logic_vector(4 downto 0)",
+        "wr_en : out std_logic",
+        "pc_next_src : out PC_NEXT_SRC_t",
+        "branch_type : out BRANCH_TYPE_t",
+        "mem_access_width : out MEM_ACCESS_WIDTH_t",
+        "mem_write_enable : out std_logic",
+        "rd_data_source : out RD_DATA_SOURCE_t"
+      ],
+      "satisfies": [
+        "FR-RV-04"
+      ],
+      "design_rationale": "The decoder simplifies the main CPU logic by handling instruction decoding, making the design more modular and easier to verify."
+    },
+    {
+      "name": "cpu_top",
+      "file": "src/cpu_top.vhd",
+      "responsibility": "Top-level entity that instantiates other blocks and connects them together.",
+      "ports": [
+        "rst : in std_logic",
+        "clk : in std_logic"
+      ],
+      "satisfies": [
+        "FR-RV-05",
+        "FR-RV-12",
+        "FR-RV-13",
+        "FR-RV-14",
+        "FR-RV-15",
+        "FR-RV-16"
+      ],
+      "design_rationale": "The top-level entity integrates all the components and provides a clear interface for testing and verification."
+    }
+  ],
+  "notes": "This decomposition separates the CPU into distinct blocks, each with a specific responsibility. This approach enhances modularity, verifiability, and maintainability of the design."
+}

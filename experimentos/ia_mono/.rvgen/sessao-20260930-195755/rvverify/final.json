@@ -1,0 +1,1321 @@
+[
+  {
+    "design": "ia_mono",
+    "manifest": "/job/entregas/ia_mono/cpu.toml",
+    "veredito": "reprovado",
+    "aprovado": false,
+    "codigo_saida": 1,
+    "escopo": {
+      "completo": true,
+      "etapas": [
+        "rv32i",
+        "rv32m"
+      ],
+      "casos_selecionados": 35,
+      "casos_na_suite": 35,
+      "casos_pulados": [
+        "rv32m/mul",
+        "rv32m/mulh",
+        "rv32m/mulhsu",
+        "rv32m/mulhu",
+        "rv32m/div",
+        "rv32m/divu",
+        "rv32m/rem",
+        "rv32m/remu",
+        "rv32m/divisao_por_zero",
+        "rv32m/overflow_da_divisao",
+        "rv32m/misto_rv32i_rv32m"
+      ]
+    },
+    "compilacao": {
+      "ok": false,
+      "erros": [
+        {
+          "arquivo": "cpu_top.vhd",
+          "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+          "linha": 181,
+          "coluna": 17,
+          "tempo": null,
+          "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+        },
+        {
+          "arquivo": "cpu_top.vhd",
+          "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+          "linha": 181,
+          "coluna": 45,
+          "tempo": null,
+          "mensagem": "target is not a signal name"
+        }
+      ],
+      "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+      "segundos": 0.24,
+      "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log"
+    },
+    "por_etapa": {
+      "rv32i": {
+        "total": 24,
+        "passou": 0,
+        "falhou": 24
+      }
+    },
+    "por_requisito": {
+      "FR-RV-04": {
+        "total": 23,
+        "passou": 0,
+        "casos_falhos": [
+          "add",
+          "sub",
+          "and",
+          "or",
+          "xor",
+          "sll",
+          "srl",
+          "sra",
+          "slt",
+          "sltu",
+          "addi",
+          "andi",
+          "ori",
+          "xori",
+          "slti",
+          "sltiu",
+          "slli",
+          "srli",
+          "srai",
+          "x0_imutavel",
+          "load_store_larguras",
+          "branches",
+          "jal_jalr_lui_auipc"
+        ],
+        "titulo": "Sem\u00e2ntica RV32I: registradores, aritm\u00e9tica de 32 bits e load/store",
+        "atendido": false
+      },
+      "FR-RV-05": {
+        "total": 1,
+        "passou": 0,
+        "casos_falhos": [
+          "load_store_larguras"
+        ],
+        "titulo": "Mem\u00f3rias e mapa de endere\u00e7os",
+        "atendido": false
+      },
+      "FR-RV-22": {
+        "total": 21,
+        "passou": 0,
+        "casos_falhos": [
+          "add",
+          "sub",
+          "and",
+          "or",
+          "xor",
+          "sll",
+          "srl",
+          "sra",
+          "slt",
+          "sltu",
+          "addi",
+          "andi",
+          "ori",
+          "xori",
+          "slti",
+          "sltiu",
+          "slli",
+          "srli",
+          "srai",
+          "branches",
+          "laco_com_dependencia"
+        ],
+        "titulo": "Valores de borda e depend\u00eancia entre instru\u00e7\u00f5es",
+        "atendido": false
+      }
+    },
+    "pulado": [
+      "etapa RV32M PULADA: a baseline RV32I reprovou. Corrija a base primeiro -- um defeito nela apareceria como se fosse da extensao (FR-RV-11)."
+    ],
+    "observabilidade": {
+      "ram": true,
+      "registers": true,
+      "cycles": true,
+      "instructions": false,
+      "m_instructions": true,
+      "unobserved": [
+        "instrucoes e CPI: [metrics] nao declara stall, flush_d, flush_f; sem esses sinais o numero de instrucoes nao e observavel"
+      ]
+    },
+    "casos": [
+      {
+        "name": "add",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/add",
+        "description": "ADD sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.42,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "sub",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sub",
+        "description": "SUB sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "and",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/and",
+        "description": "AND sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "or",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/or",
+        "description": "OR sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.31,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "xor",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/xor",
+        "description": "XOR sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.3,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "sll",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sll",
+        "description": "SLL sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.27,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "srl",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/srl",
+        "description": "SRL sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "sra",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sra",
+        "description": "SRA sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.27,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "slt",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/slt",
+        "description": "SLT sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.3,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "sltu",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sltu",
+        "description": "SLTU sobre 64 pares de valores de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.27,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "addi",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/addi",
+        "description": "ADDI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "andi",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/andi",
+        "description": "ANDI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.31,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "ori",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/ori",
+        "description": "ORI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.31,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "xori",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/xori",
+        "description": "XORI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "slti",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/slti",
+        "description": "SLTI sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.27,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "sltiu",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/sltiu",
+        "description": "SLTIU sobre 48 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "slli",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/slli",
+        "description": "SLLI sobre 40 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "srli",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/srli",
+        "description": "SRLI sobre 40 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.32,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "srai",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/srai",
+        "description": "SRAI sobre 40 valores e imediatos de borda",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "x0_imutavel",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/x0_imutavel",
+        "description": "x0 le zero e descarta escrita",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.27,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "load_store_larguras",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-05"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/load_store_larguras",
+        "description": "LB/LBU/LH/LHU/LW e SB/SH/SW: largura e extensao de sinal",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.27,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "branches",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04",
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/branches",
+        "description": "Os seis branches, tomados e nao tomados",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "jal_jalr_lui_auipc",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-04"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/jal_jalr_lui_auipc",
+        "description": "JAL/JALR com retorno, LUI e AUIPC",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.32,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      },
+      {
+        "name": "laco_com_dependencia",
+        "stage": "rv32i",
+        "passed": false,
+        "requirements": [
+          "FR-RV-22"
+        ],
+        "detail": "O GHDL n\u00e3o compilou as fontes: cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+        "cycles": null,
+        "instructions": null,
+        "cpi": null,
+        "m_instructions": null,
+        "id": "rv32i/laco_com_dependencia",
+        "description": "Laco com dependencia entre instrucoes (soma de 1 a 10)",
+        "stalls": null,
+        "flushes": null,
+        "duration_s": 0.28,
+        "log": "/job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+        "diagnostico": {
+          "tipo": "compilacao",
+          "titulo": "O GHDL n\u00e3o compilou as fontes",
+          "resumo": "cpu_top.vhd:181: component instance \"register_file_inst\" cannot be selected by name",
+          "divergencias": [],
+          "total_divergencias": 0,
+          "confusao": null,
+          "dica": "Corrija a linha indicada. Se o erro for de declara\u00e7\u00e3o n\u00e3o encontrada, confira a ordem de [design].sources: pacotes v\u00eam antes de quem os usa.",
+          "mensagem": "o GHDL nao compilou as fontes de /job/entregas/ia_mono/cpu.toml (Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu_top']' returned non-zero exit status 1.); saida completa em /job/entregas/ia_mono/.rvgen/sessao-20260930-195755/sim/final/ia_mono/build.log",
+          "erros_ghdl": [
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 17,
+              "tempo": null,
+              "mensagem": "component instance \"register_file_inst\" cannot be selected by name"
+            },
+            {
+              "arquivo": "cpu_top.vhd",
+              "caminho": "/job/entregas/ia_mono/src/cpu_top.vhd",
+              "linha": 181,
+              "coluna": 45,
+              "tempo": null,
+              "mensagem": "target is not a signal name"
+            }
+          ],
+          "dados": {}
+        }
+      }
+    ]
+  }
+]

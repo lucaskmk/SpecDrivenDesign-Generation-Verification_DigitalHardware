@@ -1,0 +1,94 @@
+{
+  "design": "ia_mono_qwen14b",
+  "tipo": "monociclo",
+  "isa": "rv32im",
+  "top": "cpu_top",
+  "origem": "modelo",
+  "provided": [
+    "cpus/rv32i_pipeline/src/cpu_package.vhd",
+    "cpus/rv32i_pipeline/src/memory_package.vhd",
+    "cpus/rv32i_pipeline/src/mul_div_unit.vhd",
+    "cpus/rv32i_pipeline/src/data_ram.vhd",
+    "cpus/rv32i_pipeline/src/data_rom.vhd",
+    "cpus/rv32i_pipeline/src/data_memory.vhd",
+    "cpus/rv32i_pipeline/src/instruction_memory.vhd"
+  ],
+  "blocks": [
+    {
+      "name": "register_file",
+      "file": "src/register_file.vhd",
+      "responsibility": "Stores and provides access to CPU registers.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "reg_write_enable : in std_logic",
+        "write_register : in std_logic_vector(4 downto 0)",
+        "read_register1 : in std_logic_vector(4 downto 0)",
+        "read_register2 : in std_logic_vector(4 downto 0)",
+        "data_in : in std_logic_vector(31 downto 0)",
+        "data_out1 : out std_logic_vector(31 downto 0)",
+        "data_out2 : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [
+        "FR-RV-06"
+      ],
+      "design_rationale": "Separating the register file allows for easy verification and modification of register access logic."
+    },
+    {
+      "name": "alu",
+      "file": "src/alu.vhd",
+      "responsibility": "Performs arithmetic and logical operations.",
+      "ports": [
+        "op1 : in std_logic_vector(31 downto 0)",
+        "op2 : in std_logic_vector(31 downto 0)",
+        "alu_op_type : in ALU_OP_TYPE_t",
+        "result : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [
+        "FR-RV-04"
+      ],
+      "design_rationale": "The ALU is a critical component for performing the core operations of the CPU, and separating it simplifies testing and debugging."
+    },
+    {
+      "name": "decoder",
+      "file": "src/decoder.vhd",
+      "responsibility": "Decodes instructions into control signals.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "alu_op_type : out ALU_OP_TYPE_t",
+        "reg_write_enable : out std_logic",
+        "write_register : out std_logic_vector(4 downto 0)",
+        "read_register1 : out std_logic_vector(4 downto 0)",
+        "read_register2 : out std_logic_vector(4 downto 0)",
+        "mem_access_width : out MEM_ACCESS_WIDTH_t",
+        "mem_write_enable : out std_logic",
+        "pc_next_src : out PC_NEXT_SRC_t",
+        "branch_type : out BRANCH_TYPE_t",
+        "rd_data_source : out RD_DATA_SOURCE_t"
+      ],
+      "satisfies": [
+        "FR-RV-04"
+      ],
+      "design_rationale": "The decoder simplifies the control logic by handling instruction decoding, making the CPU design more modular and easier to verify."
+    },
+    {
+      "name": "cpu_top",
+      "file": "src/cpu_top.vhd",
+      "responsibility": "Top-level entity that integrates all components.",
+      "ports": [
+        "rst : in std_logic",
+        "clk : in std_logic"
+      ],
+      "satisfies": [
+        "FR-RV-05",
+        "FR-RV-12",
+        "FR-RV-13",
+        "FR-RV-14",
+        "FR-RV-15",
+        "FR-RV-16"
+      ],
+      "design_rationale": "The top-level entity is responsible for connecting all the components and managing the overall CPU operation, ensuring that all requirements are met."
+    }
+  ],
+  "notes": "This decomposition separates the CPU into distinct modules to improve modularity, testability, and maintainability. Each block has a clear responsibility and satisfies specific requirements from the RISC-V specification."
+}
