@@ -1,0 +1,58 @@
+# Manifesto gerado por rvgen (FR-RV-47): deterministico, a partir do
+# contrato do tipo `monociclo` em rvgen/contrato.py. Nao foi escrito
+# pelo modelo de linguagem; so as fontes em src/ foram.
+#
+# REQ: FR-RV-05, FR-RV-06, FR-RV-09, FR-RV-15, FR-RV-16, FR-RV-21
+
+[design]
+name = "ia_mono"
+top  = "cpu_top"
+std  = "08"
+rv32m_generic = "RV32M_ENABLE"
+sources = [
+    "../../cpus/rv32i_pipeline/src/cpu_package.vhd",
+    "../../cpus/rv32i_pipeline/src/memory_package.vhd",
+    "../../cpus/rv32i_pipeline/src/mul_div_unit.vhd",
+    "../../cpus/rv32i_pipeline/src/data_ram.vhd",
+    "../../cpus/rv32i_pipeline/src/data_rom.vhd",
+    "../../cpus/rv32i_pipeline/src/data_memory.vhd",
+    "../../cpus/rv32i_pipeline/src/instruction_memory.vhd",
+    "src/register_file.vhd",
+    "src/alu.vhd",
+    "src/decoder.vhd",
+    "src/cpu_top.vhd",
+]
+
+[clock]
+signal    = "clk"
+period_ns = 10
+
+[reset]
+signal = "rst"
+active = "high"
+cycles = 3
+
+[program]
+mode         = "rom_init_file"
+generic      = "ROM_INIT_FILE"
+size_generic = "ROM_SIZE_WORDS"
+size_words   = 1024
+
+[memory]
+ram_base  = 0x00FC8100
+ram_bytes = 512
+
+[observe]
+ram       = "data_memory.data_ram.memory"
+registers = "register_file.registers"
+pc_fetch = "pc"
+instr_fetch = "instr"
+
+[halt]
+mode = "fetch_pc"
+pc = "pc"
+stationary = 2
+drain = 2
+
+[metrics]
+m_dispatch = "m_dispatch"
