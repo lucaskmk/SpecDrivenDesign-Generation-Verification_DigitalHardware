@@ -12,7 +12,8 @@ que foi de fato movido.
 
 ## As pastas de topo
 
-As cinco da ADR-013, mais `rvgen/` (ADR-018) e `experimentos/` (ADR-019).
+As cinco da ADR-013, mais `rvgen/` (ADR-018), `experimentos/` (ADR-019) e
+`quartus_testing/` (teste de uma CPU no Quartus, RV-8).
 
 | pasta | o que é | leia primeiro |
 |---|---|---|
@@ -22,6 +23,7 @@ As cinco da ADR-013, mais `rvgen/` (ADR-018) e `experimentos/` (ADR-019).
 | [`cpus/rv32i_monociclo/`](cpus/rv32i_monociclo/) | **A CPU monociclo.** Existe como prova de que a suíte julga comportamento e não formato: outra microarquitetura, mesmo contrato, mesma suíte. | [`cpus/rv32i_monociclo/README.md`](cpus/rv32i_monociclo/README.md) |
 | [`entregas/`](entregas/) | **Onde a CPU avaliada entra.** Copie `_modelo/` para `entregas/<seu_nome>/`, preencha o `cpu.toml` e ponha o VHDL em `src/`. | [`entregas/README.md`](entregas/README.md) |
 | [`experimentos/`](experimentos/) | **CPUs geradas por IA** (ADR-019), uma pasta por geração do `rvgen`, com o VHDL, o manifesto e as sessões (contrato, prompts, respostas, relatórios, resultado). Versionada como registro de experimento, fora de `entregas/`. `python -m rvgen comparar` as põe lado a lado. | [`experimentos/README.md`](experimentos/README.md) |
+| [`quartus_testing/`](quartus_testing/) | **Teste de uma CPU no Quartus** (RV-8, FR-RV-36 a FR-RV-41). `quartus_cpu_check.py <pasta da CPU>` gera o projeto Quartus a partir do `cpu.toml`, roda na imagem `quartus-lite:25.1` as checagens que já existiam (versão, device, `analyze`, Fmax, caminho crítico, netlist RTL, `.sof`) e responde: **compila ou não** (e o erro, com arquivo e linha), **frequência**, **recursos** (ALMs, LUTs, registradores, memória, DSP, pinos) e **potência estimada**. Saída em `quartus_testing/resultados/<nome>/` (fora do Git). Aditivo: não toca o veredito do `rvverify` (NFR-RV-06). Testes em `tests/`, sem Docker: `python -m pytest quartus_testing/tests`. | [`how_to_use.md`](quartus_testing/how_to_use.md) (uso), [`quartus_testing_report_implementation.md`](quartus_testing/quartus_testing_report_implementation.md) (implementação) |
 | [`legado/`](legado/) | **A trilha A inteira, congelada.** O pipeline SpecHDL com formulário Streamlit (`src/spechdl/`, `templates/`, `scripts/`, `.streamlit/`, `abrir_formulario.bat`), mais os exercícios de ULA e o smoke test de toolchain. Preservada pelo princípio 8, fora do caminho. | [`docs/ESTADO-TRILHA-A.md`](docs/ESTADO-TRILHA-A.md) |
 
 O montador (`rvverify/asm.py`) e o modelo de referência

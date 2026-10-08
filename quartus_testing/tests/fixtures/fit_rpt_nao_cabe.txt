@@ -1,0 +1,73 @@
+Trecho real de implemetation_tests/opus_5_RISCVIM/fpga/output_files/rv32i.fit.rpt
+(Quartus 25.1std.0, 2026-09-18): so a tabela Fitter Resource Usage Summary.
+
++---------------------------------------------------------------------------------------+
+; Fitter Resource Usage Summary                                                         ;
++-------------------------------------------------------------+-----------------+-------+
+; Resource                                                    ; Usage           ; %     ;
++-------------------------------------------------------------+-----------------+-------+
+; Logic utilization (ALMs needed / total ALMs on device)      ; 23,693 / 18,480 ; 128 % ;
+; ALMs needed [=A-B+C]                                        ; 23,693          ;       ;
+;     [A] ALMs used in final placement [=a+b+c+d]             ; 22,051 / 18,480 ; 119 % ;
+;         [a] ALMs used for LUT logic and registers           ; 6,697           ;       ;
+;         [b] ALMs used for LUT logic                         ; 5,746           ;       ;
+;         [c] ALMs used for registers                         ; 9,608           ;       ;
+;         [d] ALMs used for memory (up to half of total ALMs) ; 0               ;       ;
+;     [B] Estimate of ALMs recoverable by dense packing       ; 1 / 18,480      ; < 1 % ;
+;     [C] Estimate of ALMs unavailable [=a+b+c+d]             ; 1,643 / 18,480  ; 9 %   ;
+;         [a] Due to location constrained logic               ; 0               ;       ;
+;         [b] Due to LAB-wide signal conflicts                ; 1,557           ;       ;
+;         [c] Due to LAB input limits                         ; 86              ;       ;
+;         [d] Due to virtual I/Os                             ; 0               ;       ;
+;                                                             ;                 ;       ;
+; Difficulty packing design                                   ; No fit          ;       ;
+;                                                             ;                 ;       ;
+; Total LABs:  partially or completely used                   ; 2,424 / 1,848   ; 131 % ;
+;     -- Logic LABs                                           ; 2,424           ;       ;
+;     -- Memory LABs (up to half of total LABs)               ; 0               ;       ;
+;                                                             ;                 ;       ;
+; Combinational ALUT usage for logic                          ; 20,099          ;       ;
+;     -- 7 input functions                                    ; 25              ;       ;
+;     -- 6 input functions                                    ; 15,432          ;       ;
+;     -- 5 input functions                                    ; 1,958           ;       ;
+;     -- 4 input functions                                    ; 2,490           ;       ;
+;     -- <=3 input functions                                  ; 194             ;       ;
+; Combinational ALUT usage for route-throughs                 ; 0               ;       ;
+;                                                             ;                 ;       ;
+; Dedicated logic registers                                   ; 33,857          ;       ;
+;     -- By type:                                             ;                 ;       ;
+;         -- Primary logic registers                          ; 32,609 / 36,960 ; 88 %  ;
+;         -- Secondary logic registers                        ; 1,248 / 36,960  ; 3 %   ;
+;     -- By function:                                         ;                 ;       ;
+;         -- Design implementation registers                  ; 33,857          ;       ;
+;         -- Routing optimization registers                   ; 0               ;       ;
+;                                                             ;                 ;       ;
+; Virtual pins                                                ; 0               ;       ;
+; I/O pins                                                    ; 67 / 224        ; 30 %  ;
+;     -- Clock pins                                           ; 1 / 9           ; 11 %  ;
+;     -- Dedicated input pins                                 ; 0 / 11          ; 0 %   ;
+;                                                             ;                 ;       ;
+; M10K blocks                                                 ; 0 / 308         ; 0 %   ;
+; Total MLAB memory bits                                      ; 0               ;       ;
+; Total block memory bits                                     ; 0 / 3,153,920   ; 0 %   ;
+; Total block memory implementation bits                      ; 0 / 3,153,920   ; 0 %   ;
+;                                                             ;                 ;       ;
+; Total DSP Blocks                                            ; 0 / 66          ; 0 %   ;
+;                                                             ;                 ;       ;
+; Fractional PLLs                                             ; 0 / 4           ; 0 %   ;
+; Global signals                                              ; 1               ;       ;
+;     -- Global clocks                                        ; 1 / 16          ; 6 %   ;
+;     -- Quadrant clocks                                      ; 0 / 88          ; 0 %   ;
+; SERDES Transmitters                                         ; 0 / 68          ; 0 %   ;
+; SERDES Receivers                                            ; 0 / 68          ; 0 %   ;
+; JTAGs                                                       ; 0 / 1           ; 0 %   ;
+; ASMI blocks                                                 ; 0 / 1           ; 0 %   ;
+; CRC blocks                                                  ; 0 / 1           ; 0 %   ;
+; Remote update blocks                                        ; 0 / 1           ; 0 %   ;
+; Oscillator blocks                                           ; 0 / 1           ; 0 %   ;
+; Impedance control blocks                                    ; 0 / 3           ; 0 %   ;
+; Maximum fan-out                                             ; 33857           ;       ;
+; Highest non-global fan-out                                  ; 4098            ;       ;
+; Total fan-out                                               ; 215777          ;       ;
+; Average fan-out                                             ; 3.99            ;       ;
++-------------------------------------------------------------+-----------------+-------+

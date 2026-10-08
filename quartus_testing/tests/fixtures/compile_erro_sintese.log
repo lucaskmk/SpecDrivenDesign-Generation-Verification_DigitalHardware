@@ -1,0 +1,79 @@
+/opt/altera_lite/25.1std/quartus/adm/qenv.sh: line 83: warning: setlocale: LC_CTYPE: cannot change locale (en_US.UTF-8): No such file or directory
+Info: *******************************************************************
+Info: Running Quartus Prime Shell
+    Info: Version 25.1std.0 Build 1129 10/21/2025 SC Lite Edition
+    Info: Copyright (C) 2025  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Wed Oct  7 23:47:11 2026
+Info: Command: quartus_sh --flow compile rv32i_monociclo -c padrao
+Info: Quartus(args): compile rv32i_monociclo -c padrao
+Info: Project Name = /workspace/rv32i_monociclo
+Info: Revision Name = padrao
+Info (125061): Changed top-level design entity name to "cpu_monocycle"
+Info: *******************************************************************
+Info: Running Quartus Prime Analysis & Synthesis
+    Info: Version 25.1std.0 Build 1129 10/21/2025 SC Lite Edition
+    Info: Processing started: Wed Oct  7 23:47:12 2026
+Info: Command: quartus_map --read_settings_files=on --write_settings_files=off rv32i_monociclo -c padrao
+Warning (18236): Number of processors has not been specified which may cause overloading on shared machines.  Set the global assignment NUM_PARALLEL_PROCESSORS in your QSF to an appropriate value for best performance.
+Info (20030): Parallel compilation is enabled and will use 16 of the 22 processors detected
+Info (12021): Found 2 design units, including 0 entities, in source file src/cpu_package.vhd
+    Info (12022): Found design unit 1: cpu_package File: /workspace/src/cpu_package.vhd Line: 11
+    Info (12022): Found design unit 2: cpu_package-body File: /workspace/src/cpu_package.vhd Line: 133
+Info (12021): Found 1 design units, including 0 entities, in source file src/memory_package.vhd
+    Info (12022): Found design unit 1: memory_package File: /workspace/src/memory_package.vhd Line: 10
+Info (12021): Found 2 design units, including 1 entities, in source file src/mul_div_unit.vhd
+    Info (12022): Found design unit 1: mul_div_unit-Behavioral File: /workspace/src/mul_div_unit.vhd Line: 70
+    Info (12023): Found entity 1: mul_div_unit File: /workspace/src/mul_div_unit.vhd Line: 50
+Info (12021): Found 2 design units, including 1 entities, in source file src/data_ram.vhd
+    Info (12022): Found design unit 1: data_ram-Behavioral File: /workspace/src/data_ram.vhd Line: 56
+    Info (12023): Found entity 1: data_ram File: /workspace/src/data_ram.vhd Line: 43
+Info (12021): Found 2 design units, including 1 entities, in source file src/data_rom.vhd
+    Info (12022): Found design unit 1: data_rom-Behavioral File: /workspace/src/data_rom.vhd Line: 42
+    Info (12023): Found entity 1: data_rom File: /workspace/src/data_rom.vhd Line: 32
+Info (12021): Found 2 design units, including 1 entities, in source file src/data_memory.vhd
+    Info (12022): Found design unit 1: data_memory-Behavioral File: /workspace/src/data_memory.vhd Line: 31
+    Info (12023): Found entity 1: data_memory File: /workspace/src/data_memory.vhd Line: 17
+Info (12021): Found 2 design units, including 1 entities, in source file src/instruction_memory.vhd
+    Info (12022): Found design unit 1: instruction_memory-Behavioral File: /workspace/src/instruction_memory.vhd Line: 59
+    Info (12023): Found entity 1: instruction_memory File: /workspace/src/instruction_memory.vhd Line: 46
+Info (12021): Found 2 design units, including 1 entities, in source file src/mono_alu.vhd
+    Info (12022): Found design unit 1: mono_alu-Behavioral File: /workspace/src/mono_alu.vhd Line: 38
+    Info (12023): Found entity 1: mono_alu File: /workspace/src/mono_alu.vhd Line: 27
+Info (12021): Found 2 design units, including 1 entities, in source file src/mono_control.vhd
+    Info (12022): Found design unit 1: mono_control-Behavioral File: /workspace/src/mono_control.vhd Line: 76
+    Info (12023): Found entity 1: mono_control File: /workspace/src/mono_control.vhd Line: 40
+Info (12021): Found 2 design units, including 1 entities, in source file src/mono_regfile.vhd
+    Info (12022): Found design unit 1: mono_regfile-Behavioral File: /workspace/src/mono_regfile.vhd Line: 48
+    Info (12023): Found entity 1: mono_regfile File: /workspace/src/mono_regfile.vhd Line: 31
+Info (12021): Found 2 design units, including 1 entities, in source file src/cpu_monocycle.vhd
+    Info (12022): Found design unit 1: cpu_monocycle-Behavioral File: /workspace/src/cpu_monocycle.vhd Line: 75
+    Info (12023): Found entity 1: cpu_monocycle File: /workspace/src/cpu_monocycle.vhd Line: 57
+Error (10482): VHDL error at mono_alu.vhd(47): object "sinal_que_nao_existe" is used but not declared File: /workspace/src/mono_alu.vhd Line: 47
+Error: Quartus Prime Analysis & Synthesis was unsuccessful. 1 error, 1 warning
+    Error: Peak virtual memory: 464 megabytes
+    Error: Processing ended: Wed Oct  7 23:47:18 2026
+    Error: Elapsed time: 00:00:06
+    Error: Total CPU time (on all processors): 00:00:13
+Error (293001): Quartus Prime Full Compilation was unsuccessful. 3 errors, 1 warning
+Error: Flow compile (for project /workspace/rv32i_monociclo) was not successful
+Error: ERROR: Error(s) found while running an executable. See report file(s) for error message(s). Message log indicates which executable was run last.
+
+Error (23031): Evaluation of Tcl script /opt/altera_lite/25.1std/quartus/common/tcl/internal/qsh_flow.tcl unsuccessful
+Error: Quartus Prime Shell was unsuccessful. 10 errors, 1 warning
+    Error: Peak virtual memory: 456 megabytes
+    Error: Processing ended: Wed Oct  7 23:47:18 2026
+    Error: Elapsed time: 00:00:07
+    Error: Total CPU time (on all processors): 00:00:13

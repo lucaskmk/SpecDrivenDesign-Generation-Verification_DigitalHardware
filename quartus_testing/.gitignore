@@ -1,0 +1,5 @@
+# Saida default de quartus_cpu_check.py: projeto Quartus gerado, logs,
+# relatorios e .sof de cada CPU testada. Regeneravel com um comando; quem
+# quiser versionar a evidencia de uma CPU passa --saida para dentro da pasta
+# dela, como em implemetation_tests/opus_5_RISCVIM/fpga/quartus_output_*/.
+resultados/
