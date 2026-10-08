@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spec-riscv-test"
+version = "0.1.0"
+description = "Cocotb wrapper for the RV32I riscv-tests suite"
+requires-python = ">=3.11"
+dependencies = ["cocotb>=2.0"]
+
+[project.scripts]
+spec-riscv-test = "spec_riscv_test.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["."]

@@ -15,8 +15,8 @@ from __future__ import annotations
 import unittest
 
 from rvgen.config import carregar_env, ler_config
-from rvgen.llm import (ClienteOllama, ClienteOpenAI, ErroLLM, extrair_json,
-                       extrair_vhdl)
+from rvgen.llm import (ClienteGemini, ClienteOllama, ClienteOpenAI, ErroLLM, extrair_json,
+                       extrair_python, extrair_vhdl)
 from rvgen.tests.servidor_falso import ServidorFalso
 
 
@@ -123,7 +123,8 @@ class TestClienteOpenAI(unittest.TestCase):
 
     def test_manda_a_chave_e_le_choices_e_usage(self):
         resposta = {"model": "openai/gpt-5.6-luna",
-                    "choices": [{"message": {"role": "assistant", "content": "ok"}}],
+                    "choices": [{"message": {"role": "assistant", "content": "ok"},
+                                 "finish_reason": "length"}],
                     "usage": {"prompt_tokens": 50, "completion_tokens": 2}}
         with ServidorFalso({("POST", "/api/v1/chat/completions"):
                             lambda c, h: (200, resposta)}) as s:
@@ -133,6 +134,7 @@ class TestClienteOpenAI(unittest.TestCase):
             req = s.recebidas[0]
         self.assertEqual(r.texto, "ok")
         self.assertEqual((r.tokens_entrada, r.tokens_saida), (50, 2))
+        self.assertEqual(r.motivo_finalizacao, "length")
         self.assertEqual(r.provedor, "openrouter")
         self.assertEqual(req["cabecalhos"]["authorization"], "Bearer sk-teste")
         # o schema nao vai para a API externa (ver a docstring de rvgen.llm)
@@ -149,6 +151,29 @@ class TestClienteOpenAI(unittest.TestCase):
                 ClienteOpenAI(f"{s.url}/v1", "sk-x", "m").conversar([])
 
 
+class TestClienteGemini(unittest.TestCase):
+
+    def test_mapeia_mensagens_schema_e_usage(self):
+        resposta = {"candidates": [{"content": {"parts": [{"text": '{"x":1}'}]},
+                                     "finishReason": "STOP"}],
+                    "usageMetadata": {"promptTokenCount": 12, "candidatesTokenCount": 3}}
+        with ServidorFalso({("POST", "/v1beta/models/gemini-x:generateContent"):
+                            lambda c, h: (200, resposta)}) as s:
+            r = ClienteGemini("key", "models/gemini-x", base_url=f"{s.url}/v1beta").conversar(
+                [{"role": "system", "content": "s"}, {"role": "user", "content": "u"},
+                 {"role": "assistant", "content": "a"}], schema={"type": "object"})
+            req = s.recebidas[0]
+        self.assertEqual((r.texto, r.tokens_entrada, r.tokens_saida), ('{"x":1}', 12, 3))
+        self.assertEqual(req["cabecalhos"]["x-goog-api-key"], "key")
+        self.assertEqual(req["corpo"]["contents"][1]["role"], "model")
+        self.assertEqual(req["corpo"]["systemInstruction"]["parts"][0]["text"], "s")
+        self.assertEqual(req["corpo"]["generationConfig"]["responseMimeType"], "application/json")
+
+    def test_sem_chave_recusa(self):
+        with self.assertRaisesRegex(ErroLLM, "GEMINI_API_KEY"):
+            ClienteGemini(None, "gemini-x").conversar([])
+
+
 class TestExtracao(unittest.TestCase):
 
     def test_json_puro_cercado_ou_com_texto_em_volta(self):
@@ -157,6 +182,14 @@ class TestExtracao(unittest.TestCase):
         self.assertEqual(extrair_json('Claro! {"a": 3} espero ajudar'), {"a": 3})
         with self.assertRaises(ErroLLM):
             extrair_json("nao tem json aqui")
+
+    def test_json_com_apenas_fecho_externo_ausente_e_recuperado(self):
+        texto = '{"causa":"testbench","evidencias":["reset nao aplicado"]'
+        self.assertEqual(extrair_json(texto), {
+            "causa": "testbench", "evidencias": ["reset nao aplicado"],
+        })
+        with self.assertRaises(ErroLLM):
+            extrair_json('{"causa":"testbench","evidencias":["incompleta]')
 
     def test_vhdl_pega_o_maior_bloco_com_entity(self):
         texto = ("Explicacao.\n```vhdl\nlibrary ieee;\n```\n"
@@ -169,6 +202,11 @@ class TestExtracao(unittest.TestCase):
     def test_vhdl_sem_cerca_so_se_parecer_arquivo(self):
         self.assertIsNotNone(extrair_vhdl("entity x is end x; architecture a of x is begin end a;"))
         self.assertIsNone(extrair_vhdl("desculpe, nao consigo"))
+
+    def test_python_exige_cerca_e_decorador_cocotb(self):
+        texto = "```python\nimport cocotb\n@cocotb.test()\nasync def t(dut): pass\n```"
+        self.assertIn("async def t", extrair_python(texto))
+        self.assertIsNone(extrair_python("```python\nprint('nao e teste')\n```"))
 
 
 class TestConfig(unittest.TestCase):
@@ -193,8 +231,28 @@ class TestConfig(unittest.TestCase):
         self.assertEqual((cfg.provedor, cfg.executor, cfg.num_ctx),
                          ("ollama", "auto", 16384))
         self.assertIsNone(cfg.modelo)
+        # vllm: URL com padrao, chave opcional (None quando ausente)
+        self.assertEqual(cfg.vllm_url, "http://localhost:8000/v1")
+        self.assertIsNone(cfg.vllm_key)
         with self.assertRaisesRegex(ValueError, "RVGEN_PROVEDOR"):
             ler_config({"RVGEN_PROVEDOR": "gpt"}, usar_env_arquivo=False)
+
+    def test_vllm_por_ambiente(self):
+        cfg = ler_config({"RVGEN_PROVEDOR": "vllm",
+                          "RVGEN_VLLM_BASE_URL": "http://gpu1:8000/v1/",
+                          "RVGEN_VLLM_API_KEY": "tok-1"},
+                         usar_env_arquivo=False)
+        self.assertEqual(cfg.provedor, "vllm")
+        self.assertEqual(cfg.vllm_url, "http://gpu1:8000/v1")   # barra final vai
+        self.assertEqual(cfg.vllm_key, "tok-1")
+        # vazio = None, igual ao openrouter
+        cfg2 = ler_config({"RVGEN_PROVEDOR": "vllm"}, usar_env_arquivo=False)
+        self.assertIsNone(cfg2.vllm_key)
+
+    def test_google_por_ambiente(self):
+        cfg = ler_config({"RVGEN_PROVEDOR": "google", "GEMINI_API_KEY": "k",
+                          "RVGEN_GEMINI_MODEL": "gemini-x"}, usar_env_arquivo=False)
+        self.assertEqual((cfg.provedor, cfg.gemini_key, cfg.gemini_modelo), ("google", "k", "gemini-x"))
 
 
 if __name__ == "__main__":

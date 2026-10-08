@@ -661,8 +661,6 @@ def _run_case(manifest: CpuManifest, case: Case, workdir: Path,
 
     run_dir = workdir / f"case_{case.stage}_{case.name}"
     run_dir.mkdir(parents=True, exist_ok=True)
-    image = write_ram_image(words, run_dir / f"{case.name}.ram",
-                            header=f"conformidade: {case.name}")
     report = run_dir / "report.json"
     log = run_dir / "sim.log"
     for stale in (report, log):
@@ -676,6 +674,7 @@ def _run_case(manifest: CpuManifest, case: Case, workdir: Path,
         "halt_pcs": halt_pcs,
         "expect_regs": {str(k): v for k, v in case.expect_regs.items()},
         "expect_ram": {hex(k): v for k, v in case.expect_ram.items()},
+        "program_words": words,
         "report_out": str(report),
     }
     pair_addrs: list[int] = []
@@ -689,11 +688,7 @@ def _run_case(manifest: CpuManifest, case: Case, workdir: Path,
     spec_path = run_dir / "spec.json"
     spec_path.write_text(json.dumps(spec, indent=2), encoding="utf-8")
 
-    params: dict[str, object] = {
-        manifest.program.generic: str(image),
-    }
-    if manifest.program.size_generic:
-        params[manifest.program.size_generic] = manifest.program.size_words
+    params: dict[str, object] = {}
     gname = manifest.design.rv32m_generic
     if gname and design_declares_generic(manifest, gname):
         params[gname] = "true" if rv32m else "false"
@@ -707,7 +702,7 @@ def _run_case(manifest: CpuManifest, case: Case, workdir: Path,
 
     excecao: BaseException | None = None
     try:
-        run_simulation(built, test_module="rvverify.tb_generic",
+        run_simulation(built, test_module="rvverify.tb_virtual",
                        parameters=params,
                        extra_env={"RVVERIFY_SPEC": str(spec_path)},
                        log_file=log, plusargs=[QUIET_IEEE_AT_ZERO])

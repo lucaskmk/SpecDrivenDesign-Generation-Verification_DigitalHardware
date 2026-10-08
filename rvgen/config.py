@@ -8,15 +8,20 @@ Tudo o que muda de uma maquina para outra entra por variavel de ambiente, e
 o `.env` da raiz (o mesmo da trilha A, ver `.env.example`) so preenche o que
 o ambiente ainda nao definiu -- o ambiente sempre vence o arquivo.
 
-    RVGEN_PROVEDOR       ollama | openrouter             (padrao: ollama)
+    RVGEN_PROVEDOR       ollama | openrouter | vllm | google (padrao: ollama)
     RVGEN_MODELO         nome do modelo                  (padrao: perfil pela VRAM)
     OLLAMA_HOST          endereco do servidor Ollama     (padrao: candidatos)
     OPENROUTER_API_KEY   chave do provedor externo
     SPECHDL_LLM_MODEL    modelo externo padrao           (o mesmo da trilha A)
+    RVGEN_VLLM_BASE_URL  base URL do vLLM                (padrao: http://localhost:8000/v1)
+    RVGEN_VLLM_API_KEY   chave do vLLM                   (opcional; vLLM nao exige)
+    GEMINI_API_KEY        chave da Gemini API
+    RVGEN_GEMINI_MODEL    modelo Gemini (padrao: gemini-2.5-flash)
     RVGEN_NUM_CTX        janela de contexto no Ollama    (padrao: 16384)
     RVGEN_TIMEOUT        segundos por chamada ao modelo  (padrao: 900)
-    RVGEN_EXECUTOR       auto | local | docker           (padrao: auto)
-    RVGEN_IMAGEM_DOCKER  imagem do validador             (padrao: spechdl-toolchain)
+    RVGEN_EXECUTOR       auto | local | docker           (padrao: auto; final local)
+    RVGEN_SPEC_RISCV_TEST executável spec-riscv-test     (padrão: projeto anexo)
+    RVGEN_RISCV_TESTS    clone upstream riscv-tests      (padrão: ../riscv-tests)
 """
 
 from __future__ import annotations
@@ -35,16 +40,22 @@ __all__ = [
     "PROVEDORES",
     "EXECUTORES",
     "OPENROUTER_URL",
+    "VLLM_URL_PADRAO",
+    "GEMINI_URL",
     "MODELO_EXTERNO_PADRAO",
     "IMAGEM_DOCKER_PADRAO",
 ]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-PROVEDORES = ("ollama", "openrouter")
+PROVEDORES = ("ollama", "openrouter", "vllm", "google")
 EXECUTORES = ("auto", "local", "docker")
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
+# vLLM expoe a API Chat Completions em `<host>:8000/v1`; o mesmo formato que o
+# OpenRouter, sem chave obrigatoria.
+VLLM_URL_PADRAO = "http://localhost:8000/v1"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
 # O mesmo default de `.env.example` e de `legado/scripts/llm_playground.py`:
 # quem ja configurou a trilha A nao precisa configurar nada de novo.
 MODELO_EXTERNO_PADRAO = "openai/gpt-5.6-luna"
@@ -95,6 +106,10 @@ class Config:
     openrouter_key: str | None
     openrouter_url: str
     modelo_externo: str
+    vllm_url: str
+    vllm_key: str | None
+    gemini_key: str | None
+    gemini_modelo: str
     num_ctx: int
     temperatura: float
     timeout_s: float
@@ -140,6 +155,10 @@ def ler_config(ambiente: MutableMapping[str, str] | None = None,
         openrouter_url=(amb.get("RVGEN_OPENROUTER_URL") or OPENROUTER_URL).rstrip("/"),
         modelo_externo=(amb.get("SPECHDL_LLM_MODEL") or "").strip()
         or MODELO_EXTERNO_PADRAO,
+        vllm_url=(amb.get("RVGEN_VLLM_BASE_URL") or VLLM_URL_PADRAO).rstrip("/"),
+        vllm_key=(amb.get("RVGEN_VLLM_API_KEY") or "").strip() or None,
+        gemini_key=(amb.get("GEMINI_API_KEY") or "").strip() or None,
+        gemini_modelo=(amb.get("RVGEN_GEMINI_MODEL") or "gemini-2.5-flash").strip(),
         num_ctx=_int(amb, "RVGEN_NUM_CTX", 16384),
         temperatura=0.2,
         timeout_s=float(_int(amb, "RVGEN_TIMEOUT", 900)),
