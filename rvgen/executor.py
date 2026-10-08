@@ -1,27 +1,16 @@
 #!/usr/bin/env python3
-"""Onde o `rvverify` roda: no host ou dentro da imagem `spechdl-toolchain`.
+"""Executa ``spec-riscv-test`` como validador final externo.
 
-REQ: FR-RV-49 (o veredito vem sempre do rvverify real), NFR-RV-07 (o gerador
+REQ: FR-RV-49 (o veredito vem sempre do spec-riscv-test real), NFR-RV-07 (o gerador
 chama o validador como SUBPROCESSO; nunca o importa para julgar uma CPU).
 
-Dois modos, a mesma chamada:
-
-  * `local`  -- `python -m rvverify` no proprio host. Exige GHDL no PATH e
-                cocotb importavel (Linux/WSL, ADR-006).
-  * `docker` -- o mesmo comando dentro da imagem `spechdl-toolchain`, com o
-                repositorio montado em /job. E o modo que permite, num host
-                Windows, ter o Ollama nativo (com GPU) e o GHDL no container
-                ao mesmo tempo (ADR-018).
-
-Em qualquer modo o resultado e lido do `--json` que o proprio `rvverify`
-grava -- nunca da saida de texto, que e para humanos. Cada entrega usa um
-`RVVERIFY_BUILD_ROOT` proprio: dois GHDL escrevendo na mesma biblioteca a
-corrompem (aviso de `rvverify/builder.py`).
+O modo final é local: executa o ambiente virtual de ``spec-riscv-test`` e
+requer GHDL, compilador RISC-V e o clone upstream. O resultado vem sempre de
+``<out>/report.json``, nunca da saída textual.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import shutil
@@ -52,7 +41,8 @@ __all__ = [
 # buildar, e o nome local continua sendo o que o projeto usa.
 IMAGEM_PUBLICADA = "gabrielgalazzi/imagens_projeto_descomp:spechdl-latest"
 
-ETAPAS = ("rv32i", "rv32m", "ambas")
+TESTADOR_PADRAO = REPO_ROOT / "spec-riscv-test" / ".venv" / "bin" / "spec-riscv-test"
+RISCV_TESTS_PADRAO = REPO_ROOT / "riscv-tests"
 
 
 class ErroExecutor(RuntimeError):
@@ -61,7 +51,7 @@ class ErroExecutor(RuntimeError):
 
 @dataclass(frozen=True)
 class Execucao:
-    """Uma execucao do `rvverify` sobre uma entrega."""
+    """Uma execução do validador externo sobre uma entrega."""
 
     comando: list[str]
     codigo: int
@@ -81,7 +71,7 @@ class Disponibilidade:
 
 
 def ler_relatorio(caminho: Path) -> dict | None:
-    """O relatorio da CPU no `--json` do rvverify (uma lista com um item)."""
+    """Lê o JSON estável emitido pelo validador externo."""
     if not caminho.is_file():
         return None
     try:
@@ -91,17 +81,6 @@ def ler_relatorio(caminho: Path) -> dict | None:
     if isinstance(dados, list):
         return dados[0] if dados and isinstance(dados[0], dict) else None
     return dados if isinstance(dados, dict) else None
-
-
-def _filtros(casos: list[str] | None, etapa: str) -> list[str]:
-    if etapa not in ETAPAS:
-        raise ValueError(f"etapa {etapa!r} invalida; aceitas: {', '.join(ETAPAS)}")
-    args: list[str] = []
-    if etapa != "ambas":
-        args += ["--etapa", etapa]
-    if casos:
-        args += ["--casos", ",".join(casos)]
-    return args
 
 
 class Executor:
@@ -114,21 +93,31 @@ class Executor:
 
     def comando(self, pasta: Path, *, json_saida: Path, workdir: Path,
                 build_root: Path, casos: list[str] | None = None,
-                etapa: str = "ambas") -> tuple[list[str], dict[str, str]]:
+                etapa: str = "rv32i", ondas: bool = False,
+                traco_completo: bool = False) -> tuple[list[str], dict[str, str]]:
         raise NotImplementedError
 
     def rodar(self, pasta: Path, *, json_saida: Path, workdir: Path,
-              build_root: Path, casos: list[str] | None = None,
-              etapa: str = "ambas", timeout: float = 3600.0) -> Execucao:
+                build_root: Path, casos: list[str] | None = None,
+                etapa: str = "rv32i", timeout: float = 3600.0,
+                ondas: bool = False, traco_completo: bool = False) -> Execucao:
+        opcoes = {"ondas": ondas, "traco_completo": traco_completo} if (ondas or traco_completo) else {}
         cmd, env_extra = self.comando(pasta, json_saida=json_saida,
-                                      workdir=workdir, build_root=build_root,
-                                      casos=casos, etapa=etapa)
+                                       workdir=workdir, build_root=build_root,
+                                       casos=casos, etapa=etapa, **opcoes)
+        return self._rodar_comando(cmd, json_saida, workdir, build_root, timeout,
+                                   env_extra=env_extra)
+
+    def _rodar_comando(self, cmd: list[str], json_saida: Path, workdir: Path,
+                       build_root: Path, timeout: float,
+                       *, env_extra: dict[str, str] | None = None) -> Execucao:
+        """Executa um comando que grava um relatorio JSON estruturado."""
         json_saida.parent.mkdir(parents=True, exist_ok=True)
         json_saida.unlink(missing_ok=True)       # nunca ler o relatorio de ontem
         workdir.mkdir(parents=True, exist_ok=True)
         build_root.mkdir(parents=True, exist_ok=True)
         env = dict(os.environ)
-        env.update(env_extra)
+        env.update(env_extra or {})
         inicio = time.monotonic()
         try:
             proc = subprocess.run(cmd, cwd=self.raiz, env=env, capture_output=True,
@@ -136,7 +125,7 @@ class Executor:
                                   timeout=timeout)
             codigo, saida = proc.returncode, (proc.stdout or "") + (proc.stderr or "")
         except subprocess.TimeoutExpired:
-            codigo, saida = -1, f"rvverify excedeu o limite de {timeout:.0f} s"
+            codigo, saida = -1, f"spec-riscv-test excedeu o limite de {timeout:.0f} s"
         except OSError as e:
             raise ErroExecutor(f"nao foi possivel executar {cmd[0]}: {e}") from None
         return Execucao(
@@ -148,22 +137,65 @@ class Executor:
             json_path=json_saida,
         )
 
+    def rodar_componente(self, pasta: Path, *, componente: str, teste: Path,
+                          json_saida: Path, workdir: Path, build_root: Path,
+                          fontes: list[Path] | None = None,
+                          vcd: Path | None = None,
+                          timeout: float = 3600.0) -> Execucao:
+        """Executa um testbench de componente no ambiente do gerador."""
+        raise NotImplementedError
+
 
 class ExecutorLocal(Executor):
-    """`python -m rvverify` no host, com o mesmo interpretador do gerador."""
+    """Invoca o ambiente isolado de ``spec-riscv-test`` no host."""
 
     nome = "local"
 
+    def __init__(self, raiz: Path = REPO_ROOT, *, testador: Path | None = None,
+                 riscv_tests: Path | None = None) -> None:
+        super().__init__(raiz)
+        self.testador = Path(testador or os.environ.get("RVGEN_SPEC_RISCV_TEST") or
+                             TESTADOR_PADRAO).resolve()
+        self.riscv_tests = Path(riscv_tests or os.environ.get("RVGEN_RISCV_TESTS") or
+                                RISCV_TESTS_PADRAO).resolve()
+
     def comando(self, pasta: Path, *, json_saida: Path, workdir: Path,
                 build_root: Path, casos: list[str] | None = None,
-                etapa: str = "ambas") -> tuple[list[str], dict[str, str]]:
-        cmd = [sys.executable, "-m", "rvverify", str(pasta),
-               "--json", str(json_saida), "--sem-cor", "--workdir", str(workdir)]
-        return cmd + _filtros(casos, etapa), {"RVVERIFY_BUILD_ROOT": str(build_root)}
+                etapa: str = "rv32i", ondas: bool = False,
+                traco_completo: bool = False) -> tuple[list[str], dict[str, str]]:
+        # A API do wrapper grava invariavelmente ``<out>/report.json``.
+        cmd = [str(self.testador), "--cpu", str(pasta), "--riscv-tests",
+               str(self.riscv_tests), "--out", str(json_saida.parent), "--isa", etapa]
+        if casos:
+            nomes = []
+            for caso in casos:
+                nome = caso.rsplit("/", 1)[-1]
+                nomes.append(nome.rsplit("-p-", 1)[-1])
+            cmd += ["--tests", ",".join(nomes)]
+        if ondas:
+            cmd.append("--waves")
+        if traco_completo:
+            cmd.append("--full-trace")
+        return cmd, {}
+
+    def rodar_componente(self, pasta, *, componente, teste, json_saida, workdir,
+                           build_root, fontes=None, vcd=None, timeout=3600.0):
+        # Os testes auxiliares precisam do mesmo cocotb_tools instalado pelo
+        # wrapper oficial, não necessariamente do Python que iniciou rvgen.
+        python_testador = self.testador.parent / "python"
+        cmd = [str(python_testador), "-m", "rvgen.component_runner", "--cpu",
+                str(pasta), "--component", componente,
+               "--test", str(teste), "--json", str(json_saida),
+               "--workdir", str(workdir), "--build-root", str(build_root)]
+        for fonte in fontes or []:
+            cmd += ["--source", str(fonte)]
+        if vcd:
+            cmd += ["--vcd", str(vcd)]
+        return self._rodar_comando(cmd, json_saida, workdir, build_root, timeout)
 
 
 class ExecutorDocker(Executor):
-    """O mesmo comando dentro da imagem, com o repositorio em /job."""
+    """Mantido apenas para testes de componente em imagens legadas."""
 
     nome = "docker"
 
@@ -185,15 +217,28 @@ class ExecutorDocker(Executor):
 
     def comando(self, pasta: Path, *, json_saida: Path, workdir: Path,
                 build_root: Path, casos: list[str] | None = None,
-                etapa: str = "ambas") -> tuple[list[str], dict[str, str]]:
-        cmd = ["docker", "run", "--rm",
+                etapa: str = "rv32i", ondas: bool = False,
+                traco_completo: bool = False) -> tuple[list[str], dict[str, str]]:
+        raise ErroExecutor("spec-riscv-test e executado localmente; use --executor local")
+
+    def rodar_componente(self, pasta, *, componente, teste, json_saida, workdir,
+                          build_root, fontes=None, vcd=None, timeout=3600.0):
+        # Arquivos de build incluem __pycache__ criado pelo Python do cocotb.
+        # Rodar como o usuario do host preserva a limpeza da sessao e dos testes
+        # de integracao, em vez de deixa-los pertencentes ao root do container.
+        usuario = f"{os.getuid()}:{os.getgid()}"
+        cmd = ["docker", "run", "--rm", "--user", usuario,
                "-v", f"{self.raiz}:/job", "-w", "/job",
-               "-e", f"RVVERIFY_BUILD_ROOT=/job/{self._no_container(build_root)}",
-               self.imagem,
-               "python3", "-m", "rvverify", self._no_container(pasta),
-               "--json", self._no_container(json_saida), "--sem-cor",
-               "--workdir", self._no_container(workdir)]
-        return cmd + _filtros(casos, etapa), {}
+               self.imagem, "python3", "-m", "rvgen.component_runner", "--cpu",
+               self._no_container(Path(pasta)), "--component", componente,
+               "--test", self._no_container(teste), "--json", self._no_container(json_saida),
+               "--workdir", self._no_container(workdir), "--build-root",
+               self._no_container(build_root)]
+        for fonte in fontes or []:
+            cmd += ["--source", self._no_container(fonte)]
+        if vcd:
+            cmd += ["--vcd", self._no_container(vcd)]
+        return self._rodar_comando(cmd, json_saida, workdir, build_root, timeout)
 
 
 # --------------------------------------------------------------------------
@@ -205,23 +250,26 @@ Runner = Callable[..., subprocess.CompletedProcess]
 
 
 def checar_local(which: Which = shutil.which,
-                 tem_modulo: Callable[[str], bool] | None = None) -> Disponibilidade:
-    """GHDL no PATH e cocotb importavel por ESTE interpretador."""
-    if tem_modulo is None:
-        def tem_modulo(nome: str) -> bool:
-            return importlib.util.find_spec(nome) is not None
+                  tem_modulo: Callable[[str], bool] | None = None) -> Disponibilidade:
+    """Pré-requisitos do wrapper oficial, sem importar seu ambiente virtual."""
     faltando = []
     if not which("ghdl"):
         faltando.append("ghdl nao esta no PATH")
-    if not tem_modulo("cocotb_tools"):
-        faltando.append(f"cocotb nao esta instalado em {sys.executable}")
+    testador = Path(os.environ.get("RVGEN_SPEC_RISCV_TEST") or TESTADOR_PADRAO)
+    riscv_tests = Path(os.environ.get("RVGEN_RISCV_TESTS") or RISCV_TESTS_PADRAO)
+    if not testador.is_file() or not os.access(testador, os.X_OK):
+        faltando.append(f"spec-riscv-test nao executavel em {testador}")
+    if not (riscv_tests / "isa").is_dir():
+        faltando.append(f"riscv-tests ausente em {riscv_tests}")
+    if not (which("riscv32-unknown-elf-gcc") or which("riscv64-unknown-elf-gcc")):
+        faltando.append("compilador RISC-V nao esta no PATH")
     if faltando:
         return Disponibilidade(
             False, "; ".join(faltando),
-            "no Linux/WSL: instale GHDL e `pip install cocotb` (ADR-006), "
-            "ou use o modo docker",
+            "instale spec-riscv-test/.venv, clone riscv-tests ao lado do repositorio "
+            "ou defina RVGEN_SPEC_RISCV_TEST e RVGEN_RISCV_TESTS",
         )
-    return Disponibilidade(True, f"GHDL e cocotb no host ({sys.executable})")
+    return Disponibilidade(True, f"spec-riscv-test e toolchain RISC-V no host ({testador})")
 
 
 def checar_docker(imagem: str = IMAGEM_DOCKER_PADRAO, which: Which = shutil.which,
@@ -256,7 +304,7 @@ def checar_docker(imagem: str = IMAGEM_DOCKER_PADRAO, which: Which = shutil.whic
 def escolher_executor(preferencia: str = "auto", imagem: str = IMAGEM_DOCKER_PADRAO,
                       *, local: Callable[[], Disponibilidade] | None = None,
                       docker: Callable[[], Disponibilidade] | None = None) -> Executor:
-    """O executor pedido, ou o primeiro pronto em `auto` (local, depois docker)."""
+    """A suíte oficial requer ambiente local; Docker não é um fallback final."""
     local = local or checar_local
     docker = docker or (lambda: checar_docker(imagem))
     if preferencia == "local":
@@ -266,21 +314,13 @@ def escolher_executor(preferencia: str = "auto", imagem: str = IMAGEM_DOCKER_PAD
                                f"Resolver: {d.como_resolver}")
         return ExecutorLocal()
     if preferencia == "docker":
-        d = docker()
-        if not d.pronto:
-            raise ErroExecutor(f"executor docker indisponivel: {d.detalhe}. "
-                               f"Resolver: {d.como_resolver}")
-        return ExecutorDocker(imagem)
+        raise ErroExecutor("spec-riscv-test nao esta instalado na imagem Docker; use --executor local")
     if preferencia != "auto":
         raise ErroExecutor(f"executor {preferencia!r} desconhecido; use auto, local ou docker")
     dl = local()
     if dl.pronto:
         return ExecutorLocal()
-    dd = docker()
-    if dd.pronto:
-        return ExecutorDocker(imagem)
     raise ErroExecutor(
-        "nao ha onde rodar o rvverify:\n"
-        f"  local : {dl.detalhe} -> {dl.como_resolver}\n"
-        f"  docker: {dd.detalhe} -> {dd.como_resolver}"
+        "nao ha onde rodar spec-riscv-test:\n"
+        f"  local : {dl.detalhe} -> {dl.como_resolver}"
     )

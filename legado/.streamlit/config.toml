@@ -1,4 +1,0 @@
-[browser]
-# Desliga a telemetria e o prompt de e-mail de primeira execução — sem isso,
-# o Streamlit para o terminal esperando input antes de subir o servidor.
-gatherUsageStats = false

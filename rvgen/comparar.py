@@ -6,7 +6,7 @@ registros da sessao), NFR-RV-02 (nada re-medido nem inferido; custo rotulado
 como estimativa).
 
 Uma geracao (`rvgen gerar`) deixa em `<pasta>/.rvgen/sessao-*/` o
-`resultado.json` e o relatorio final do `rvverify`. Este modulo so LE esses
+`resultado.json` e o relatório final do `spec-riscv-test`. Este módulo só lê esses
 arquivos e os poe lado a lado -- nao roda modelo, nao roda GHDL. O unico
 numero que nao estava registrado e o custo, e por isso ele sai sempre como
 estimativa: tokens registrados x preco publico do provedor no dia da
@@ -49,7 +49,7 @@ class Linha:
     sessao: str
     modelo: str
     provedor: str
-    tipo: str
+    microarquitetura: str
     isa: str
     veredito: str
     rv32i: str
@@ -107,6 +107,8 @@ def _etapa(relatorio: dict | None, etapa: str, placar: str) -> str:
         return "nao compilou"
     if not relatorio:
         return "-"
+    if "status" in relatorio:
+        return f"{relatorio.get('passed', 0)}/{relatorio.get('executed', 0)}"
     dados = (relatorio.get("por_etapa") or {}).get(etapa)
     if dados:
         return f"{dados.get('passou', 0)}/{dados.get('total', 0)}"
@@ -115,7 +117,7 @@ def _etapa(relatorio: dict | None, etapa: str, placar: str) -> str:
 
 def _custo(provedor: str, modelo: str, entrada: int, saida: int,
            precos: Precos | None) -> tuple[str, float | None]:
-    if provedor == "ollama":
+    if provedor in ("ollama", "vllm"):   # ambos rodam em servidor local
         return "0 (local)", 0.0
     if precos is None:
         return "?", None
@@ -141,7 +143,7 @@ def linha_de(sessao: Path, precos: Precos | None) -> Linha:
         sessao=sessao.name.removeprefix("sessao-"),
         modelo=r.get("modelo", "?"),
         provedor=r.get("provedor", "?"),
-        tipo=r.get("tipo", "?"),
+        microarquitetura=r.get("microarquitetura", "?"),
         isa=r.get("isa", "?"),
         veredito=str(r.get("veredito", "?")).upper(),
         rv32i=_etapa(relatorio, "rv32i", placar),
@@ -179,25 +181,26 @@ def precos_openrouter(timeout: float = 15.0, url: str = URL_MODELOS) -> Precos |
 # saida
 # --------------------------------------------------------------------------
 
-COLUNAS = ("experimento", "modelo", "tipo", "ISA", "veredito", "RV32I", "RV32IM",
+COLUNAS = ("experimento", "modelo", "microarquitetura", "ISA", "veredito", "RV32I", "RV32IM",
            "iteracoes", "chamadas", "tokens (entrada+saida)", "tempo", "custo")
 
 
 def _celulas(l: Linha) -> list[str]:
-    modelo = f"{l.modelo} ({'local' if l.provedor == 'ollama' else l.provedor})"
+    rotulo = "local" if l.provedor in ("ollama", "vllm") else l.provedor
+    modelo = f"{l.modelo} ({rotulo})"
     if l.exemplo:
         modelo += " +exemplo"
     if l.descricao:        # FR-RV-52: descrita e nao descrita nao se comparam de igual
         modelo += " +descricao"
-    return [l.experimento, modelo, l.tipo, l.isa, l.veredito, l.rv32i, l.rv32im,
+    return [l.experimento, modelo, l.microarquitetura, l.isa, l.veredito, l.rv32i, l.rv32im,
             str(l.iteracoes), str(l.chamadas), f"{l.tokens_entrada}+{l.tokens_saida}",
             f"{l.minutos} min", l.custo]
 
 
 def _nota(linhas: list[Linha], precos_ok: bool) -> str:
-    fonte_placar = "Veredito e placar: relatorio final do rvverify de cada sessao."
-    if all(l.provedor == "ollama" for l in linhas):
-        return f"custo: modelos locais, sem custo em dinheiro (0). {fonte_placar}"
+    fonte_placar = "Veredito e placar: relatório final do spec-riscv-test de cada sessão."
+    if all(l.provedor in ("ollama", "vllm") for l in linhas):
+        return f"custo: modelos locais (ollama/vllm), sem custo em dinheiro (0). {fonte_placar}"
     fonte = (f"preco publico do OpenRouter em {date.today():%Y-%m-%d}" if precos_ok
              else "preco do OpenRouter indisponivel (sem rede ou --sem-rede)")
     return (f"custo: ESTIMATIVA = tokens registrados x {fonte}; modelo local = 0. "

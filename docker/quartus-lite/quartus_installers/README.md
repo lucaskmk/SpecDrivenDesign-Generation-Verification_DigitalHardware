@@ -11,8 +11,8 @@ O CDN de download da Altera (`download.altera.com/akdlm/...`) fica atrás de
 mitigação de bot da Akamai e de um aceite de licença na própria página de
 download. As duas coisas exigem uma sessão de navegador de verdade — um
 `curl`/`wget` sem essa sessão recebe HTTP 403, mesmo com User-Agent e
-Referer de navegador (conferido em 2026-09-18, ver `specs/decisions.md`,
-ADR-015). Isso vale igual dentro de um `RUN curl` do `docker build`: não é
+Referer de navegador (conferido em 2026-09-18). Isso vale igual dentro de um
+`RUN curl` do `docker build`: não é
 uma questão de quem builda, a barreira é a mesma. Por isso o Dockerfile não
 tenta baixar nada — ele espera os arquivos já aqui.
 

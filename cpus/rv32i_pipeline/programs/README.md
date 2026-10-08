@@ -16,8 +16,7 @@ coisas diferentes não significaria nada.
 
 > **Os arquivos `.c` NÃO são compilados neste ambiente.**
 > Não existe compilador RISC-V aqui — verificado por execução: nem
-> `riscv*-elf-gcc`, nem `clang`, nem `llvm-mc`, no Windows ou na WSL. Ver
-> [`specs/decisions.md`](../../../specs/decisions.md), ADR-004. Os `.c` são a
+> `riscv*-elf-gcc`, nem `clang`, nem `llvm-mc`, no Windows ou na WSL. Os `.c` são a
 > **especificação legível** do algoritmo; o que de fato é montado e executado
 > na CPU são os `.asm` ao lado, traduzidos à mão e versionados.
 
@@ -105,8 +104,7 @@ direita. Tudo modular em 2³²: **não há saturação e não há trap**.
 
 ## Formato `.ram`
 
-Definido em [`specs/decisions.md`](../../../specs/decisions.md), ADR-003, e
-consumido por `instruction_memory.vhd` através do generic `ROM_INIT_FILE`.
+Consumido por `instruction_memory.vhd` através do generic `ROM_INIT_FILE`.
 
 | regra | valor |
 |---|---|

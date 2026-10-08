@@ -24,11 +24,14 @@ diferencas ficam aqui dentro:
     continua exatamente de onde parou (conferido: a emenda sai sem costura).
     O numero de cortes vai na `Resposta`, para a sessao registrar.
   * `ClienteOpenAI` fala Chat Completions (`/chat/completions`) -- o formato
-    do OpenRouter e de qualquer servidor compativel. O schema, quando pedido,
-    vai no texto do prompt pelo agente; aqui ele nao e enviado, porque nem
-    todo modelo roteado pelo OpenRouter aceita `response_format`.
+    do OpenRouter e de qualquer servidor compativel, incluindo o vLLM. No
+    vLLM o provedor e local: a chave e opcional (quando ausente, o header
+    `Authorization` nao e enviado) e o `X-Title` e omitido, porque nao ha
+    rotulador externo por atraz. O schema, quando pedido, vai no texto do
+    prompt pelo agente; aqui ele nao e enviado, porque nem todo modelo
+    roteado pelo OpenRouter aceita `response_format`.
 
-Nenhuma dependencia: so `urllib`. A ADR-018 registra por que isso substitui
+Nenhuma dependência: só `urllib`. Isso substitui
 o SDK `openrouter` no gerador.
 """
 
@@ -47,8 +50,10 @@ __all__ = [
     "Resposta",
     "ClienteOllama",
     "ClienteOpenAI",
+    "ClienteGemini",
     "extrair_json",
     "extrair_vhdl",
+    "extrair_python",
 ]
 
 Mensagens = list[dict[str, str]]
@@ -70,6 +75,7 @@ class Resposta:
     tokens_saida: int | None
     segundos: float
     cortes: int = 0          # vezes que o servidor encerrou o streaming e ele foi retomado
+    motivo_finalizacao: str | None = None  # ex.: "stop" ou "length" (vLLM/OpenAI)
 
 
 # --------------------------------------------------------------------------
@@ -179,7 +185,7 @@ class ClienteOllama:
         return "".join(partes), final, linhas
 
     def conversar(self, mensagens: Mensagens, *, schema: dict | None = None,
-                  temperatura: float | None = None) -> Resposta:
+                   temperatura: float | None = None) -> Resposta:
         corpo: dict[str, Any] = {
             "model": self.modelo,
             "messages": list(mensagens),
@@ -219,48 +225,54 @@ class ClienteOllama:
             tokens_saida=None if saida is None else saida + tokens_cortados,
             segundos=round(time.monotonic() - inicio, 2),
             cortes=cortes,
+            motivo_finalizacao=final.get("done_reason"),
         )
 
 
 class ClienteOpenAI:
-    """Modelo externo por Chat Completions -- OpenRouter por padrao."""
+    """Modelo por Chat Completions -- OpenRouter ou vLLM, conforme a chave."""
 
     provedor = "openrouter"
 
     def __init__(self, base_url: str, chave: str | None, modelo: str, *,
+                 provedor: str = "openrouter",
                  temperatura: float = 0.2, timeout: float = 900.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.chave = chave
         self.modelo = modelo
+        self.provedor = provedor
         self.temperatura = temperatura
         self.timeout = timeout
 
     def conversar(self, mensagens: Mensagens, *, schema: dict | None = None,
-                  temperatura: float | None = None) -> Resposta:
+                   temperatura: float | None = None) -> Resposta:
         del schema  # ver a docstring do modulo: vai no prompt, nao na API
-        if not self.chave:
-            raise ErroLLM(
-                "OPENROUTER_API_KEY nao definida. Copie .env.example para .env "
-                "e preencha a chave, ou use --provedor ollama."
-            )
-        headers = {
-            "Authorization": f"Bearer {self.chave}",
+        headers: dict[str, str] = {}
+        if self.chave:
+            headers["Authorization"] = f"Bearer {self.chave}"
             # identificacao opcional pedida pelo OpenRouter
-            "X-Title": "rvgen",
-        }
+            headers["X-Title"] = "rvgen"
+        else:
+            # provedor local (vLLM): nao ha chave, nem rotulador externo
+            if self.provedor == "openrouter":
+                raise ErroLLM(
+                    "OPENROUTER_API_KEY nao definida. Copie .env.example para .env "
+                    "e preencha a chave, ou use --provedor ollama ou --provedor vllm."
+                )
         corpo = {"model": self.modelo, "messages": mensagens,
-                 "temperature": self.temperatura if temperatura is None else temperatura}
+                  "temperature": self.temperatura if temperatura is None else temperatura}
         inicio = time.monotonic()
         dados = post_json(f"{self.base_url}/chat/completions", corpo,
                           headers=headers, timeout=self.timeout)
         if dados.get("error"):
             erro = dados["error"]
-            raise ErroLLM(f"openrouter ({self.modelo}): "
+            raise ErroLLM(f"{self.provedor} ({self.modelo}): "
                           f"{erro.get('message') if isinstance(erro, dict) else erro}")
         try:
-            texto = dados["choices"][0]["message"]["content"] or ""
+            escolha = dados["choices"][0]
+            texto = escolha["message"]["content"] or ""
         except (KeyError, IndexError, TypeError):
-            raise ErroLLM(f"openrouter ({self.modelo}): resposta sem "
+            raise ErroLLM(f"{self.provedor} ({self.modelo}): resposta sem "
                           f"choices[0].message.content") from None
         uso = dados.get("usage") or {}
         return Resposta(
@@ -270,7 +282,53 @@ class ClienteOpenAI:
             tokens_entrada=uso.get("prompt_tokens"),
             tokens_saida=uso.get("completion_tokens"),
             segundos=round(time.monotonic() - inicio, 2),
+            motivo_finalizacao=escolha.get("finish_reason"),
         )
+
+
+class ClienteGemini:
+    """Cliente REST da Gemini API, sem depender do SDK Google.
+
+    A API usa ``generateContent`` e ``x-goog-api-key``; mensagens ``system``
+    tornam-se ``systemInstruction`` e mensagens do assistente usam o papel
+    ``model``. Ver https://ai.google.dev/api/generate-content.
+    """
+
+    provedor = "google"
+
+    def __init__(self, chave: str | None, modelo: str, *,
+                 base_url: str = "https://generativelanguage.googleapis.com/v1beta",
+                 temperatura: float = 0.2, timeout: float = 900.0) -> None:
+        self.chave, self.modelo = chave, modelo.removeprefix("models/")
+        self.base_url, self.temperatura, self.timeout = base_url.rstrip("/"), temperatura, timeout
+
+    def conversar(self, mensagens: Mensagens, *, schema: dict | None = None,
+                   temperatura: float | None = None) -> Resposta:
+        if not self.chave:
+            raise ErroLLM("GEMINI_API_KEY nao definida (.env ou ambiente).")
+        sistema = "\n\n".join(m["content"] for m in mensagens if m["role"] == "system")
+        conteudos = [{"role": "model" if m["role"] == "assistant" else "user",
+                      "parts": [{"text": m["content"]}]}
+                     for m in mensagens if m["role"] != "system"]
+        corpo: dict[str, Any] = {"contents": conteudos,
+                                 "generationConfig": {"temperature": self.temperatura if temperatura is None else temperatura}}
+        if sistema:
+            corpo["systemInstruction"] = {"parts": [{"text": sistema}]}
+        if schema is not None:
+            corpo["generationConfig"].update({"responseMimeType": "application/json",
+                                                "responseJsonSchema": schema})
+        inicio = time.monotonic()
+        dados = post_json(f"{self.base_url}/models/{self.modelo}:generateContent", corpo,
+                          headers={"x-goog-api-key": self.chave}, timeout=self.timeout)
+        try:
+            candidato = dados["candidates"][0]
+            texto = "".join(p.get("text", "") for p in candidato["content"]["parts"])
+        except (KeyError, IndexError, TypeError):
+            raise ErroLLM(f"google ({self.modelo}): resposta sem candidates[0].content.parts") from None
+        uso = dados.get("usageMetadata") or {}
+        return Resposta(texto=texto, provedor=self.provedor, modelo=self.modelo,
+                        tokens_entrada=uso.get("promptTokenCount"), tokens_saida=uso.get("candidatesTokenCount"),
+                        segundos=round(time.monotonic() - inicio, 2), motivo_finalizacao=candidato.get("finishReason"))
 
 
 # --------------------------------------------------------------------------
@@ -280,24 +338,66 @@ class ClienteOpenAI:
 _CERCA_RE = re.compile(r"```[ \t]*([A-Za-z0-9_+-]*)[^\n]*\n(.*?)```", re.DOTALL)
 
 
+def _json_com_fecho_final(texto: str) -> Any:
+    """Carrega JSON e recupera somente um ``}`` externo ausente.
+
+    Alguns servidores de modelo encerram a resposta imediatamente apos a
+    ultima lista de um objeto, apesar de sinalizarem ``stop``. A recuperacao e
+    propositalmente estreita: nao tenta adivinhar strings, virgulas ou partes
+    internas faltantes; aceita apenas ``{... ]`` cuja unica abertura restante
+    seja o objeto externo.
+    """
+    try:
+        return json.loads(texto)
+    except ValueError:
+        pass
+    bruto = texto.rstrip()
+    if not bruto.endswith("]"):
+        raise ErroLLM("JSON invalido")
+    pilha: list[str] = []
+    em_string = False
+    escape = False
+    for c in bruto:
+        if em_string:
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                em_string = False
+        elif c == '"':
+            em_string = True
+        elif c in "{[":
+            pilha.append(c)
+        elif c in "}]":
+            if not pilha or {"}": "{", "]": "["}[c] != pilha.pop():
+                raise ErroLLM("JSON invalido")
+    if not em_string and pilha == ["{"]:
+        try:
+            return json.loads(bruto + "}")
+        except ValueError:
+            pass
+    raise ErroLLM("JSON invalido")
+
+
 def extrair_json(texto: str) -> Any:
     """O JSON de uma resposta, mesmo com texto ou cerca de codigo em volta."""
     bruto = texto.strip()
     try:
-        return json.loads(bruto)
-    except ValueError:
+        return _json_com_fecho_final(bruto)
+    except ErroLLM:
         pass
     for linguagem, corpo in _CERCA_RE.findall(bruto):
         if linguagem.lower() in ("json", ""):
             try:
-                return json.loads(corpo)
-            except ValueError:
+                return _json_com_fecho_final(corpo)
+            except ErroLLM:
                 continue
     inicio, fim = bruto.find("{"), bruto.rfind("}")
     if 0 <= inicio < fim:
         try:
-            return json.loads(bruto[inicio:fim + 1])
-        except ValueError:
+            return _json_com_fecho_final(bruto[inicio:fim + 1])
+        except ErroLLM:
             pass
     raise ErroLLM("a resposta do modelo nao contem JSON valido.")
 
@@ -317,3 +417,11 @@ def extrair_vhdl(texto: str) -> str | None:
             and re.search(r"\barchitecture\b", texto, re.IGNORECASE):
         return texto.strip() + "\n"
     return None
+
+
+def extrair_python(texto: str) -> str | None:
+    """Extrai um testbench Python cercado e que declara ao menos um teste."""
+    blocos = [corpo for linguagem, corpo in _CERCA_RE.findall(texto)
+              if linguagem.lower() in ("python", "py")]
+    candidatos = [b for b in blocos if "@cocotb.test" in b]
+    return max(candidatos, key=len).strip() + "\n" if candidatos else None

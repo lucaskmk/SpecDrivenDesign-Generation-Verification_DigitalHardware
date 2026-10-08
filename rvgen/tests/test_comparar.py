@@ -2,7 +2,7 @@
 """Testes do `rvgen comparar` e da pasta `experimentos/`.
 
 REQ: FR-RV-51 (tabela lida dos registros, custo como estimativa), FR-RV-47
-e ADR-019 (nome sem diretorio vai para experimentos/).
+ e nomes sem diretório vão para experimentos/.
 
 Os experimentos sao montados a mao, no mesmo formato que `rvgen gerar`
 grava: `resultado.json` da sessao e o relatorio final do rvverify. Nada
@@ -39,7 +39,7 @@ def experimento(raiz: Path, nome: str, sessao: str, *, provedor="ollama",
     (s / "resultado.json").write_text(json.dumps({
         "veredito": veredito, "placar": placar, "iteracoes": 3, "chamadas": 9,
         "tokens_entrada": tokens[0], "tokens_saida": tokens[1], "segundos": 600,
-        "provedor": provedor, "modelo": modelo, "tipo": "monociclo", "isa": isa,
+        "provedor": provedor, "modelo": modelo, "microarquitetura": "monociclo", "isa": isa,
         "exemplo": exemplo, "descricao": descricao,
         "relatorio": f".rvgen/sessao-{sessao}/rvverify/final.json",
     }), encoding="utf-8")

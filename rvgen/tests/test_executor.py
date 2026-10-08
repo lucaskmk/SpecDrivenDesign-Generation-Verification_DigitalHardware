@@ -35,35 +35,42 @@ class TestComandos(unittest.TestCase):
         self._tmp.cleanup()
 
     def _args(self):
-        return dict(json_saida=self.sessao / "rvverify" / "it1.json",
+        return dict(json_saida=self.sessao / "spec-riscv-test" / "it1" / "report.json",
                     workdir=self.sessao / "sim" / "it1",
                     build_root=self.sessao / "build")
 
-    def test_docker_usa_caminhos_posix_relativos_a_raiz(self):
-        cmd, env = ExecutorDocker("spechdl-toolchain", self.raiz).comando(
-            self.pasta, casos=["rv32i/add"], etapa="rv32i", **self._args())
-        self.assertEqual(env, {})
-        self.assertEqual(cmd[:4], ["docker", "run", "--rm", "-v"])
-        self.assertIn(f"{self.raiz}:/job", cmd)
-        self.assertIn("RVVERIFY_BUILD_ROOT=/job/entregas/gerada/.rvgen/build", cmd)
-        i = cmd.index("spechdl-toolchain")
-        self.assertEqual(cmd[i + 1:i + 5],
-                         ["python3", "-m", "rvverify", "entregas/gerada"])
-        self.assertIn("entregas/gerada/.rvgen/rvverify/it1.json", cmd)
-        self.assertEqual(cmd[-4:], ["--etapa", "rv32i", "--casos", "rv32i/add"])
-        self.assertNotIn("\\", " ".join(cmd[i:]))       # nada de caminho Windows no container
+    def test_docker_e_recusado_para_o_validador_final(self):
+        with self.assertRaisesRegex(ErroExecutor, "executado localmente"):
+            ExecutorDocker("spechdl-toolchain", self.raiz).comando(self.pasta, **self._args())
 
     def test_docker_recusa_pasta_fora_do_repositorio(self):
-        with tempfile.TemporaryDirectory() as fora:
-            with self.assertRaisesRegex(ErroExecutor, "fora do repositorio"):
-                ExecutorDocker("img", self.raiz).comando(Path(fora), **self._args())
+        with self.assertRaisesRegex(ErroExecutor, "executado localmente"):
+            ExecutorDocker("img", self.raiz).comando(self.raiz / "fora", **self._args())
 
-    def test_local_usa_o_mesmo_interpretador_e_build_root_proprio(self):
+    def test_local_chama_wrapper_oficial_e_selecao_csv(self):
         cmd, env = ExecutorLocal(self.raiz).comando(self.pasta, **self._args())
-        self.assertEqual(cmd[:3], [sys.executable, "-m", "rvverify"])
-        self.assertNotIn("--etapa", cmd)                 # ambas = sem filtro
-        self.assertNotIn("--casos", cmd)
-        self.assertEqual(env["RVVERIFY_BUILD_ROOT"], str(self.sessao / "build"))
+        self.assertEqual(cmd[1:3], ["--cpu", str(self.pasta)])
+        self.assertIn("--riscv-tests", cmd)
+        self.assertIn("--out", cmd)
+        self.assertEqual(env, {})
+        cmd, _ = ExecutorLocal(self.raiz).comando(self.pasta, casos=["rv32i/add"], **self._args())
+        self.assertEqual(cmd[-2:], ["--tests", "add"])
+
+    def test_componente_repassa_artefato_vcd_ao_runner(self):
+        executor = ExecutorLocal(self.raiz)
+        capturado = {}
+
+        def rodar(cmd, json_saida, workdir, build_root, timeout):
+            capturado["cmd"] = cmd
+            return object()
+
+        executor._rodar_comando = rodar  # type: ignore[method-assign]
+        vcd = self.sessao / "vcd" / "lhu.vcd"
+        executor.rodar_componente(
+            self.pasta, componente="cpu", teste=self.sessao / "test_cpu.py",
+            fontes=[], json_saida=self.sessao / "resultado.json",
+            workdir=self.sessao / "sim", build_root=self.sessao / "build", vcd=vcd)
+        self.assertEqual(capturado["cmd"][-2:], ["--vcd", str(vcd)])
 
     def test_rodar_le_o_json_e_apaga_o_relatorio_antigo(self):
         relatorio = {"design": "gerada", "veredito": "reprovado", "casos": []}
@@ -104,13 +111,11 @@ def _run_falso(codigos: dict[str, int]):
 
 class TestDisponibilidade(unittest.TestCase):
 
-    def test_local_exige_ghdl_e_cocotb(self):
+    def test_local_exige_ghdl_e_toolchain(self):
         d = checar_local(which=lambda n: None, tem_modulo=lambda n: False)
         self.assertFalse(d.pronto)
         self.assertIn("ghdl", d.detalhe)
-        self.assertIn("cocotb", d.detalhe)
-        ok = checar_local(which=lambda n: "/usr/bin/ghdl", tem_modulo=lambda n: True)
-        self.assertTrue(ok.pronto)
+        self.assertIn("compilador", d.detalhe)
 
     def test_docker_ausente_parado_sem_imagem_e_pronto(self):
         sem = checar_docker("img", which=lambda n: None)
@@ -129,12 +134,12 @@ class TestDisponibilidade(unittest.TestCase):
         sim = lambda: Disponibilidade(True, "ok")                   # noqa: E731
         nao = lambda: Disponibilidade(False, "falta X", "faca Y")   # noqa: E731
         self.assertIsInstance(escolher_executor("auto", local=sim, docker=sim), ExecutorLocal)
-        self.assertIsInstance(escolher_executor("auto", local=nao, docker=sim), ExecutorDocker)
+        with self.assertRaises(ErroExecutor):
+            escolher_executor("auto", local=nao, docker=sim)
         with self.assertRaises(ErroExecutor) as ctx:
             escolher_executor("auto", local=nao, docker=nao)
         self.assertIn("local : falta X -> faca Y", str(ctx.exception))
-        self.assertIn("docker: falta X -> faca Y", str(ctx.exception))
-        with self.assertRaisesRegex(ErroExecutor, "executor docker indisponivel"):
+        with self.assertRaisesRegex(ErroExecutor, "nao esta instalado na imagem Docker"):
             escolher_executor("docker", local=sim, docker=nao)
 
 

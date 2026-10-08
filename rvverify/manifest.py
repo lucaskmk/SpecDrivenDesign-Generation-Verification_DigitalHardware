@@ -43,7 +43,7 @@ __all__ = [
 MANIFEST_FILENAME = "cpu.toml"
 
 HALT_MODES = ("commit_pc", "fetch_pc", "fixed_cycles")
-PROGRAM_MODES = ("rom_init_file", "vhdl_constant")
+PROGRAM_MODES = ("rom_init_file", "vhdl_constant", "virtual")
 RESET_POLARITIES = ("high", "low")
 
 # Caminho de observacao: identificadores VHDL separados por ponto, do topo do
@@ -200,7 +200,7 @@ class ProgramSpec:
     @property
     def loadable(self) -> bool:
         """True quando da para carregar um programa arbitrario neste design."""
-        return self.mode == "rom_init_file"
+        return self.mode in ("rom_init_file", "virtual")
 
 
 @dataclass(frozen=True)

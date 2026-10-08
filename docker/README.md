@@ -1,6 +1,6 @@
 # Imagens Docker
 
-Uma pasta por imagem (ADR-017). Cada pasta é o build context da imagem de
+Uma pasta por imagem. Cada pasta é o build context da imagem de
 mesmo nome e corresponde a uma tag publicada no Docker Hub, em
 [`gabrielgalazzi/imagens_projeto_descomp`](https://hub.docker.com/r/gabrielgalazzi/imagens_projeto_descomp).
 
@@ -8,7 +8,7 @@ mesmo nome e corresponde a uma tag publicada no Docker Hub, em
 |---|---|---|---|
 | [`pl-descomp-cocotb/`](pl-descomp-cocotb/Dockerfile) | `pl-descomp-cocotb` | `cocotb-latest` | Espelho, sem modificação, da imagem de referência da disciplina (GHDL + cocotb). É a base da `spechdl-toolchain`. |
 | [`spechdl-toolchain/`](spechdl-toolchain/Dockerfile) | `spechdl-toolchain` | `spechdl-latest` | Oráculo opcional do montador (NFR-RV-05): a base acima + binutils RISC-V + Yosys. Sem ela, `rvverify` roda igual. |
-| [`quartus-lite/`](quartus-lite/Dockerfile) | `quartus-lite:25.1` | `25.1` | Quartus Prime Lite para a análise de FPGA da RV-8 (NFR-RV-06). Separada para sempre das outras duas (ADR-015). |
+| [`quartus-lite/`](quartus-lite/Dockerfile) | `quartus-lite:25.1` | `25.1` | Quartus Prime Lite para análise de FPGA, separada das outras imagens. |
 
 Digests publicados (conferidos no Docker Hub em 2026-09-28; mudam a cada
 `push` novo):
