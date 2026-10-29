@@ -89,6 +89,11 @@ tr:last-child td{border-bottom:none}
 .find.baixa{border-left:5px solid var(--tool)}
 .find .fix{background:var(--ok-bg);border:1px solid var(--ok);border-radius:6px;padding:6px 10px;margin-top:8px;font-size:.92rem}
 .find ul{margin:6px 0;padding-left:20px}
+.ba th:nth-child(3),.ba td:nth-child(3){text-align:center;width:2.2em;font-size:1.4rem;color:var(--ok);font-weight:700;padding:0 2px}
+.ba td:nth-child(2){background:var(--bad-bg)}
+.ba td:nth-child(4){background:var(--ok-bg)}
+.ba td:first-child{white-space:nowrap;font-weight:700}
+.ba td{vertical-align:top}
 .bars{display:grid;gap:8px;margin:12px 0}
 .bar{display:grid;grid-template-columns:150px 1fr 150px;gap:10px;align-items:center;font-size:.88rem}
 .bar .track{height:14px;border-radius:7px;background:var(--code);overflow:hidden;display:flex}
@@ -110,6 +115,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <a href="#contratos">Dois contratos</a>
   <a href="#saude">Saúde</a>
   <a href="#achados">Achados</a>
+  <a href="#antesdepois">Antes → depois</a>
   <a href="#sugestoes">Sugestões</a>
   <a href="#bom">O que está bom</a>
   <a href="#limites">Limites</a>
@@ -239,7 +245,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 
 <div class="find alta"><h3>A4 · Quem é a autoridade do veredito? Specs e código discordam <span class="st di">alta</span><span class="st ai">lido</span></h3>
   <p><code>constitution.md</code>, <code>plan.md</code> e <code>spec.md</code> (passo 8): <code>rvverify</code>. <code>rvgen/executor.py</code> e <code>agente.py</code>: <code>spec-riscv-test</code>, e o <code>rvgen</code> nunca chama o <code>rvverify</code>. Pelo título do commit <code>8aceaea</code> (30/09, “executor do rvverify…”) e pelas sessões apagadas, até então o juiz do <code>rvgen</code> era o <code>rvverify</code>; a troca para o <code>spec-riscv-test</code> veio no <code>bd302b6</code> sem atualizar a constituição. <code>renderizar_cpu_toml</code> existe em <code>contrato.py</code> mas só os testes a chamam, então o <code>rvgen</code> não produz o <code>cpu.toml</code> que o <code>rvverify</code> exige.</p>
-  <div class="fix"><b>Correção:</b> decisão do professor (ver as opções A/B/C do <a href="fluxo-rvgen.html#certificacao">fluxo-rvgen</a>), depois alinhar a constituição e o código. Sugestão provisória: B (<code>spec-riscv-test</code> no laço, <code>rvverify</code> como certificação final).</div></div>
+  <div class="fix"><b>Correção (revisada):</b> os dois juízes vieram no <b>mesmo commit</b> do Corsi (<code>bd302b6</code>), então a contradição é dele; a evidência está na <a href="#antesdepois">seção 6</a>. Pelo peso das fontes, o juiz do fluxo de geração é o <code>spec-riscv-test</code>; o <code>rvverify</code> segue como validador de entregas por manifesto. Falta só o Corsi confirmar, e as specs mudam antes do código.</div></div>
 
 <div class="find alta"><h3>A5 · Rastreabilidade quebrada <span class="st di">alta</span><span class="st in">executado</span></h3>
   <p>90 arquivos citam <code>FR-RV-xx</code>, 64 citam <code>ADR-xxx</code> e 26 apontam para <code>specs/decisions.md</code> ou <code>specs/tasks.md</code>. Nenhum desses existe mais: <code>specs/*.md</code> tem <b>0</b> ocorrências de <code>FR-RV</code>. <code>rvverify --listar</code> imprime <code>FR-RV-04, FR-RV-22</code>. E <code>specs/vhdl.md</code> (regra 8) obriga todo VHDL gerado a começar com <code>-- REQ:</code> citando IDs de requisitos que a spec não define. Dos 26 VHDL do repositório, 13 têm essa linha.</p>
@@ -291,11 +297,127 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
     <li>O <code>examples/</code> local e <code>outputs/</code> sobraram da trilha A; apagar.</li>
   </ul></div>
 
-<h2 id="sugestoes">6 · Ordem sugerida de trabalho</h2>
+<h2 id="antesdepois">6 · Antes → depois (proposta, nada foi alterado)</h2>
+<p>Regra desta seção: <b>a direção nova é a do commit do Corsi</b> (<code>bd302b6</code>, 07/10/2026). O que sobrou de antes dele é o que está desatualizado, não o contrário. Primeiro a evidência; depois a tabela de mudanças.</p>
+
+<h3>6.1 · O que o commit do Corsi mudou</h3>
+<div class="cols">
+  <div class="card"><h3>Removeu</h3>
+    <p>516 mil linhas em 303 arquivos: a trilha A (<code>legado/</code>, Streamlit), <code>REPO_MAP.md</code>, <code>docs/</code> antigos, as 4 sessões reais de <code>experimentos/</code>, e <code>implemetation_tests/</code> (135 arquivos). Reescreveu a constituição: de 11 princípios para 21 linhas (fonte de verdade, verificação, reprodutibilidade). Os princípios de rastreabilidade e spec-first saíram.</p></div>
+  <div class="card act"><h3>Acrescentou</h3>
+    <p>O <code>spec-riscv-test/</code> inteiro (a pasta tem 1 commit, dele), <code>specs/cpu.md</code> (barramento virtual de 9 portas), <code>rvverify/tb_virtual.py</code>, <code>rvgen/{component_runner,riscv_asm,vcd}.py</code>, <code>specs/{testes,vhdl,riscv-rv32i}.md</code> e a spec oficial RV32I em <code>specs/upstream/</code> (do manual ISA, CC-BY-4.0).</p></div>
+</div>
+
+<h3>6.2 · Quem é o juiz: o que cada fonte diz</h3>
+<div class="tblwrap">
+<table>
+<tr><th>Fonte</th><th>Diz</th><th>Aponta para</th></tr>
+<tr><td><code>specs/constitution.md</code> l.15 · <code>plan.md</code> · <code>spec.md</code> passo 8 · <code>testes.md</code> l.102 e 106</td><td>“<code>rvverify</code> é a única autoridade do veredito da CPU integrada”</td><td><span class="st in">rvverify</span></td></tr>
+<tr><td><code>README.md</code> l.37-38 e 67-68</td><td>o <code>rvgen</code> submete a CPU ao <code>spec-riscv-test</code>; “o veredito continua sendo apenas da suíte oficial integrada”</td><td><span class="st ok">spec-riscv-test</span></td></tr>
+<tr><td><code>rvgen/README.md</code> l.3-4</td><td>“A suíte oficial integrada é a autoridade final”</td><td><span class="st ok">spec-riscv-test</span></td></tr>
+<tr><td><code>rvgen/executor.py</code> e <code>agente.py</code> (4.964 linhas alteradas)</td><td>veredito sempre do <code>spec-riscv-test</code> real; nunca chama o <code>rvverify</code></td><td><span class="st ok">spec-riscv-test</span></td></tr>
+<tr><td><code>README.md</code> l.3-7 e 9-28</td><td>entregas de aluno em <code>entregas/</code> são validadas com <code>python -m rvverify</code></td><td><span class="st in">rvverify</span> (entregas)</td></tr>
+<tr><td>histórico do git</td><td><code>rvverify</code> existe desde 10/09 (LKenji, Gabriel); o Corsi só o adaptou ao barramento virtual. O <code>spec-riscv-test</code> nasceu no commit dele.</td><td>—</td></tr>
+</table>
+</div>
+<p><b>Leitura:</b> o código e os dois READMEs, que são o que ele mais mexeu, apontam para o <code>spec-riscv-test</code> no fluxo de geração. Só as 4 specs (que ele reescreveu no mesmo commit) ainda dizem <code>rvverify</code>. Sua leitura está bem apoiada, mas o mesmo commit tem as duas coisas, então vale uma linha de confirmação com ele antes de editar as specs.</p>
+
+<h3>6.3 · O que a documentação oficial diz</h3>
+<ul>
+  <li><b><code>riscv-tests</code></b> (organização <code>riscv-software-src</code>): descrito como “unit tests for RISC-V processors”. Cada teste indica sucesso com <code>RVTEST_PASS</code> e falha com <code>RVTEST_FAIL</code>, e o ambiente deve ter um timeout que conta como falha. É a suíte que o <code>spec-riscv-test</code> usa (<code>rv32ui</code>, mais <code>rv32um</code> para o M).</li>
+  <li><b><code>riscv-arch-test</code></b> (organização <code>riscv</code>): é esse repositório que se descreve como testes “designed to certify that a design faithfully implements the RISC-V specification”, gerados com o modelo Sail. O próprio README diz que não substituem verificação. <b>O projeto não usa esse.</b></li>
+  <li><b>Consequência:</b> os programas são oficiais, mas o <code>spec-riscv-test</code> roda com um ambiente próprio mínimo (<code>env/riscv_test.h</code>, sem CSR/ECALL, relinkado no endereço 0), e não com o <code>env/p</code> padrão. O resultado é “passou nos programas oficiais neste ambiente”. “Certificado real” é uma boa expressão de aula; formalmente, certificação seria o <code>riscv-arch-test</code>. Vale perguntar ao Corsi se isso importa.</li>
+</ul>
+<p class="note">Limite: li as páginas dos dois repositórios no GitHub; a de <code>riscv-tests</code> não menciona <code>tohost</code> nem <code>rv32um</code>. Essas duas partes eu conferi só no <code>spec-riscv-test/README.md</code> local.</p>
+
+<h3>6.4 · A tabela</h3>
+<div class="tblwrap">
+<table class="ba">
+<tr><th>Achado</th><th>Antes (hoje)</th><th>→</th><th>Depois (proposto)</th><th>Por quê</th></tr>
+
+<tr><td>A4<br><span class="st di">alta</span></td>
+<td>As specs dizem que o <code>rvverify</code> é a única autoridade. O código e os READMEs dizem <code>spec-riscv-test</code>.</td><td>→</td>
+<td>Specs (<code>constitution</code>, <code>plan</code>, <code>spec</code> passo 8, <code>testes</code>): o veredito da CPU gerada pelo <code>rvgen</code> é do <code>spec-riscv-test</code>. O <code>rvverify</code> fica como validador de entregas por manifesto.</td>
+<td>A pasta <code>spec-riscv-test/</code> e o executor são do Corsi e são o que o <code>rvgen</code> roda. A spec vem antes do código; hoje ela está atrás do fato. <b>Confirmar com ele.</b></td></tr>
+
+<tr><td>A1<br><span class="st di">alta</span></td>
+<td>O prompt manda manter o generic <code>RV32M_ENABLE</code> e diz que o testbench roda a CPU duas vezes. O <code>cpu.md</code> exige a entidade exata, sem generic.</td><td>→</td>
+<td>As duas frases saem do prompt (<code>contrato.py</code>). A ISA vem fixa do <code>cpu.md</code> (uma por arquivo).</td>
+<td>Reproduzi: o validador rejeita a entidade com generic. O “duas vezes” não existe no <code>spec-riscv-test</code>. O <code>cpu.md</code> é o contrato novo, então o prompt é que está velho.</td></tr>
+
+<tr><td>A2<br><span class="st di">alta</span></td>
+<td><code>--executor docker</code> aparece como opção, mas é recusado no veredito. No Windows puro o <code>rvgen</code> não passa da escolha do executor.</td><td>→</td>
+<td>README e CLI dizem: veredito = Linux/WSL2, com a lista exata (GHDL, compilador RISC-V, <code>spec-riscv-test/.venv</code>, clone <code>riscv-tests</code>). Docker só para teste de componente.</td>
+<td>A imagem só tem binutils. O README do Corsi já lista essas quatro dependências, só falta dizer “no Windows, use WSL2”.</td></tr>
+
+<tr><td>A3<br><span class="st di">alta</span></td>
+<td><code>cpus/</code>, <code>entregas/README.md</code> e <code>_modelo/cpu.toml</code> ensinam o formato antigo (memórias dentro, <code>ROM_INIT_FILE</code>). O <code>rvverify</code> só testa o virtual.</td><td>→</td>
+<td>A monociclo é portada para a entidade <code>cpu</code> de 9 portas e vira o <b>gabarito</b> que os dois juízes devem aprovar. README e <code>_modelo</code> reescritos. As CPUs antigas ficam marcadas como legado.</td>
+<td>O Corsi trocou o contrato (<code>cpu.md</code>, <code>tb_virtual</code>, <code>mode = "virtual"</code>) e não migrou o que já existia. Sem uma CPU boa, não dá para saber se o juiz acerta ou erra.</td></tr>
+
+<tr><td>M1<br><span class="st pa">média</span></td>
+<td><code>tb_virtual</code> escreve <code>instr_data</code> e lê <code>data_addr</code> na hora. Descarta em silêncio stores fora da RAM.</td><td>→</td>
+<td>Mesma sequência do <code>tb_riscv</code> (esperar <code>ReadWrite</code> antes de ler). Store fora da RAM vira aviso.</td>
+<td>O <code>tb_riscv</code> do Corsi comenta por que precisa disso. É suspeita: só se confirma rodando o gabarito do A3.</td></tr>
+
+<tr><td>A5<br><span class="st di">alta</span></td>
+<td>90 arquivos citam <code>FR-RV-xx</code> e 64 citam <code>ADR-xxx</code>, que não existem mais. O <code>vhdl.md</code> obriga <code>-- REQ:</code> em todo VHDL gerado.</td><td>→</td>
+<td>Remover a regra 8 do <code>vhdl.md</code> e limpar as referências mortas (<code>.gitignore</code>, <code>docker/</code>, <code>rvverify --listar</code>).</td>
+<td>A constituição nova do Corsi tirou a rastreabilidade. A regra gasta tokens em toda chamada e induz a IA a inventar IDs.</td></tr>
+
+<tr><td>M2<br><span class="st pa">média</span></td>
+<td>16 falhas no <code>quartus_testing</code>, 5 no <code>rvgen</code>, e o <code>pytest</code> da raiz aborta na coleta.</td><td>→</td>
+<td><code>skipUnless</code> por ferramenta (GHDL, binutils, GPU). O teste do Quartus pula ou usa uma fixture pequena versionada. <code>testpaths</code> corrigidos.</td>
+<td>O commit do Corsi apagou <code>implemetation_tests/</code>, que o teste do Gabriel (<code>81dd3fb</code>, mesmo dia) lê. Um dos dois precisa ceder.</td></tr>
+
+<tr><td>M3<br><span class="st pa">média</span></td>
+<td>O workflow aponta para <code>legado/…</code> e nenhum job roda <code>pytest</code>.</td><td>→</td>
+<td>Um job que roda <code>rvverify/tests</code> e <code>rvgen/tests</code> (os que não precisam de simulador).</td>
+<td><code>legado/</code> foi apagado no mesmo commit.</td></tr>
+
+<tr><td>M7<br><span class="st pa">média</span></td>
+<td>Nada declara <code>cocotb&gt;=2</code> nem Python 3.11.</td><td>→</td>
+<td><code>pyproject.toml</code> com <code>requires-python</code> e extras (<code>rvgen</code>, <code>sim</code>, <code>dev</code>).</td>
+<td>O <code>rvverify.builder</code> importa <code>cocotb_tools</code>; hoje isso só falha na hora de rodar.</td></tr>
+
+<tr><td>M5 e M6<br><span class="st pa">média</span></td>
+<td>Sem retry em 429/5xx. Sem teto de chamadas ou de tokens.</td><td>→</td>
+<td>3 tentativas com backoff; <code>--max-chamadas</code> e <code>--max-tokens</code> com parada limpa; acumulado a cada fase.</td>
+<td>O OpenRouter é pago e o prompt de 13 KB vai em toda chamada. Um erro de rede hoje derruba a sessão.</td></tr>
+
+<tr><td>Padrão<br><span class="st pa">média</span></td>
+<td>O código e o README ainda dizem que o provedor padrão é o Ollama local.</td><td>→</td>
+<td>Padrão <code>openrouter</code> com <code>openai/gpt-5.6-luna</code>, ou o README dizendo claramente o que usar.</td>
+<td>Você disse que agora é OpenRouter. <b>Confirmar o modelo</b> com o professor; “luna 6” é o que eu presumi.</td></tr>
+
+<tr><td>M8<br><span class="st pa">média</span></td>
+<td>VHDL e testbench pelo mesmo modelo, separados só por contexto.</td><td>→</td>
+<td>Nada por enquanto. Se ele quiser outro modelo, configuração por papel.</td>
+<td>Depende da resposta dele. Não mexer antes.</td></tr>
+
+<tr><td>M4<br><span class="st pa">média</span></td>
+<td><code>agente.py</code> com 5.457 linhas.</td><td>→</td>
+<td>Dividir por fase, mantendo <code>Agente</code> como fachada.</td>
+<td>É o arquivo que o Corsi mais mexeu (4.964 linhas) e vai mudar de novo. Só depois do resto estável, para não gerar conflito com ele.</td></tr>
+
+<tr><td>B<br><span class="st in">baixa</span></td>
+<td>Mapa de memória repetido em 3 arquivos; <code>examples/</code> e <code>outputs/</code> sobrando; digests de imagem datados.</td><td>→</td>
+<td>Uma única definição do mapa (em <code>specs/cpu.md</code>); apagar o que sobrou.</td>
+<td>Reduz divergência futura.</td></tr>
+
+<tr><td>Docs<br><span class="st in">baixa</span></td>
+<td><code>fluxo-rvgen.html</code>/<code>.md</code> deixam a certificação como “a decidir”.</td><td>→</td>
+<td>Atualizados com a resposta do Corsi.</td>
+<td>Para a consulta não ficar velha.</td></tr>
+</table>
+</div>
+<p class="note">Cuidado com conflito: o Corsi é quem mais mexe em <code>rvgen/</code>, <code>specs/</code> e <code>spec-riscv-test/</code>. Para essas pastas, a alteração mais segura é combinar com ele antes ou fazer em commits pequenos.</p>
+
+<h2 id="sugestoes">7 · Ordem sugerida de trabalho</h2>
 <div class="tblwrap">
 <table>
 <tr><th>#</th><th>O que fazer</th><th>Por quê primeiro</th><th>Esforço</th></tr>
-<tr><td>1</td><td>Perguntar ao professor quem certifica (A4) e escrever a resposta nas specs</td><td>Tudo abaixo depende disso</td><td>1 conversa + 30 min</td></tr>
+<tr><td>1</td><td>Confirmar com o Corsi quem é o juiz (A4) e escrever a resposta nas specs</td><td>Tudo abaixo depende disso</td><td>1 conversa + 30 min</td></tr>
 <tr><td>2</td><td>Tirar a contradição do generic do prompt (A1)</td><td>Evita gastar token com CPU que será recusada</td><td>pequeno</td></tr>
 <tr><td>3</td><td>Montar o ambiente WSL2 e rodar <code>rvgen preparar</code> até ficar verde (A2)</td><td>Sem isso não há veredito</td><td>1–2 h</td></tr>
 <tr><td>4</td><td>Portar a monociclo ao contrato virtual como gabarito (A3, M1)</td><td>Prova que o juiz aprova uma CPU boa; valida o <code>tb_virtual</code></td><td>médio</td></tr>
@@ -307,7 +429,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 </table>
 </div>
 
-<h2 id="bom">7 · O que está bem feito</h2>
+<h2 id="bom">8 · O que está bem feito</h2>
 <div class="cols">
   <div class="card"><h3>Segurança do juiz</h3><p>A IA só escreve em <code>src/*.vhd</code> (<code>_destino</code> recusa o resto), e os arquivos do validador são conferidos por hash antes e depois da geração; se mudaram, o veredito é recusado.</p></div>
   <div class="card"><h3>Disciplina de correção</h3><p>Uma correção por vez, medida de novo, e desfeita se piorar; regressões viram testes; resposta repetida sobe a temperatura.</p></div>
@@ -317,7 +439,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <div class="card"><h3>Quartus</h3><p>Relatório com números reais do Quartus (Fmax, ALMs, potência), com fixtures de log para testar o parser.</p></div>
 </div>
 
-<h2 id="limites">8 · Limites desta revisão</h2>
+<h2 id="limites">9 · Limites desta revisão</h2>
 <ul>
   <li><b>Não rodei simulação nenhuma</b> (sem GHDL, cocotb nem compilador RISC-V neste PC). Achados A3 e M1 são por leitura; A1, A5, M2, M3 e os números de testes foram executados.</li>
   <li><b>Não chamei a LLM</b> nem medi custo ou tempo.</li>
