@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa e revisão do projeto</title>
+<style>
+:root{
+  --bg:#fafaf8;--fg:#1c1c1a;--muted:#6b6b66;--card:#fff;--line:#d6d4cc;--code:#f1f0ea;
+  --ai:#7c5cd6;--ai-bg:#f1edfc;--tool:#1f7a8c;--tool-bg:#e6f3f5;
+  --warn:#b7791f;--warn-bg:#fdf3dc;--ok:#2f7d4f;--ok-bg:#e5f4ea;--bad:#b8423a;--bad-bg:#fbe9e7;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#16171a;--fg:#e8e6df;--muted:#9a988f;--card:#1f2024;--line:#3a3b40;--code:#25262b;
+    --ai:#a58cf0;--ai-bg:#272238;--tool:#4fb3c6;--tool-bg:#17292e;
+    --warn:#e0a84a;--warn-bg:#33290f;--ok:#5fbf86;--ok-bg:#14291d;--bad:#e27a72;--bad-bg:#331a18;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px 80px}
+header{padding:40px 0 8px}
+h1{font-size:2rem;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:1.4rem;margin:56px 0 8px;padding-top:8px;letter-spacing:-.01em}
+h3{font-size:1.05rem;margin:26px 0 6px}
+p{margin:8px 0}
+.lead{color:var(--muted);max-width:72ch}
+nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin:0 -16px;padding:8px 16px;display:flex;gap:6px 14px;flex-wrap:wrap;font-size:.85rem}
+nav a{color:var(--muted);text-decoration:none}
+nav a:hover{color:var(--fg)}
+code,pre{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:.86em}
+code{background:var(--code);padding:1px 5px;border-radius:4px}
+pre{background:var(--code);padding:12px 14px;border-radius:8px;overflow-x:auto;margin:10px 0}
+pre code{background:none;padding:0}
+.tldr{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--bad);border-radius:8px;padding:12px 18px;margin:20px 0}
+.tldr ul{margin:6px 0;padding-left:20px}
+.legend{display:flex;gap:8px 16px;flex-wrap:wrap;font-size:.85rem;margin:14px 0}
+.chip{display:inline-flex;align-items:center;gap:6px}
+.chip i{width:14px;height:14px;border-radius:4px;border:1.5px solid;display:inline-block}
+.chip .a{background:var(--ai-bg);border-color:var(--ai)}
+.chip .t{background:var(--tool-bg);border-color:var(--tool)}
+.chip .d{background:var(--warn-bg);border-color:var(--warn)}
+.chip .o{background:var(--ok-bg);border-color:var(--ok)}
+.chip .b{background:var(--bad-bg);border-color:var(--bad)}
+figure{margin:16px 0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+figcaption{font-size:.85rem;color:var(--muted);margin-top:6px}
+svg{width:100%;height:auto;display:block}
+svg .ar{stroke:var(--muted);stroke-width:1.8;fill:none}
+svg .arh{fill:var(--muted)}
+svg .lb{fill:var(--muted);font:600 11.5px system-ui,sans-serif}
+svg .ttl{fill:var(--fg);font:700 13px system-ui,sans-serif}
+svg .x{stroke:var(--bad);stroke-width:2.4;fill:none}
+.n{width:100%;height:100%;border:1.5px solid var(--line);border-radius:10px;padding:6px 10px;font:13px/1.3 system-ui,sans-serif;
+   display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;background:var(--card);color:var(--fg)}
+.n b{font-size:13.5px}
+.n small{color:var(--muted);font-size:11.5px;margin-top:2px}
+.n.ai{background:var(--ai-bg);border-color:var(--ai)}
+.n.tool{background:var(--tool-bg);border-color:var(--tool)}
+.n.dec{background:var(--warn-bg);border-color:var(--warn)}
+.n.ok{background:var(--ok-bg);border-color:var(--ok)}
+.n.bad{background:var(--bad-bg);border-color:var(--bad)}
+.n.dash{border-style:dashed}
+table{width:100%;border-collapse:collapse;font-size:.92rem;margin:12px 0;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--code);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+tr:last-child td{border-bottom:none}
+.tblwrap{overflow-x:auto}
+.st{display:inline-block;font-size:.75rem;font-weight:700;padding:1px 8px;border-radius:99px;border:1.5px solid;white-space:nowrap}
+.st.ok{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.st.pa{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+.st.di{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+.st.in{background:var(--tool-bg);border-color:var(--tool);color:var(--tool)}
+.st.ai{background:var(--ai-bg);border-color:var(--ai);color:var(--ai)}
+.note{background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:10px 14px;margin:14px 0;font-size:.93rem}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card h3{margin-top:0}
+.card.act{border-left:4px solid var(--ok)}
+.card.old{border-left:4px solid var(--muted);opacity:.85}
+.card.ref{border-left:4px solid var(--tool)}
+.card.gen{border-left:4px solid var(--ai)}
+.card .meta{font-size:.8rem;color:var(--muted);margin-bottom:4px}
+.find{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:12px 0}
+.find h3{margin:0 0 4px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.find.alta{border-left:5px solid var(--bad)}
+.find.media{border-left:5px solid var(--warn)}
+.find.baixa{border-left:5px solid var(--tool)}
+.find .fix{background:var(--ok-bg);border:1px solid var(--ok);border-radius:6px;padding:6px 10px;margin-top:8px;font-size:.92rem}
+.find ul{margin:6px 0;padding-left:20px}
+.bars{display:grid;gap:8px;margin:12px 0}
+.bar{display:grid;grid-template-columns:150px 1fr 150px;gap:10px;align-items:center;font-size:.88rem}
+.bar .track{height:14px;border-radius:7px;background:var(--code);overflow:hidden;display:flex}
+.bar .p{background:var(--ok)}.bar .f{background:var(--bad)}.bar .s{background:var(--warn)}
+@media (max-width:620px){.bar{grid-template-columns:1fr}h1{font-size:1.6rem}nav{font-size:.8rem}}
+footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line);padding-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Mapa e revisão do projeto</h1>
+  <p class="lead">Tudo o que existe no repositório, como as peças se ligam e uma revisão crítica com erros e sugestões. Estado lido no commit <code>2756083</code> (<code>main</code>, 29/10/2026). Para o detalhe do fluxo do gerador, veja <a href="fluxo-rvgen.html">fluxo-rvgen.html</a>.</p>
+</header>
+
+<nav>
+  <a href="#visao">Visão</a>
+  <a href="#mapa">Mapa</a>
+  <a href="#contratos">Dois contratos</a>
+  <a href="#saude">Saúde</a>
+  <a href="#achados">Achados</a>
+  <a href="#sugestoes">Sugestões</a>
+  <a href="#bom">O que está bom</a>
+  <a href="#limites">Limites</a>
+</nav>
+
+<div class="tldr">
+  <b>Resumo da revisão:</b> a ideia está bem montada (contexto isolado, rollback, veredito só de execução), mas o repositório está <b>no meio de uma migração</b>. Os problemas mais sérios vêm disso:
+  <ul>
+    <li>As specs dizem que o <code>rvverify</code> certifica; o código do <code>rvgen</code> certifica com o <code>spec-riscv-test</code>.</li>
+    <li>O prompt manda a IA <b>manter um generic</b> que o validador <b>rejeita</b> (reproduzido).</li>
+    <li>O juiz final só roda em Linux/WSL; o Docker não serve, ao contrário do que a documentação sugere.</li>
+    <li>As CPUs de referência e o modelo de <code>entregas/</code> seguem o contrato antigo e não casam com o <code>rvverify</code> atual (por leitura).</li>
+    <li>Testes: <b>21 falhas</b> nas partes que consegui rodar, quase todas por dependência de máquina; o CI está apontado para uma pasta que não existe.</li>
+  </ul>
+  Detalhes e correções sugeridas na <a href="#achados">seção 5</a>.
+</div>
+
+<div class="legend">
+  <span class="chip"><i class="a"></i>IA / gerador</span>
+  <span class="chip"><i class="t"></i>ferramenta de verificação</span>
+  <span class="chip"><i class="d"></i>atenção</span>
+  <span class="chip"><i class="o"></i>ok</span>
+  <span class="chip"><i class="b"></i>problema</span>
+  <span class="st in">executado</span> <span class="st ai">lido no código</span> = como cada achado foi comprovado
+</div>
+
+<h2 id="visao">1 · O que é o projeto</h2>
+<p>Uma bancada para <b>gerar e certificar CPUs RISC-V (RV32I, depois RV32IM) em VHDL</b>. Uma IA escreve a CPU a partir de <code>specs/cpu.md</code>; GHDL e cocotb simulam; programas RISC-V reais decidem se passou. Mede-se também área, frequência e potência no Quartus. Duas frentes convivem: <b>gerar com IA</b> (<code>rvgen</code>) e <b>avaliar CPU de aluno</b> (<code>rvverify</code> + <code>entregas/</code>).</p>
+<figure>
+<svg viewBox="0 0 720 300" role="img" aria-label="Visão geral do projeto">
+  <defs><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arh"/></marker></defs>
+  <foreignObject x="10" y="20" width="150" height="90"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>specs/</b><small>cpu.md, vhdl.md, riscv-rv32i.md, testes.md</small></div></foreignObject>
+  <path class="ar" d="M160 65H200" marker-end="url(#m)"/>
+  <foreignObject x="200" y="20" width="150" height="90"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>rvgen/</b><small>agente: contrato, VHDL, testes, correção</small></div></foreignObject>
+  <path class="ar" d="M350 65H390" marker-end="url(#m)"/>
+  <foreignObject x="390" y="20" width="150" height="90"><div class="n" xmlns="http://www.w3.org/1999/xhtml"><b>src/*.vhd</b><small>a CPU gerada (ou a do aluno em <code>entregas/</code>)</small></div></foreignObject>
+  <path class="ar" d="M540 65H570" marker-end="url(#m)"/>
+  <foreignObject x="570" y="20" width="140" height="90"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>spec-riscv-test/</b><small>riscv-tests oficiais no GHDL. Juiz do <code>rvgen</code></small></div></foreignObject>
+  <path class="ar" d="M275 110V170" marker-end="url(#m)"/><path class="ar" d="M285 170V110" marker-end="url(#m)"/>
+  <foreignObject x="200" y="170" width="150" height="80"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>OpenRouter</b><small>gpt-5.6-luna (sem Ollama)</small></div></foreignObject>
+  <path class="ar" stroke-dasharray="5 4" d="M465 110V170" marker-end="url(#m)"/>
+  <foreignObject x="390" y="170" width="150" height="80"><div class="n tool dash" xmlns="http://www.w3.org/1999/xhtml"><b>rvverify/</b><small>autoridade pelas specs; fora do laço do <code>rvgen</code></small></div></foreignObject>
+  <path class="ar" stroke-dasharray="5 4" d="M520 110V140H640V170" marker-end="url(#m)"/>
+  <foreignObject x="570" y="170" width="140" height="80"><div class="n tool dash" xmlns="http://www.w3.org/1999/xhtml"><b>quartus_testing/</b><small>Fmax, área, potência (Docker)</small></div></foreignObject>
+  <foreignObject x="10" y="170" width="150" height="80"><div class="n bad dash" xmlns="http://www.w3.org/1999/xhtml"><b>cpus/</b><small>referências no contrato antigo</small></div></foreignObject>
+  <text class="lb" x="10" y="280">linha cheia = no caminho automático · tracejada = ferramenta à parte</text>
+</svg>
+<figcaption>Diagrama 1 — peças e ligações.</figcaption>
+</figure>
+
+<h2 id="mapa">2 · Mapa do repositório</h2>
+<p>Linhas contadas só em arquivos versionados (<code>.py .vhd .md .toml</code> etc.). O repositório tem 70 commits de 3 autores (LKenji 39, Gabriel Oliveira Galazzi 30, Corsi 1). O último commit de código, <code>bd302b6</code> (Corsi, 07/10), foi a reestruturação: apagou <code>legado/</code> (a trilha A, Streamlit), <code>REPO_MAP.md</code>, <code>docs/</code> antigos, <code>specs/decisions.md</code>, <code>specs/tasks.md</code> e as sessões reais de <code>experimentos/ia_mono/</code>. O <code>CLAUDE.md</code> também não existe mais.</p>
+<div class="cols">
+  <div class="card gen"><div class="meta">ativo · ~11.000 linhas</div><h3><code>rvgen/</code></h3>
+    <p>O gerador. <code>agente.py</code> (5.457 linhas) orquestra 26 tipos de chamada à LLM; <code>llm.py</code> (clientes OpenRouter/Ollama/Gemini), <code>contrato.py</code> (monta o prompt), <code>executor.py</code> (roda o juiz), <code>comparar.py</code>, <code>vcd.py</code>, <code>riscv_asm.py</code>, <code>component_runner.py</code>, <code>ollama.py</code> (não usado com OpenRouter).</p></div>
+  <div class="card act"><div class="meta">ativo · ~5.900 linhas</div><h3><code>rvverify/</code></h3>
+    <p>Validador por manifesto <code>cpu.toml</code>. 35 casos (24 RV32I, 11 RV32M), modelo de referência em Python (<code>reference.py</code>), montador próprio (<code>asm.py</code>), diagnóstico (<code>feedback.py</code>). Hoje julga só pelo barramento virtual (<code>tb_virtual.py</code>).</p></div>
+  <div class="card act"><div class="meta">ativo · ~630 linhas</div><h3><code>spec-riscv-test/</code></h3>
+    <p>Juiz que o <code>rvgen</code> chama. Compila e roda os programas oficiais <code>riscv-tests</code> (40 no RV32I, 48 com M) contra a entidade <code>cpu</code>. Pacote próprio com <code>pyproject.toml</code>.</p></div>
+  <div class="card ref"><div class="meta">referência · ~9.100 linhas · 25 VHDL</div><h3><code>cpus/</code></h3>
+    <p><code>rv32i_pipeline/</code> (5 estágios, RV32I→IM, com benchmarks, PPA e muitos testes) e <code>rv32i_monociclo/</code>. Seguem o contrato <b>antigo</b> (memórias dentro da CPU, portas só <code>rst</code>/<code>clk</code>).</p></div>
+  <div class="card"><div class="meta">ativo · ~1.600 linhas</div><h3><code>specs/</code></h3>
+    <p>Fonte de verdade enxuta: <code>constitution.md</code>, <code>spec.md</code>, <code>plan.md</code>, <code>cpu.md</code> (interface exata da CPU), <code>vhdl.md</code>, <code>riscv-rv32i.md</code>, <code>testes.md</code>, <code>upstream/</code> (manual RISC-V).</p></div>
+  <div class="card"><div class="meta">ativo · ~2.500 linhas</div><h3><code>quartus_testing/</code></h3>
+    <p><code>quartus_cpu_check.py</code> (1.572 linhas): compila a CPU no Quartus (Docker) e reporta compila?, Fmax, uso da FPGA e potência. Feito por Gabriel em 07/10.</p></div>
+  <div class="card"><div class="meta">infra · ~500 linhas</div><h3><code>docker/</code></h3>
+    <p>3 imagens: <code>pl-descomp-cocotb</code> (GHDL+cocotb), <code>spechdl-toolchain</code> (+binutils RISC-V e Yosys, sem gcc) e <code>quartus-lite</code> (Quartus 25.1, instalador baixado à mão).</p></div>
+  <div class="card old"><div class="meta">antigo · 3 arquivos</div><h3><code>entregas/</code></h3>
+    <p>Onde a CPU de aluno entraria: <code>_modelo/cpu.toml</code> e README. Descreve o contrato antigo (memórias fornecidas). Ver <a href="#contratos">seção 3</a>.</p></div>
+  <div class="card"><div class="meta">docs</div><h3>Raiz e <code>docs/</code></h3>
+    <p><code>README.md</code>, <code>PROMPT_RISCV.md</code> (instruções para IA), <code>.env.example</code>, <code>pyproject.toml</code> (só config do pytest), <code>.github/workflows</code>, <code>docs/fluxo-rvgen.*</code> e este arquivo.</p></div>
+</div>
+<div class="note"><b>Só existe na sua máquina</b> (ignorado pelo git): <code>.env</code> (com a chave do OpenRouter), <code>.venv/</code> (restos da trilha A: Streamlit, Altair; <b>sem cocotb</b>), <code>examples/</code> (lixo de testes antigos), <code>outputs/</code>. Não há pasta <code>experimentos/</code> no disco. As 4 sessões reais de 30/09 (Qwen 14B local, que usavam o <code>rvverify</code>) foram apagadas no <code>bd302b6</code>, mas continuam no histórico do git (<code>git show bd302b6^:experimentos</code>).</div>
+
+<h2 id="contratos">3 · O ponto central: dois contratos de CPU</h2>
+<p>É a chave para entender os achados A1, A3 e A4. O repositório tem <b>dois formatos incompatíveis</b> de CPU, e as ferramentas estão divididas entre eles.</p>
+<figure>
+<svg viewBox="0 0 720 400" role="img" aria-label="Dois contratos de CPU">
+  <defs><marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arh"/></marker></defs>
+  <text class="ttl" x="10" y="18">Contrato ANTIGO: memórias dentro da CPU</text>
+  <foreignObject x="10" y="28" width="320" height="110"><div class="n" xmlns="http://www.w3.org/1999/xhtml"><b>entity CPU</b><small>portas: <code>rst</code>, <code>clk</code>. Generics <code>ROM_INIT_FILE</code>, <code>RV32M_ENABLE</code>. ROM/RAM instanciadas dentro; programa entra pelo arquivo <code>.ram</code> na elaboração</small></div></foreignObject>
+  <foreignObject x="10" y="150" width="320" height="70"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>julgada por: <code>cpu.toml</code> + <code>tb_generic</code></b><small>lê RAM/registradores por hierarquia (VPI)</small></div></foreignObject>
+  <foreignObject x="10" y="232" width="320" height="64"><div class="n dash" xmlns="http://www.w3.org/1999/xhtml"><b>quem ainda usa</b><small><code>cpus/rv32i_pipeline</code>, <code>cpus/rv32i_monociclo</code>, <code>entregas/_modelo</code>, <code>entregas/README.md</code></small></div></foreignObject>
+
+  <text class="ttl" x="390" y="18">Contrato ATUAL: barramento virtual</text>
+  <foreignObject x="390" y="28" width="320" height="110"><div class="n" xmlns="http://www.w3.org/1999/xhtml"><b>entity cpu</b><small>9 portas: <code>clk, rst, instr_addr, instr_data, data_addr, data_write, data_width, data_write_data, data_read_data</code>. Sem memória, sem generic. ROM/RAM são do testbench</small></div></foreignObject>
+  <foreignObject x="390" y="150" width="320" height="70"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>julgada por: <code>tb_riscv</code> e <code>tb_virtual</code></b><small>só pelas portas, sem olhar dentro</small></div></foreignObject>
+  <foreignObject x="390" y="232" width="320" height="64"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>quem usa</b><small><code>specs/cpu.md</code>, <code>rvgen</code> (prompt e validador), <code>spec-riscv-test</code>, <code>rvverify/conformance</code></small></div></foreignObject>
+
+  <path class="x" d="M345 150L375 215M375 150L345 215"/>
+  <foreignObject x="10" y="312" width="700" height="78"><div class="n bad" xmlns="http://www.w3.org/1999/xhtml"><b>Resultado, por leitura do código</b><small><code>conformance._run_case</code> sempre usa <code>rvverify.tb_virtual</code>, que dirige <code>dut.instr_addr</code> etc. As CPUs de <code>cpus/</code> e qualquer entrega que siga o README de <code>entregas/</code> não têm essas portas. Não pude confirmar rodando (sem GHDL/cocotb neste PC).</small></div></foreignObject>
+</svg>
+<figcaption>Diagrama 2 — o contrato mudou, parte do repositório ficou para trás.</figcaption>
+</figure>
+
+<h2 id="saude">4 · Saúde dos testes (o que eu consegui rodar)</h2>
+<p>Rodei com o Python do sistema, <b>sem GHDL, sem cocotb e sem compilador RISC-V</b> (o PC é Windows). Isso explica os testes pulados, mas não todas as falhas.</p>
+<div class="bars">
+  <div class="bar"><span><code>rvverify/tests</code></span><div class="track"><div class="p" style="width:79%"></div><div class="s" style="width:21%"></div></div><span>84 ok · 22 pulados · 0 falhas</span></div>
+  <div class="bar"><span><code>rvgen/tests</code></span><div class="track"><div class="p" style="width:96%"></div><div class="f" style="width:4%"></div></div><span>139 ok · 5 falhas · 1 pulado</span></div>
+  <div class="bar"><span><code>quartus_testing/tests</code></span><div class="track"><div class="p" style="width:55%"></div><div class="f" style="width:45%"></div></div><span>20 ok · 16 falhas</span></div>
+  <div class="bar"><span><code>spec-riscv-test/tests</code></span><div class="track"><div class="p" style="width:100%"></div></div><span>2 ok (só com <code>PYTHONPATH</code>)</span></div>
+  <div class="bar"><span><code>cpus/**/test</code></span><div class="track"></div><span>não coleta: falta <code>cocotb_tools</code></span></div>
+</div>
+<ul>
+  <li><b>22 pulados no rvverify:</b> pedem GHDL, cocotb ou a imagem Docker <code>spechdl-toolchain</code> (9 do oráculo do montador; ela não está construída aqui). Normal neste PC, mas significa que <b>a suíte que decide o veredito nunca rodou de verdade nesta sessão</b>.</li>
+  <li><b>Não rodei nem os 795 testes citados</b> dos CPUs de referência: dependem de GHDL e cocotb.</li>
+  <li><b>Nenhuma geração real foi feita.</b> Não há chamada à LLM nesta revisão.</li>
+</ul>
+
+<h2 id="achados">5 · Achados</h2>
+<p>Ordenados por gravidade. Cada um diz como foi comprovado.</p>
+
+<div class="find alta"><h3>A1 · O prompt manda manter um generic que o validador rejeita <span class="st di">alta</span><span class="st in">executado</span></h3>
+  <p>Renderizei o prompt de sistema real (<code>texto_do_contrato</code>, ~13 KB). Para <b>RV32I</b> ele diz: “keep the generic <code>RV32M_ENABLE</code> declared”. Para RV32IM: “decode … when the generic <code>RV32M_ENABLE</code> is true” e “the test bench runs the same CPU twice”. Mas <code>specs/cpu.md</code> (no mesmo prompt) exige a entidade exata, sem generic, e o <code>validate_top</code> do <code>spec-riscv-test</code> <b>rejeitou</b> uma entidade <code>cpu</code> com generic (“a entidade pública deve ser exatamente <code>cpu</code>”) e aceitou a mesma sem ele. Além disso <code>spec-riscv-test/cli.py</code> não menciona generic nenhum, então a afirmação de rodar duas vezes é falsa.</p>
+  <p><b>Efeito:</b> um modelo obediente gera uma CPU que o juiz recusa antes de simular, e gasta rodadas pagas para descobrir isso. Para RV32IM o prompt descreve um mecanismo que não existe.</p>
+  <div class="fix"><b>Correção:</b> remover as duas frases do prompt (a ISA já é fixa por <code>cpu.md</code>) ou fazer o <code>validate_top</code> aceitar generics com valor padrão. Decidir antes de passar para RV32IM.</div></div>
+
+<div class="find alta"><h3>A2 · O juiz final só roda em Linux/WSL; o Docker não resolve <span class="st di">alta</span><span class="st ai">lido</span><span class="st in">executado</span></h3>
+  <p><code>--executor docker</code> termina com “spec-riscv-test não está instalado na imagem Docker; use --executor local”. A imagem <code>spechdl-toolchain</code> só tem binutils RISC-V (sem gcc, sem <code>riscv-tests</code>, sem <code>spec-riscv-test</code>), e o caminho padrão do executável é <code>.venv/bin/spec-riscv-test</code> (Linux). O <code>rvgen preparar</code> neste PC já acusa: “FALTA executor local: sem ghdl; resolver: wsl”. Mesmo assim <code>--executor docker</code> e <code>RVGEN_EXECUTOR=docker</code> continuam listados como opção no CLI e no <code>.env.example</code>; só funcionam para testes de componente.</p>
+  <p><b>Efeito:</b> no Windows puro, <code>rvgen gerar</code> não passa nem da escolha do executor (felizmente antes de gastar token). <code>ExecutorDocker.rodar_componente</code> também usa <code>os.getuid()</code>, que não existe no Windows. <b>Corrijo algo que eu disse antes:</b> o Docker não é o caminho para o veredito.</p>
+  <div class="fix"><b>Correção:</b> documentar WSL2 como único ambiente suportado (com a lista exata de instalação), ou criar uma imagem completa (gcc RISC-V + <code>riscv-tests</code> + <code>spec-riscv-test</code>) e liberar o executor Docker para o veredito.</div></div>
+
+<div class="find alta"><h3>A3 · O <code>rvverify</code> não julga mais as CPUs de referência nem o <code>_modelo</code> <span class="st di">alta</span><span class="st ai">lido</span></h3>
+  <p>O único testbench usado por <code>conformance</code> é <code>rvverify.tb_virtual</code> (barramento de 9 portas). A CPU pipeline tem topo <code>CPU(rst, clk)</code> com generics de ROM e memórias internas; a monociclo é igual; <code>entregas/_modelo/cpu.toml</code> e <code>entregas/README.md</code> ainda ensinam memórias fornecidas e <code>ROM_INIT_FILE</code>. <code>tb_generic.py</code> só é usado por testes. Resultado esperado: um aluno que seguir o README é reprovado por contrato, não por defeito.</p>
+  <div class="fix"><b>Correção:</b> portar uma CPU de referência (a monociclo é a mais simples) para o contrato virtual e usá-la como <b>gabarito</b> que o juiz precisa aprovar; reescrever <code>entregas/README.md</code> e o <code>_modelo</code>; ou, se o modo antigo ainda importa, reativar o despacho por <code>[program].mode</code> no <code>conformance</code>.</div></div>
+
+<div class="find alta"><h3>A4 · Quem é a autoridade do veredito? Specs e código discordam <span class="st di">alta</span><span class="st ai">lido</span></h3>
+  <p><code>constitution.md</code>, <code>plan.md</code> e <code>spec.md</code> (passo 8): <code>rvverify</code>. <code>rvgen/executor.py</code> e <code>agente.py</code>: <code>spec-riscv-test</code>, e o <code>rvgen</code> nunca chama o <code>rvverify</code>. Pelo título do commit <code>8aceaea</code> (30/09, “executor do rvverify…”) e pelas sessões apagadas, até então o juiz do <code>rvgen</code> era o <code>rvverify</code>; a troca para o <code>spec-riscv-test</code> veio no <code>bd302b6</code> sem atualizar a constituição. <code>renderizar_cpu_toml</code> existe em <code>contrato.py</code> mas só os testes a chamam, então o <code>rvgen</code> não produz o <code>cpu.toml</code> que o <code>rvverify</code> exige.</p>
+  <div class="fix"><b>Correção:</b> decisão do professor (ver as opções A/B/C do <a href="fluxo-rvgen.html#certificacao">fluxo-rvgen</a>), depois alinhar a constituição e o código. Sugestão provisória: B (<code>spec-riscv-test</code> no laço, <code>rvverify</code> como certificação final).</div></div>
+
+<div class="find alta"><h3>A5 · Rastreabilidade quebrada <span class="st di">alta</span><span class="st in">executado</span></h3>
+  <p>90 arquivos citam <code>FR-RV-xx</code>, 64 citam <code>ADR-xxx</code> e 26 apontam para <code>specs/decisions.md</code> ou <code>specs/tasks.md</code>. Nenhum desses existe mais: <code>specs/*.md</code> tem <b>0</b> ocorrências de <code>FR-RV</code>. <code>rvverify --listar</code> imprime <code>FR-RV-04, FR-RV-22</code>. E <code>specs/vhdl.md</code> (regra 8) obriga todo VHDL gerado a começar com <code>-- REQ:</code> citando IDs de requisitos que a spec não define. Dos 26 VHDL do repositório, 13 têm essa linha.</p>
+  <div class="fix"><b>Correção:</b> ou restaurar uma lista curta de requisitos em <code>spec.md</code>, ou remover a regra 8 do prompt (ela gasta tokens e induz a IA a inventar IDs) e limpar as referências mortas.</div></div>
+
+<div class="find media"><h3>M1 · Possível leitura adiantada no <code>tb_virtual</code> <span class="st pa">média</span><span class="st ai">suspeita, não executada</span></h3>
+  <p>O <code>tb_riscv</code> escreve <code>instr_data</code>, faz <code>await ReadWrite()</code> e só então lê <code>data_addr</code>, com um comentário explicando que sem isso “a resposta pertence à instrução anterior”. O <code>tb_virtual</code> escreve <code>instr_data</code> e lê <code>data_addr</code> <b>imediatamente</b>, sem esperar. Em cocotb a escrita só vale depois da fase ReadWrite, então o endereço lido pode ser o da instrução anterior, o que daria load/store errado em CPU correta. Também descarta stores fora de <code>0x00FC8100 + 512 B</code> sem avisar.</p>
+  <div class="fix"><b>Verificar e corrigir:</b> rodar o <code>rvverify</code> numa CPU conhecida-boa já portada (ver A3). Se confirmar, copiar o padrão do <code>tb_riscv</code>.</div></div>
+
+<div class="find media"><h3>M2 · Testes dependem da máquina e a suíte da raiz não roda <span class="st pa">média</span><span class="st in">executado</span></h3>
+  <ul>
+    <li><b>quartus_testing: 16 falhas</b>: leem <code>implemetation_tests/opus_5_RISCVIM/…</code> (nome com erro de digitação), pasta que <b>não está no repositório</b>.</li>
+    <li><b>rvgen: 5 falhas</b>: 3 de <code>test_ollama</code> esperam um modelo 14B e um executor pronto (dependem de GPU e GHDL do host); 2 de <code>test_riscv_asm</code> falham por falta de binutils em vez de pular.</li>
+    <li><code>pytest</code> na raiz aborta na coleta (<code>cocotb_tools</code>) porque <code>testpaths</code> inclui <code>cpus</code>; <code>quartus_testing/tests</code> e <code>spec-riscv-test/tests</code> nem estão nos <code>testpaths</code>, e a segunda só passa com <code>PYTHONPATH</code>.</li>
+    <li>Uma função chamada <code>testbench</code> em <code>test_agente.py</code> é coletada como teste e devolve <code>str</code> (aviso do pytest).</li>
+  </ul>
+  <div class="fix"><b>Correção:</b> <code>skipUnless</code> por ferramenta (ghdl, binutils, GPU) em vez de falhar; versionar ou gerar a fixture do Quartus; um alvo único (<code>make test</code>) com dependências declaradas.</div></div>
+
+<div class="find media"><h3>M3 · CI morto <span class="st pa">média</span><span class="st in">executado</span></h3>
+  <p><code>.github/workflows/toolchain-smoketest.yml</code> dispara por mudanças em <code>legado/toolchain_smoketest/**</code> e roda <code>make -C /var/www/legado/toolchain_smoketest/test/</code>. A pasta <code>legado/</code> não existe. Nenhum workflow roda <code>pytest</code>.</p>
+  <div class="fix"><b>Correção:</b> apagar ou apontar o workflow; adicionar um job que rode <code>rvverify/tests</code> e <code>rvgen/tests</code> (os que não precisam de simulador).</div></div>
+
+<div class="find media"><h3>M4 · <code>agente.py</code> é um monólito <span class="st pa">média</span><span class="st in">medido</span></h3>
+  <p>5.457 linhas, 147 funções. <code>_testar_componentes</code> tem <b>720 linhas</b>, <code>_corrigir</code> 352, e há 6 funções com mais de 100. É o arquivo que mais vai mudar e o mais difícil de revisar ou testar por partes (o <code>test_agente.py</code> já tem 1.252 linhas).</p>
+  <div class="fix"><b>Sugestão:</b> separar por fase em módulos (<code>arquitetura</code>, <code>contratos</code>, <code>componentes</code>, <code>triagem</code>, <code>correcao_cpu</code>) mantendo <code>Agente</code> como fachada. Fazer depois de A1–A5, com os testes atuais como rede.</div></div>
+
+<div class="find media"><h3>M5 · Cliente de LLM sem retry e sem schema <span class="st pa">média</span><span class="st ai">lido</span></h3>
+  <p><code>post_json</code> converte qualquer erro HTTP/timeout em <code>ErroLLM</code> e para. Não há retry nem backoff para 429/5xx, e o <code>ClienteOpenAI</code> descarta o schema (<code>del schema</code>). Em rodadas longas e pagas, um soluço de rede derruba a sessão; <code>retomar</code> só existe com as flags de portão.</p>
+  <div class="fix"><b>Sugestão:</b> 3 tentativas com backoff exponencial para 429/5xx/timeout; usar <code>response_format</code> do OpenRouter quando o modelo suportar.</div></div>
+
+<div class="find media"><h3>M6 · Sem teto de custo <span class="st pa">média</span><span class="st in">medido</span></h3>
+  <p>O prompt de sistema tem ~13 KB e vai em <b>toda</b> chamada. O único limitador é <code>--iteracoes</code> (12), que não conta as chamadas de contrato, triagem, testbench e diagnóstico. O custo só aparece depois, em <code>comparar</code>, como estimativa.</p>
+  <div class="fix"><b>Sugestão:</b> <code>--max-chamadas</code> e <code>--max-tokens</code> com parada limpa; mostrar o acumulado a cada fase; fazer a primeira rodada pequena (RV32I, monociclo, poucas iterações) para medir.</div></div>
+
+<div class="find media"><h3>M7 · Dependências não declaradas <span class="st pa">média</span><span class="st ai">lido</span></h3>
+  <p>O <code>pyproject.toml</code> da raiz só configura o pytest. Nada declara <code>cocotb&gt;=2</code> (o <code>rvverify.builder</code> importa <code>cocotb_tools</code>). O <code>.venv</code> local tem Streamlit e Altair da trilha A e não tem cocotb. O README diz “só biblioteca padrão” para o <code>rvgen</code>, mas o <code>component_runner</code> precisa de cocotb.</p>
+  <div class="fix"><b>Sugestão:</b> <code>[project]</code> com extras (<code>rvgen</code>, <code>sim</code>, <code>dev</code>) ou um <code>requirements.txt</code> por ambiente, e um passo único “preparar o WSL”.</div></div>
+
+<div class="find media"><h3>M8 · VHDL e teste pelo mesmo modelo <span class="st pa">média</span><span class="st ai">lido</span></h3>
+  <p>Já discutido: a separação é só de contexto; os pontos cegos do modelo são os mesmos nos dois lados. O juiz oficial é o contrapeso.</p>
+  <div class="fix"><b>Sugestão:</b> permitir um segundo modelo só para testbench e triagem (configuração por papel).</div></div>
+
+<div class="find baixa"><h3>B · Menores <span class="st in">baixa</span></h3>
+  <ul>
+    <li><code>.gitignore</code> cita <code>specs/tasks.md</code> (T0.4) e “ADR-018”, que não existem mais; <code>docker/README.md</code> e o Dockerfile citam NFR-RV-05, ADR-004 e ADR-005.</li>
+    <li>O mapa de memória (<code>RAM_BASE 0x00FC8100</code>, 512 bytes) está repetido em <code>tb_virtual.py</code>, <code>conformance.py</code> e <code>contrato.py</code> e não aparece em <code>specs/cpu.md</code>.</li>
+    <li>O <code>rvverify</code> exige Python 3.11+ (<code>tomllib</code>); o README diz “Linux/WSL2” mas o <code>pyproject</code> não fixa versão.</li>
+    <li>Digests de imagem Docker datados (28/09/2026) no README ficam velhos a cada <code>push</code>.</li>
+    <li>O <code>examples/</code> local e <code>outputs/</code> sobraram da trilha A; apagar.</li>
+  </ul></div>
+
+<h2 id="sugestoes">6 · Ordem sugerida de trabalho</h2>
+<div class="tblwrap">
+<table>
+<tr><th>#</th><th>O que fazer</th><th>Por quê primeiro</th><th>Esforço</th></tr>
+<tr><td>1</td><td>Perguntar ao professor quem certifica (A4) e escrever a resposta nas specs</td><td>Tudo abaixo depende disso</td><td>1 conversa + 30 min</td></tr>
+<tr><td>2</td><td>Tirar a contradição do generic do prompt (A1)</td><td>Evita gastar token com CPU que será recusada</td><td>pequeno</td></tr>
+<tr><td>3</td><td>Montar o ambiente WSL2 e rodar <code>rvgen preparar</code> até ficar verde (A2)</td><td>Sem isso não há veredito</td><td>1–2 h</td></tr>
+<tr><td>4</td><td>Portar a monociclo ao contrato virtual como gabarito (A3, M1)</td><td>Prova que o juiz aprova uma CPU boa; valida o <code>tb_virtual</code></td><td>médio</td></tr>
+<tr><td>5</td><td>Primeira rodada barata com luna: RV32I, single cycle, poucas iterações (M6)</td><td>Primeira medida real de custo e tempo</td><td>pequeno + gasto</td></tr>
+<tr><td>6</td><td>Consertar testes e CI; declarar dependências (M2, M3, M7)</td><td>Rede de segurança antes de refatorar</td><td>médio</td></tr>
+<tr><td>7</td><td>Retry/backoff e teto de custo (M5, M6)</td><td>Rodadas longas sem perder sessão</td><td>pequeno</td></tr>
+<tr><td>8</td><td>Limpar rastreabilidade e docs (A5, B)</td><td>Reduz tokens e confusão</td><td>pequeno</td></tr>
+<tr><td>9</td><td>Dividir <code>agente.py</code> (M4)</td><td>Só depois do resto estável</td><td>grande</td></tr>
+</table>
+</div>
+
+<h2 id="bom">7 · O que está bem feito</h2>
+<div class="cols">
+  <div class="card"><h3>Segurança do juiz</h3><p>A IA só escreve em <code>src/*.vhd</code> (<code>_destino</code> recusa o resto), e os arquivos do validador são conferidos por hash antes e depois da geração; se mudaram, o veredito é recusado.</p></div>
+  <div class="card"><h3>Disciplina de correção</h3><p>Uma correção por vez, medida de novo, e desfeita se piorar; regressões viram testes; resposta repetida sobe a temperatura.</p></div>
+  <div class="card"><h3>Honestidade das métricas</h3><p>Veredito só de execução; <code>rvverify</code> tem teste para “não aprovar em vazio”; métricas ausentes saem como “não observável”; custo rotulado como estimativa.</p></div>
+  <div class="card"><h3>Auditoria</h3><p>Cada chamada à LLM grava prompt, resposta, tokens e tempo. <code>retomar</code> continua a partir dos blocos congelados por hash.</p></div>
+  <div class="card"><h3>Testes do agente</h3><p>139 testes passam usando um servidor falso, sem gastar token nem precisar de simulador.</p></div>
+  <div class="card"><h3>Quartus</h3><p>Relatório com números reais do Quartus (Fmax, ALMs, potência), com fixtures de log para testar o parser.</p></div>
+</div>
+
+<h2 id="limites">8 · Limites desta revisão</h2>
+<ul>
+  <li><b>Não rodei simulação nenhuma</b> (sem GHDL, cocotb nem compilador RISC-V neste PC). Achados A3 e M1 são por leitura; A1, A5, M2, M3 e os números de testes foram executados.</li>
+  <li><b>Não chamei a LLM</b> nem medi custo ou tempo.</li>
+  <li>Não reli os ~9.000 linhas de <code>cpus/</code> nem o <code>quartus_cpu_check.py</code> por dentro; descrevo o papel deles pelos READMEs e docstrings.</li>
+  <li>Do <code>agente.py</code> li o fluxo principal, a triagem, a correção e os prompts centrais, não as 5.457 linhas.</li>
+</ul>
+
+<footer>Gerado a partir do estado do repositório em 29/10/2026. Complemento: <a href="fluxo-rvgen.html">fluxo-rvgen.html</a> (fluxo do gerador) e <a href="fluxo-rvgen.md">fluxo-rvgen.md</a> (versão curta para IA).</footer>
+</div>
+</body>
+</html>

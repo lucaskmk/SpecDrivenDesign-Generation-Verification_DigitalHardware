@@ -104,8 +104,9 @@ Nome simples grava em `experimentos/<nome>/`; caminho grava no caminho.
 - Cada chamada tem mensagens novas, sem histórico. Chamadas sequenciais por padrão.
 - Sem medida de tempo/custo com luna no repositório (os 17–18 min são do Ollama 14B).
   Gasto fica em `resultado.json` e em `python -m rvgen comparar`.
-- GHDL/cocotb/`spec-riscv-test` rodam local ou no Docker `spechdl-toolchain`. Neste PC
-  não achei `ghdl`, compilador RISC-V nem clone `riscv-tests` no PATH.
+- GHDL/cocotb/`spec-riscv-test` rodam **só no executor local (Linux/WSL)**; `--executor docker`
+  é recusado para o veredito (a imagem só tem binutils). Neste PC não achei `ghdl`, compilador
+  RISC-V nem clone `riscv-tests` no PATH: o caminho é WSL2.
 
 ## Papéis de IA: 26 tipos de chamada, 1 modelo
 

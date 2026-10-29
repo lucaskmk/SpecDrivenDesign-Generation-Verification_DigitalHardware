@@ -357,7 +357,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <li><b>Custo e velocidade:</b> cada chamada é paga e sequencial (<code>--parallel-testes 1</code> por padrão). As três flags de componente aumentam muito o número de chamadas. Não há medida de tempo ou custo com luna neste repositório: os 17–18 min registrados são do Ollama local de 14B. Meça numa primeira rodada.</li>
   <li><b>Onde conferir o gasto:</b> <code>.rvgen/sessao-*/resultado.json</code> (chamadas e tokens) e <code>python -m rvgen comparar</code>.</li>
   <li><b>Limpeza do contexto:</b> não existe memória entre chamadas; o que o modelo “lembra” é só o que o agente reenviou.</li>
-  <li><b>Quem executa GHDL:</b> a IA só escreve texto. O GHDL, o cocotb e o <code>spec-riscv-test</code> rodam na sua máquina (<code>--executor local</code>) ou no Docker (<code>spechdl-toolchain</code>). Neste PC não achei <code>ghdl</code>, compilador RISC-V nem clone do <code>riscv-tests</code> no PATH; o Docker seria o caminho. Não verifiquei se a imagem já foi construída.</li>
+  <li><b>Quem executa GHDL:</b> a IA só escreve texto. O GHDL, o cocotb e o <code>spec-riscv-test</code> rodam <b>só no executor local (Linux/WSL)</b>: <code>--executor docker</code> é recusado para o veredito, porque a imagem <code>spechdl-toolchain</code> só tem binutils (sem gcc, sem <code>riscv-tests</code>, sem <code>spec-riscv-test</code>). Neste PC não achei <code>ghdl</code>, compilador RISC-V nem o clone do <code>riscv-tests</code> no PATH, então o caminho é montar o WSL2. <i>(Correção: numa versão anterior deste arquivo eu disse que o Docker seria o caminho; está errado.)</i></li>
 </ul>
 
 <h2 id="papeis">8 · Os papéis de IA (26 chamadas, 1 modelo)</h2>
