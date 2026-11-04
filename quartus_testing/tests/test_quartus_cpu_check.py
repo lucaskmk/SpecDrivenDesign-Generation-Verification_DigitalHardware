@@ -2,8 +2,9 @@
 """Testes de quartus_testing/quartus_cpu_check.py -- sem Docker e sem Quartus.
 
 Os parsers sao conferidos contra saida REAL do Quartus 25.1: os logs
-versionados em implemetation_tests/opus_5_RISCVIM/fpga/quartus_output_*/
-(nao cabe, nao roteia, compila) e os de fixtures/, capturados rodando a
+versionados em fixtures/opus_5_RISCVIM/fpga/quartus_output_*/ (nao cabe,
+nao roteia, compila; copiados do que existia em implemetation_tests/, que
+saiu do repositorio) e os de fixtures/, capturados rodando a
 propria ferramenta (erro de VHDL, clock que nao casa com porta) ou recortados
 de um .fit.rpt real (a tabela de recursos, que nao e versionada). A execucao
 inteira roda com um Docker falso que devolve esses mesmos arquivos.
@@ -23,7 +24,8 @@ from quartus_testing import quartus_cpu_check as q
 
 RAIZ = Path(__file__).resolve().parents[2]
 FIX = Path(__file__).resolve().parent / "fixtures"
-OPUS = RAIZ / "implemetation_tests" / "opus_5_RISCVIM" / "fpga"
+OPUS_CPU = FIX / "opus_5_RISCVIM"
+OPUS = OPUS_CPU / "fpga"
 
 
 def ler(caminho: Path) -> str:
@@ -115,7 +117,7 @@ class TestTopTemSaida(unittest.TestCase):
         # expoe dbg_* -- e por isso ela nunca precisou de noprune
         self.assertIs(q.carregar_cpu(RAIZ / "cpus" / "rv32i_pipeline").top_tem_saida, False)
         self.assertIs(q.carregar_cpu(RAIZ / "cpus" / "rv32i_monociclo").top_tem_saida, False)
-        self.assertIs(q.carregar_cpu(RAIZ / "implemetation_tests" / "opus_5_RISCVIM").top_tem_saida, True)
+        self.assertIs(q.carregar_cpu(OPUS_CPU).top_tem_saida, True)
 
     def test_comentario_nao_conta_e_entidade_ausente_e_none(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -471,7 +473,7 @@ class TestExecucao(unittest.TestCase):
         self.assertEqual(analyzes, ["rv32i", "rv32im"])
 
     def test_topo_com_saida_nao_preserva(self):
-        _, rel, _ = self.executar("ok", cpu="implemetation_tests/opus_5_RISCVIM")
+        _, rel, _ = self.executar("ok", cpu=str(OPUS_CPU))
         self.assertFalse(rel["sintese"]["preservar_logica"])
         self.assertNotIn("PRESERVE_FANOUT_FREE_NODE", ler(self.saida / "comum.tcl"))
 

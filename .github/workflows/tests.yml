@@ -1,0 +1,31 @@
+name: tests
+
+# Os mesmos comandos que se rodam à mão. O veredito do rvgen (spec-riscv-test
+# com os programas oficiais do riscv-tests) não roda aqui: exige um compilador
+# RISC-V e o clone do riscv-tests.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sem-simulador:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install pytest
+      - name: Testes que não precisam de GHDL
+        run: python -m pytest rvverify/tests rvgen/tests quartus_testing/tests spec-riscv-test/tests
+
+  com-simulador:
+    # GHDL 2.0 e cocotb 2 na imagem usada nas aulas (docker/pl-descomp-cocotb)
+    runs-on: ubuntu-latest
+    container: rafaelcorsi/pl-descomp-cocotb:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Testes com simulação (inclui o gabarito cpus/rv32i_gabarito)
+        run: python3 -m pytest rvverify/tests rvgen/tests quartus_testing/tests spec-riscv-test/tests
