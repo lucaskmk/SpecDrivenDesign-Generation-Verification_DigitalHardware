@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from rvgen import contrato as ct
+from rvgen.comparar import totais_da_sessao
 
 __all__ = [
     "ErroIteracoes",
@@ -653,6 +654,14 @@ class Repositorio:
                       "tokens_entrada", "tokens_saida", "segundos", "provedor", "modelo",
                       "isa", "microarquitetura")
             saida["resultado"] = {k: dados.get(k) for k in chaves if k in dados}
+            # numa sessao retomada os campos acima contam so a ultima execucao;
+            # mostra a sessao inteira, como o `rvgen comparar`
+            totais = totais_da_sessao(sessao, dados)
+            if totais:
+                saida["resultado"].update(
+                    chamadas=totais.get("chamadas"), tokens_entrada=totais.get("tokens_entrada"),
+                    tokens_saida=totais.get("tokens_saida"),
+                    segundos=totais.get("segundos_modelo"), sessao_inteira=True)
         try:
             with open(sessao / "sessao.jsonl", encoding="utf-8") as f:
                 for linha in f:

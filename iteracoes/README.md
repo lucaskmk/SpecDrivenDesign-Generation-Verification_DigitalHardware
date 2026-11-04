@@ -58,7 +58,8 @@ base nunca muda.
   em bash/WSL e em PowerShell; botão **Promover para specs/**; campo para
   **vincular um experimento** e ver o resultado da sessão mais recente
   (`experimentos/<nome>/.rvgen/sessao-*/resultado.json`: veredito, chamadas,
-  tokens) e qual pasta de specs ela usou.
+  tokens; numa sessão retomada, a soma de todas as execuções, como no
+  `rvgen comparar`) e qual pasta de specs ela usou.
 
 O botão **+ Nova iteração** copia a base, a ativa ou outra iteração, com nome
 e notas (hipótese). Nome e notas podem ser editados depois no topo da página.

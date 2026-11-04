@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Ollama: achar, instalar, iniciar e abastecer com o modelo (`rvgen preparar`).
 
-REQ: FR-RV-43 (verificar e reportar cada item), FR-RV-44 (instalar ou baixar
-SO com confirmacao explicita), FR-RV-45 (iniciar `ollama serve` com log
-proprio), FR-RV-46 (perfil de modelo pela memoria de video).
+Cada item e verificado e reportado; instalar ou baixar so acontece com
+confirmacao explicita; `ollama serve` e iniciado com log proprio; o perfil de
+modelo sai da memoria de video.
 
 Este modulo so ACHA e FAZ; quem decide se pode fazer e o comando
 `preparar` (`rvgen/__main__.py`), que pergunta antes de instalar ou baixar.

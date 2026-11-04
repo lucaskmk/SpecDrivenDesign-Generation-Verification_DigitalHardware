@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Testes do `rvgen comparar` e da pasta `experimentos/`.
 
-REQ: FR-RV-51 (tabela lida dos registros, custo como estimativa), FR-RV-47
- e nomes sem diretório vão para experimentos/.
+A tabela e lida dos registros, o custo sai como estimativa, e nomes sem
+diretório vão para experimentos/.
 
 Os experimentos sao montados a mao, no mesmo formato que `rvgen gerar`
 grava: `resultado.json` da sessao e o relatorio final do rvverify. Nada
@@ -71,7 +71,7 @@ class TestComparar(unittest.TestCase):
             self.raiz, "falhou", "1", veredito="reprovado", placar="nao compilou",
             por_etapa={}), None)
         self.assertEqual((falhou.rv32i, falhou.rv32im), ("nao compilou", "nao compilou"))
-        # FR-RV-11: base reprovada, a etapa M e pulada
+        # base reprovada, a etapa M e pulada
         base = cmp.linha_de(experimento(
             self.raiz, "base", "1", veredito="reprovado", placar="20/24 casos",
             por_etapa={"rv32i": {"passou": 20, "total": 24, "falhou": 4}},
@@ -114,6 +114,44 @@ class TestComparar(unittest.TestCase):
         self.assertIn("| experimento | modelo |", md)
         self.assertIn("|---|", md)
         self.assertIn("preco do OpenRouter indisponivel", md)
+
+    def _retomada(self, nome: str, *, bloco: dict | None) -> Path:
+        """Sessao retomada: resultado.json conta so a ultima execucao (2
+        chamadas); o sessao.jsonl tem 5 eventos llm ao todo."""
+        s = experimento(self.raiz, nome, "1", provedor="openrouter",
+                        modelo="openai/gpt-5.6-luna", tokens=(20, 2))
+        r = json.loads((s / "resultado.json").read_text(encoding="utf-8"))
+        r.update({"chamadas": 2, "retomada": True})
+        if bloco is not None:
+            r["sessao"] = bloco
+        (s / "resultado.json").write_text(json.dumps(r), encoding="utf-8")
+        eventos = [{"evento": "inicio"}] + [
+            {"evento": "llm", "tokens_entrada": 10, "tokens_saida": 1, "segundos": 12}] * 5 + [
+            {"evento": "retomada"}]
+        (s / "sessao.jsonl").write_text(
+            "\n".join(json.dumps(e) for e in eventos) + "\nlinha quebrada\n", encoding="utf-8")
+        return s
+
+    def test_sessao_retomada_mostra_a_sessao_inteira(self):
+        # resultado antigo, sem o bloco "sessao": soma os eventos llm do registro
+        antigo = cmp.linha_de(self._retomada("antigo", bloco=None), PRECOS)
+        self.assertEqual((antigo.chamadas, antigo.tokens_entrada, antigo.tokens_saida),
+                         (5, 50, 5))
+        self.assertEqual(antigo.minutos, 1.0)
+        self.assertTrue(antigo.sessao_inteira)
+        self.assertAlmostEqual(antigo.custo_usd, 50 * 0.20e-6 + 5 * 1.20e-6)
+        # resultado novo: o bloco "sessao" gravado pelo rvgen vence o registro
+        bloco = {"chamadas": 78, "tokens_entrada": 743978, "tokens_saida": 124821,
+                 "segundos_modelo": 1416.0, "execucoes": 4}
+        novo = cmp.linha_de(self._retomada("novo", bloco=bloco), None)
+        self.assertEqual((novo.chamadas, novo.tokens_entrada, novo.tokens_saida, novo.minutos),
+                         (78, 743978, 124821, 23.6))
+        self.assertIn("Sessão retomada", cmp.tabela_texto([novo], precos_ok=False))
+        # sessao sem retomada: os campos do resultado.json valem como estao
+        simples = cmp.linha_de(experimento(self.raiz, "simples", "1"), None)
+        self.assertEqual((simples.chamadas, simples.minutos, simples.sessao_inteira),
+                         (9, 10.0, False))
+        self.assertNotIn("Sessão retomada", cmp.tabela_texto([simples], precos_ok=False))
 
     def test_comando_comparar(self):
         experimento(self.raiz, "local", "1")

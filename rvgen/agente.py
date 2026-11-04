@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """O laco do agente: decompor, escrever, validar, corrigir, julgar.
 
-REQ: FR-RV-47 (entrega completa: architecture.json, um VHDL por bloco),
-FR-RV-48 (laco de correcao com o diagnostico real, desfazendo o
-que piorar), FR-RV-49 (veredito só do spec-riscv-test completo; escrita só em
-src/; arquivos protegidos conferidos), FR-RV-50 (sessao auditavel).
+O agente entrega a CPU completa (architecture.json e um VHDL por bloco),
+corrige com o diagnostico real desfazendo o que piorar, aceita veredito só do
+spec-riscv-test completo, escreve só em src/, confere os arquivos protegidos e
+deixa a sessao auditavel em sessao.jsonl.
 
 Por que um agente de fases fixas: um modelo local de 7 a 30
 bilhoes de parametros se perde numa tarefa longa e aberta. Aqui ele nunca
@@ -36,7 +36,7 @@ import threading
 import time
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Protocol
@@ -97,11 +97,11 @@ _INSTANCIA_ENTITY_WORK_RE = re.compile(
     r"(?im)^\s*(?P<label>[a-zA-Z]\w*)\s*:\s*entity\s+work\.(?P<entity>[a-zA-Z]\w*)\b"
     r"(?:\s*\([^)]*\))?\s*(?:generic\s+map\s*\(.*?\)\s*)?port\s+map\s*\(")
 
-# FR-RV-48: resposta identica ao arquivo atual -> o proximo pedido sai mais
-# "quente", e fica assim enquanto as alteracoes nao melhorarem o placar. Com
-# a temperatura padrao (0,2) o modelo local devolveu o mesmo cpu_top.vhd em
-# 10 de 12 correcoes (TRV-9.8); com a escada 0,2 -> 0,6 -> 0,9, repetiu nas 3
-# vezes a 0,6 e mudou nas 4 a 0,9 (TRV-9.12). None = a do cliente.
+# Resposta identica ao arquivo atual -> o proximo pedido sai mais "quente",
+# e fica assim enquanto as alteracoes nao melhorarem o placar. Com a
+# temperatura padrao (0,2) o modelo local devolveu o mesmo cpu_top.vhd em
+# 10 de 12 correcoes numa execucao real; noutra, com a escada 0,2 -> 0,6 ->
+# 0,9, repetiu nas 3 vezes a 0,6 e mudou nas 4 a 0,9. None = a do cliente.
 TEMPERATURAS_NA_REPETICAO: tuple[float | None, ...] = (None, 0.9)
 _NOME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -138,7 +138,7 @@ SCHEMA_INSTRUCOES: dict = {
 
 def _schema_arquitetura(com_descricao: bool) -> dict:
     """Com descricao do usuario, a decomposicao tambem mapeia cada pedido
-    para o bloco que o atende (FR-RV-52)."""
+    para o bloco que o atende."""
     if not com_descricao:
         return SCHEMA_ARQUITETURA
     schema = json.loads(json.dumps(SCHEMA_ARQUITETURA))
@@ -575,6 +575,9 @@ class Resultado:
     segundos: float
     sessao: Path
     relatorio: Path
+    # `chamadas` e os tokens acima sao so desta execucao; aqui ficam os da
+    # sessao inteira (geracao e cada retomada), somados do sessao.jsonl
+    totais_sessao: dict[str, Any] = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------
@@ -688,7 +691,7 @@ class Agente:
                 f.write(json.dumps(evento, ensure_ascii=False) + "\n")
 
     def _destino(self, rel: str) -> Path:
-        """FR-RV-49: o unico lugar em que o agente escreve e `<pasta>/src/`."""
+        """O unico lugar em que o agente escreve e `<pasta>/src/`."""
         if not _ARQUIVO_RE.match(rel):
             raise ErroGeracao(f"escrita recusada: {rel!r} nao e src/<nome>.vhd")
         destino = (self.pasta / rel).resolve()
@@ -1558,7 +1561,7 @@ class Agente:
     def _chamar(self, fase: str, alvo: str, mensagens: list[dict],
                  schema: dict | None = None,
                  temperatura: float | None = None) -> Resposta:
-        """Uma chamada ao modelo, sempre registrada (FR-RV-50)."""
+        """Uma chamada ao modelo, sempre registrada em sessao.jsonl."""
         with self._lock_sessao:
             motivo = self._teto_atingido()
             if motivo is None:
@@ -1598,6 +1601,36 @@ class Agente:
                        "tokens_saida": r.tokens_saida,
                        "diagnostico": "o provedor encerrou a resposta por limite de comprimento"})
         return r
+
+    def _totais_da_sessao(self) -> dict[str, Any]:
+        """Soma os eventos `llm` de todo o sessao.jsonl.
+
+        Cobre a geracao e cada retomada da mesma sessao; os tetos
+        (`max_chamadas`, `max_tokens`) continuam valendo por execucao.
+        `execucoes` conta os eventos `inicio` e `retomada`.
+        """
+        totais = {"chamadas": 0, "tokens_entrada": 0, "tokens_saida": 0,
+                  "segundos_modelo": 0.0, "execucoes": 0}
+        try:
+            linhas = (self.sessao / "sessao.jsonl").read_text(encoding="utf-8").splitlines()
+        except OSError:
+            linhas = []
+        for linha in linhas:
+            try:
+                evento = json.loads(linha)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(evento, dict):
+                continue
+            if evento.get("evento") in ("inicio", "retomada"):
+                totais["execucoes"] += 1
+            elif evento.get("evento") == "llm":
+                totais["chamadas"] += 1
+                totais["tokens_entrada"] += int(evento.get("tokens_entrada") or 0)
+                totais["tokens_saida"] += int(evento.get("tokens_saida") or 0)
+                totais["segundos_modelo"] += float(evento.get("segundos") or 0)
+        totais["segundos_modelo"] = round(totais["segundos_modelo"], 1)
+        return totais
 
     def _teto_atingido(self) -> str | None:
         """Por que a proxima chamada nao deve acontecer (ou None).
@@ -1651,7 +1684,7 @@ class Agente:
                        "Do not implement those blocks internally; declare signals and instantiate them.")
 
     def _texto_descricao(self) -> str:
-        """FR-RV-52: o que o usuario pediu, sempre abaixo do contrato."""
+        """O que o usuario pediu, sempre abaixo do contrato."""
         if not self.descricao:
             return ""
         return ("# Designer's description of the CPU (free text from the user)\n"
@@ -1730,7 +1763,7 @@ class Agente:
         if self.descricao:
             (self.pasta / "descricao.md").write_text(
                 "# Descricao da CPU pedida ao modelo\n\n"
-                "Texto livre passado a `rvgen gerar` (FR-RV-52). NAO verificado pelo\n"
+                "Texto livre passado a `rvgen gerar`. NAO verificado pelo\n"
                 "rvverify: o veredito julga so o contrato; o mapeamento destes pedidos\n"
                 "para os blocos, em `architecture.json` (`requests`), e declaracao do\n"
                 "modelo.\n\n" + self.descricao + "\n", encoding="utf-8")
@@ -4890,7 +4923,7 @@ async def inventory_visible_hierarchy(dut):
         erros = comp.get("erros") or []
         nao_compilou = comp.get("ok") is False
         # Relatorio sem as linhas do GHDL (o rvverify ja perdeu esse erro uma
-        # vez, TRV-9.8): sem elas o modelo corrige as cegas e devolve o mesmo
+        # vez, numa execucao real): sem elas o modelo corrige as cegas e devolve o mesmo
         # arquivo. O build.log da sessao continua tendo tudo.
         if not erros and comp.get("ok") is not True and \
                 not any(c.get("passed") for c in rel.get("casos", [])):
@@ -4928,7 +4961,7 @@ async def inventory_visible_hierarchy(dut):
 
     def _com_contrato(self, alvo: str | None, texto: str,
                       arquivos: list[str]) -> tuple[str | None, str]:
-        """Acrescenta a checagem estatica do contrato a evidencia (FR-RV-48).
+        """Acrescenta a checagem estatica do contrato a evidencia da correcao.
 
         Um erro do GHDL continua mandando no alvo: nada roda antes de compilar.
         Sem ele, a primeira divergencia do contrato aponta o arquivo.
@@ -5021,7 +5054,7 @@ async def inventory_visible_hierarchy(dut):
         return None
 
     def _corrigir(self, arq: dict, iteracao_inicial: int = 0) -> tuple[Execucao, str, int]:
-        """FR-RV-48: mede, corrige um arquivo, mede de novo; desfaz o que piora."""
+        """Mede, corrige um arquivo, mede de novo; desfaz o que piora."""
         fase = 4 if self.testes_componentes else 3
         self._mostrar_fluxo(fase)
         self.relatar(f"{self._fase(fase)} validacao, investigação e correção "
@@ -5370,7 +5403,7 @@ async def inventory_visible_hierarchy(dut):
                            "depois": placar_de(depois).texto()})
             else:
                 # so uma MELHORA devolve a temperatura normal; mudar sem
-                # melhorar ainda e estar travado (TRV-9.12)
+                # melhorar ainda e estar travado (visto numa execucao real)
                 if placar_de(depois).chave() > placar_de(atual).chave():
                     repeticoes = 0
                 atual, nota = depois, None
@@ -5439,14 +5472,16 @@ async def inventory_visible_hierarchy(dut):
         atingido = p.veredito == "aprovado"
         resultado = Resultado(p.veredito or "desconhecido", atingido, p, iteracoes,
                               self._chamadas, self._tokens[0], self._tokens[1],
-                              round(time.monotonic() - inicio, 1), self.sessao, final.json_path)
+                              round(time.monotonic() - inicio, 1), self.sessao, final.json_path,
+                              self._totais_da_sessao())
         resumo = {"veredito": resultado.veredito, "objetivo_atingido": atingido,
                   "placar": p.texto(), "iteracoes": iteracoes, "chamadas": resultado.chamadas,
                   "tokens_entrada": resultado.tokens_entrada, "tokens_saida": resultado.tokens_saida,
                   "segundos": resultado.segundos, "provedor": self.cliente.provedor,
                   "modelo": self.cliente.modelo, "microarquitetura": self.microarquitetura,
                   "isa": self.isa, "retomada": True,
-                  "relatorio": final.json_path.relative_to(self.pasta).as_posix()}
+                  "relatorio": final.json_path.relative_to(self.pasta).as_posix(),
+                  "sessao": resultado.totais_sessao}
         (self.sessao / "resultado.json").write_text(json.dumps(resumo, indent=2, ensure_ascii=False) + "\n",
                                                       encoding="utf-8")
         self._log({"evento": "fim", **resumo})
@@ -5494,7 +5529,7 @@ async def inventory_visible_hierarchy(dut):
             usadas = self._testar_componentes(arq, usadas)
         ultima, etapa, iteracoes = self._corrigir(arq, usadas)
 
-        # FR-RV-49: nada que o julga pode ter mudado enquanto a CPU era gerada
+        # nada que o julga pode ter mudado enquanto a CPU era gerada
         if self.protegidos() != selo:
             self._log({"evento": "integridade", "ok": False})
             raise ErroIntegridade(
@@ -5517,7 +5552,7 @@ async def inventory_visible_hierarchy(dut):
             placar=p, iteracoes=iteracoes, chamadas=self._chamadas,
             tokens_entrada=self._tokens[0], tokens_saida=self._tokens[1],
             segundos=round(time.monotonic() - inicio, 1), sessao=self.sessao,
-            relatorio=final.json_path)
+            relatorio=final.json_path, totais_sessao=self._totais_da_sessao())
         resumo = {"veredito": resultado.veredito, "objetivo_atingido": atingido,
                   "placar": p.texto(), "iteracoes": iteracoes,
                   "chamadas": resultado.chamadas,
@@ -5531,7 +5566,8 @@ async def inventory_visible_hierarchy(dut):
                    "gates_componentes": self.gates_componentes,
                   "exemplo": str(self.exemplo) if self.exemplo else None,
                   "descricao": self.descricao,
-                  "relatorio": final.json_path.relative_to(self.pasta).as_posix()}
+                  "relatorio": final.json_path.relative_to(self.pasta).as_posix(),
+                  "sessao": resultado.totais_sessao}
         (self.sessao / "resultado.json").write_text(
             json.dumps(resumo, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         self._log({"evento": "fim", **resumo})

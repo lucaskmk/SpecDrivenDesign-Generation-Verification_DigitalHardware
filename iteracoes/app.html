@@ -638,7 +638,8 @@ async function painelExperimentos(v) {
     const detalhes = res ? h("div", { class: "muted", style: "font-size:13px;margin-top:4px" },
       [res.placar ? "placar " + res.placar : null, res.chamadas !== undefined ? num(res.chamadas) + " chamadas" : null,
        res.tokens_entrada !== undefined ? `tokens ${num(res.tokens_entrada)} entrada / ${num(res.tokens_saida)} saída` : null,
-       res.modelo ? res.modelo : null, res.segundos ? (res.segundos / 60).toFixed(1) + " min" : null].filter(Boolean).join(" · ")) : null;
+       res.modelo ? res.modelo : null, res.segundos ? (res.segundos / 60).toFixed(1) + (res.sessao_inteira ? " min de modelo" : " min") : null,
+       res.sessao_inteira ? "sessão retomada: soma de todas as execuções" : null].filter(Boolean).join(" · ")) : null;
     const specsAviso = r.specs && r.specs !== v.pasta ? h("div", { class: "faixa aviso", style: "margin:6px 0 0" },
       `A sessão mais recente usou specs de ${r.specs}, não desta iteração (${v.pasta}).`) : null;
     return h("div", { class: "exp" }, h("div", { class: "tit" }, h("strong", {}, nome), ver,

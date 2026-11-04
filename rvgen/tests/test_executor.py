@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Testes do executor do validador -- sem GHDL e sem Docker.
 
-REQ: FR-RV-49 (o veredito vem do --json do rvverify real), NFR-RV-07 (o
-validador e chamado como subprocesso).
+O veredito vem do --json do rvverify real, e o validador e chamado como
+subprocesso.
 
 O que se confere e o comando montado e a leitura do relatorio. Rodar o
-rvverify de verdade e papel da execucao ponta a ponta (TRV-9.8).
+rvverify de verdade e papel da execucao ponta a ponta.
 """
 
 from __future__ import annotations

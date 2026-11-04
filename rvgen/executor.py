@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Executa ``spec-riscv-test`` como validador final externo.
 
-REQ: FR-RV-49 (o veredito vem sempre do spec-riscv-test real), NFR-RV-07 (o gerador
-chama o validador como SUBPROCESSO; nunca o importa para julgar uma CPU).
+O veredito vem sempre do spec-riscv-test real: o gerador chama o validador
+como SUBPROCESSO e nunca o importa para julgar uma CPU.
 
 O modo final é local: executa o ambiente virtual de ``spec-riscv-test`` e
 requer GHDL, compilador RISC-V e o clone upstream. O resultado vem sempre de

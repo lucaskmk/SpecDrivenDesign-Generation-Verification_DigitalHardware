@@ -387,6 +387,22 @@ class TestExperimentos(BaseRepo):
         self.repo.desvincular_experimento(it, "it001_teste")
         self.assertEqual(self.repo.ler_meta(it)["experimentos"], [])
 
+    def test_sessao_retomada_mostra_a_sessao_inteira(self):
+        sessao = self.raiz / "experimentos" / "retomado" / ".rvgen" / "sessao-20261003-100000"
+        sessao.mkdir(parents=True)
+        (sessao / "resultado.json").write_text(json.dumps(
+            {"veredito": "aprovado", "chamadas": 2, "tokens_entrada": 20, "tokens_saida": 2,
+             "segundos": 78.8, "retomada": True}), encoding="utf-8")
+        eventos = [{"evento": "inicio", "specs": "specs"}] + [
+            {"evento": "llm", "tokens_entrada": 10, "tokens_saida": 1, "segundos": 6}] * 3
+        (sessao / "sessao.jsonl").write_text(
+            "".join(json.dumps(e) + "\n" for e in eventos), encoding="utf-8")
+        res = self.repo.resultado_experimento("retomado")["resultado"]
+        self.assertEqual((res["chamadas"], res["tokens_entrada"], res["tokens_saida"]),
+                         (3, 30, 3))
+        self.assertEqual(res["segundos"], 18.0)
+        self.assertTrue(res["sessao_inteira"])
+
     def test_nome_de_experimento_invalido(self):
         it = self.repo.criar_iteracao("base")
         for nome in ("../x", "a/b", "", "..", "a\\b"):

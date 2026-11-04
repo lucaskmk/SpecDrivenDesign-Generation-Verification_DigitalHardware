@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Cliente unico de LLM: Ollama (local) e OpenRouter (externo).
 
-REQ: FR-RV-46 (dois provedores intercambiaveis por configuracao, so com a
-biblioteca padrao), FR-RV-50 (tokens e duracao de cada chamada registrados).
+Os provedores sao intercambiaveis por configuracao, so com a biblioteca
+padrao, e cada chamada devolve tokens e duracao para o registro da sessao.
 
 Os dois clientes tem a mesma forma -- `conversar(mensagens, schema=None)`
 devolve uma `Resposta` -- e o agente nao sabe qual deles esta usando. As
@@ -18,7 +18,7 @@ diferencas ficam aqui dentro:
     O servidor do Ollama 0.32.1 ENCERRA o streaming, sem `done` e sem erro,
     quando o modelo repete o mesmo token por muito tempo -- visto de verdade
     num literal VHDL de 32 bits, "000...0001", em que cada `0` e um token
-    (TRV-9.8). A regra no prompt nao evita isso: o modelo de 14B a ignora.
+    (numa execucao real). A regra no prompt nao evita isso: o modelo de 14B a ignora.
     Por isso um corte com texto ja recebido e RETOMADO: o pedido e reenviado
     com o texto parcial como inicio da resposta do assistente, e o modelo
     continua exatamente de onde parou (conferido: a emenda sai sem costura).

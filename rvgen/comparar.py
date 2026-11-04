@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Experimentos lado a lado: `python -m rvgen comparar`.
 
-REQ: FR-RV-51 (tabela de experimentos), FR-RV-50 (os numeros vem dos
-registros da sessao), NFR-RV-02 (nada re-medido nem inferido; custo rotulado
-como estimativa).
+Os numeros da tabela vem dos registros da sessao: nada e re-medido nem
+inferido, e o custo sai rotulado como estimativa.
 
 Uma geracao (`rvgen gerar`) deixa em `<pasta>/.rvgen/sessao-*/` o
 `resultado.json` e o relatório final do `spec-riscv-test`. Este módulo só lê esses
@@ -31,6 +30,7 @@ __all__ = [
     "sessoes",
     "provedor_de",
     "linha_de",
+    "totais_da_sessao",
     "precos_openrouter",
     "tabela_texto",
     "tabela_markdown",
@@ -63,6 +63,7 @@ class Linha:
     custo_usd: float | None
     exemplo: bool
     descricao: bool = False
+    sessao_inteira: bool = False    # numeros somam todas as execucoes da sessao retomada
 
 
 # --------------------------------------------------------------------------
@@ -131,12 +132,62 @@ def _custo(provedor: str, modelo: str, entrada: int, saida: int,
     return f"~US$ {valor:.4f}", valor
 
 
+def _somar_eventos_llm(sessao: Path) -> dict | None:
+    """Soma os eventos `llm` do `sessao.jsonl` (mesma conta de
+    `Agente._totais_da_sessao`); None sem registro legivel."""
+    try:
+        linhas = (sessao / "sessao.jsonl").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    totais = {"chamadas": 0, "tokens_entrada": 0, "tokens_saida": 0, "segundos_modelo": 0.0}
+    for linha in linhas:
+        try:
+            evento = json.loads(linha)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(evento, dict) and evento.get("evento") == "llm":
+            totais["chamadas"] += 1
+            totais["tokens_entrada"] += int(evento.get("tokens_entrada") or 0)
+            totais["tokens_saida"] += int(evento.get("tokens_saida") or 0)
+            totais["segundos_modelo"] += float(evento.get("segundos") or 0)
+    totais["segundos_modelo"] = round(totais["segundos_modelo"], 1)
+    return totais
+
+
+def totais_da_sessao(sessao: Path, r: dict) -> dict | None:
+    """Chamadas, tokens e tempo de modelo de uma sessao retomada inteira, ou
+    None quando os campos de `resultado.json` ja valem para a sessao toda.
+
+    Os campos `chamadas`/`tokens_*`/`segundos` de `resultado.json` contam so
+    a ultima execucao. Numa sessao retomada, o total vem do bloco `sessao`
+    (gravado pelo rvgen) ou, em resultados gravados antes desse bloco
+    existir, da soma dos eventos `llm` do `sessao.jsonl`.
+    """
+    if not r.get("retomada"):      # uma execucao so: os campos ja sao a sessao
+        return None
+    bloco = r.get("sessao")
+    if isinstance(bloco, dict) and "chamadas" in bloco:
+        return bloco
+    return _somar_eventos_llm(sessao)
+
+
 def linha_de(sessao: Path, precos: Precos | None) -> Linha:
     r = json.loads((sessao / "resultado.json").read_text(encoding="utf-8"))
     pasta = sessao.parent.parent
     relatorio = ler_relatorio(pasta / r["relatorio"]) if r.get("relatorio") else None
     placar = str(r.get("placar", ""))
+    chamadas = int(r.get("chamadas") or 0)
     entrada, saida = int(r.get("tokens_entrada") or 0), int(r.get("tokens_saida") or 0)
+    segundos = float(r.get("segundos") or 0)
+    totais = totais_da_sessao(sessao, r)
+    if totais:
+        # sessao retomada: a tabela mostra a sessao inteira; o tempo passa a
+        # ser o tempo de resposta do modelo somado (nao ha relogio de parede
+        # para a sessao toda)
+        chamadas = int(totais.get("chamadas") or 0)
+        entrada = int(totais.get("tokens_entrada") or 0)
+        saida = int(totais.get("tokens_saida") or 0)
+        segundos = float(totais.get("segundos_modelo") or 0)
     custo, valor = _custo(r.get("provedor", ""), r.get("modelo", ""), entrada, saida, precos)
     return Linha(
         experimento=pasta.name,
@@ -149,14 +200,15 @@ def linha_de(sessao: Path, precos: Precos | None) -> Linha:
         rv32i=_etapa(relatorio, "rv32i", placar),
         rv32im=_etapa(relatorio, "rv32m", placar) if r.get("isa") == "rv32im" else "-",
         iteracoes=int(r.get("iteracoes") or 0),
-        chamadas=int(r.get("chamadas") or 0),
+        chamadas=chamadas,
         tokens_entrada=entrada,
         tokens_saida=saida,
-        minutos=round(float(r.get("segundos") or 0) / 60, 1),
+        minutos=round(segundos / 60, 1),
         custo=custo,
         custo_usd=valor,
         exemplo=bool(r.get("exemplo")),
         descricao=bool(r.get("descricao")),
+        sessao_inteira=totais is not None,
     )
 
 
@@ -190,7 +242,7 @@ def _celulas(l: Linha) -> list[str]:
     modelo = f"{l.modelo} ({rotulo})"
     if l.exemplo:
         modelo += " +exemplo"
-    if l.descricao:        # FR-RV-52: descrita e nao descrita nao se comparam de igual
+    if l.descricao:        # descrita e nao descrita nao se comparam de igual
         modelo += " +descricao"
     return [l.experimento, modelo, l.microarquitetura, l.isa, l.veredito, l.rv32i, l.rv32im,
             str(l.iteracoes), str(l.chamadas), f"{l.tokens_entrada}+{l.tokens_saida}",
@@ -199,6 +251,9 @@ def _celulas(l: Linha) -> list[str]:
 
 def _nota(linhas: list[Linha], precos_ok: bool) -> str:
     fonte_placar = "Veredito e placar: relatório final do spec-riscv-test de cada sessão."
+    if any(l.sessao_inteira for l in linhas):
+        fonte_placar += (" Sessão retomada: chamadas, tokens e tempo somam todas as execuções"
+                         " (tempo = resposta do modelo somada).")
     if all(l.provedor in ("ollama", "vllm") for l in linhas):
         return f"custo: modelos locais (ollama/vllm), sem custo em dinheiro (0). {fonte_placar}"
     fonte = (f"preco publico do OpenRouter em {date.today():%Y-%m-%d}" if precos_ok

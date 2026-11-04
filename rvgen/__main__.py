@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Gerador de CPUs RISC-V por agente -- ponto de entrada.
 
-REQ: FR-RV-43 a FR-RV-50.
-
     python -m rvgen preparar              confere Ollama, modelo e executor;
                                           oferece instalar/baixar o que faltar
     python -m rvgen preparar --verificar  so confere, nao muda nada
@@ -12,7 +10,7 @@ REQ: FR-RV-43 a FR-RV-50.
     python -m rvgen gerar ... --provedor openrouter
                                           o mesmo, com um modelo externo
     python -m rvgen gerar ia_mono ...     so um nome: grava em experimentos/ia_mono
-    python -m rvgen comparar              experimentos lado a lado (FR-RV-51)
+    python -m rvgen comparar              experimentos lado a lado
 
 Codigo de saida: 0 quando tudo esta pronto (preparar) ou a CPU atingiu o
 objetivo (gerar), 1 com pendencia ou CPU reprovada, 2 com erro de uso, de
@@ -117,7 +115,7 @@ def cmd_preparar(args: argparse.Namespace) -> int:
     tela = Tela(cor=not args.sem_cor and sys.stdout.isatty())
 
     def confirmar(pergunta: str) -> bool:
-        """FR-RV-44: nada e instalado nem baixado sem um sim explicito."""
+        """Nada e instalado nem baixado sem um sim explicito."""
         if args.verificar:
             return False
         if args.sim:
@@ -616,6 +614,12 @@ def cmd_gerar(args: argparse.Namespace) -> int:
     print(f"  iteracoes      : {r.iteracoes} de correcao, {r.chamadas} chamadas ao modelo")
     print(f"  tokens         : {r.tokens_entrada} de entrada, {r.tokens_saida} de saida")
     print(f"  tempo          : {r.segundos / 60:.1f} min")
+    t = r.totais_sessao
+    if t:
+        # os numeros acima sao desta execucao; numa retomada a sessao soma mais
+        print(f"  sessao inteira : {t['execucoes']} execucao(oes), {t['chamadas']} chamadas, "
+              f"{t['tokens_entrada']} + {t['tokens_saida']} tokens, "
+              f"{t['segundos_modelo'] / 60:.1f} min de modelo")
     print(f"  sessao         : {r.sessao.relative_to(REPO_ROOT).as_posix()}")
     print(f"  relatorio JSON : {r.relatorio.relative_to(REPO_ROOT).as_posix()}")
     print(f"  validar de novo: spec-riscv-test --cpu {rel_pasta} --riscv-tests riscv-tests --out out")
@@ -706,7 +710,7 @@ def main(argv: list[str] | None = None) -> int:
     d = g.add_mutually_exclusive_group()
     d.add_argument("--descricao", metavar="TEXTO",
                    help="descricao da CPU em texto livre; orienta o modelo abaixo do "
-                         "contrato e NAO e verificada pelo spec-riscv-test (FR-RV-52)")
+                         "contrato e NAO e verificada pelo spec-riscv-test")
     d.add_argument("--descricao-arquivo", metavar="ARQUIVO",
                    help="o mesmo, lido de um arquivo de texto (UTF-8)")
     g.set_defaults(func=cmd_gerar)

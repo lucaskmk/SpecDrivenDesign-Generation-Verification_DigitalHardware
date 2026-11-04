@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Testes do contrato inferido de cpu.md e do `cpu.toml` deterministico.
 
-REQ: FR-RV-47 (ISA aceita; manifesto que o rvverify aceita).
+Confere a ISA aceita e o manifesto que o rvverify aceita.
 
 O juiz do manifesto e o proprio `rvverify.manifest`: se o leitor do
 validador recusar o `cpu.toml` gerado, o teste falha -- nao existe uma
@@ -68,6 +68,10 @@ class TestManifesto(unittest.TestCase):
                     self.assertTrue(m.program.loadable)
                     # caminhos POSIX: o mesmo manifesto vale no Docker
                     self.assertNotIn("\\", "".join(tomllib.loads(texto)["design"]["sources"]))
+                    # o cabecalho nao cita requisitos que as specs nao tem mais
+                    self.assertTrue(texto.startswith("# Manifesto gerado por rvgen:"))
+                    self.assertNotIn("FR-RV", texto)
+                    self.assertNotIn("REQ:", texto)
 
 TOP_BOM = """entity cpu is
 port(clk : in std_logic; rst : in std_logic; instr_addr : out std_logic_vector(31 downto 0);
@@ -127,7 +131,7 @@ class TestPrompt(unittest.TestCase):
                 self.assertIn("no generics", texto)
 
     def test_regras_de_vhdl_nao_exigem_comentario_req(self):
-        # a rastreabilidade FR-RV-xx nao existe mais nas specs
+        # as specs nao pedem mais comentario de rastreabilidade nos VHDL
         self.assertNotIn("-- REQ:", ct.texto_do_contrato("single cycle", "rv32i"))
 
     def test_contrato_fixa_nomes_e_extensao_por_isa(self):
