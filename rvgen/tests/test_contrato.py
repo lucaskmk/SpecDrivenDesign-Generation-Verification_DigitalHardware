@@ -10,6 +10,8 @@ segunda definicao de "manifesto valido" aqui.
 
 from __future__ import annotations
 
+import os
+import shutil
 import tempfile
 import tomllib
 import unittest
@@ -112,6 +114,22 @@ class TestPrompt(unittest.TestCase):
         # a constante com o programa embutido nao vai para o prompt
         self.assertNotIn("INSTRUCTION_MEMORY_CONTENT :", texto)
 
+    def test_prompt_nao_manda_declarar_generic_nem_cita_pacote_antigo(self):
+        # specs/cpu.md exige a entidade `cpu` exata, sem generics, e o
+        # spec-riscv-test recusa uma entidade com generic: o prompt nao pode
+        # mandar o modelo declarar RV32M_ENABLE, nem falar em rodar a CPU duas vezes.
+        for isa in ct.ISAS:
+            with self.subTest(isa=isa):
+                texto = ct.texto_do_contrato("single cycle", isa)
+                self.assertNotIn("RV32M_ENABLE", texto)
+                self.assertNotIn("ALU_OP_TYPE", texto)
+                self.assertNotIn("same CPU twice", texto)
+                self.assertIn("no generics", texto)
+
+    def test_regras_de_vhdl_nao_exigem_comentario_req(self):
+        # a rastreabilidade FR-RV-xx nao existe mais nas specs
+        self.assertNotIn("-- REQ:", ct.texto_do_contrato("single cycle", "rv32i"))
+
     def test_contrato_fixa_nomes_e_extensao_por_isa(self):
         com_m = ct.texto_do_contrato("pipeline", "rv32im")
         sem_m = ct.texto_do_contrato("pipeline", "rv32i")
@@ -139,6 +157,71 @@ class TestPrompt(unittest.TestCase):
         self.assertIn("valores esperados e exemplos em hexadecimal", regras)
         self.assertIn("Ambiente externo para uma interface de CPU", regras)
         self.assertIn("Não instancie ROM, RAM", regras)
+
+
+class TestPastaDeSpecs(unittest.TestCase):
+    """RVGEN_SPECS_DIR troca a pasta de onde saem os .md do prompt."""
+
+    def setUp(self):
+        self._antes = os.environ.pop(ct.VAR_SPECS, None)
+
+    def tearDown(self):
+        os.environ.pop(ct.VAR_SPECS, None)
+        if self._antes is not None:
+            os.environ[ct.VAR_SPECS] = self._antes
+
+    def _copia_alterada(self, destino: Path) -> Path:
+        pasta = destino / "specs"
+        pasta.mkdir()
+        for arq in ("cpu.md", "vhdl.md", "riscv-rv32i.md", "testes.md"):
+            shutil.copyfile(ct.SPECS_DIR / arq, pasta / arq)
+        with open(pasta / "vhdl.md", "a", encoding="utf-8") as f:
+            f.write("\nMARCA_DA_ITERACAO: regra extra.\n")
+        with open(pasta / "testes.md", "a", encoding="utf-8") as f:
+            f.write("\nMARCA_DE_TESTE\n")
+        return pasta
+
+    def test_sem_variavel_tudo_igual(self):
+        self.assertEqual(ct.pasta_specs(), ct.SPECS_DIR)
+        self.assertFalse(ct.pasta_specs_alterada())
+        self.assertEqual(ct.texto_do_contrato("single cycle", "rv32i"),
+                         ct.texto_do_contrato("single cycle", "rv32i", ct.SPECS_DIR))
+        self.assertEqual(ct.ler_configuracao_cpu(), ct.ler_configuracao_cpu(ct.CPU_SPEC))
+        self.assertEqual(ct.descrever_pasta_specs(), "specs")
+
+    def test_variavel_absoluta_muda_o_prompt(self):
+        original = ct.texto_do_contrato("single cycle", "rv32i")
+        with tempfile.TemporaryDirectory() as d:
+            pasta = self._copia_alterada(Path(d))
+            os.environ[ct.VAR_SPECS] = str(pasta)
+            self.assertEqual(ct.pasta_specs(), pasta.resolve())
+            alterado = ct.texto_do_contrato("single cycle", "rv32i")
+            self.assertIn("MARCA_DA_ITERACAO", alterado)
+            self.assertIn("MARCA_DE_TESTE", ct.texto_de_testes())
+            self.assertGreater(len(alterado), len(original))
+            self.assertEqual(ct.ler_configuracao_cpu()["isa"],
+                             ct.ler_configuracao_cpu(ct.CPU_SPEC)["isa"])
+        self.assertNotIn("MARCA_DA_ITERACAO", original)
+
+    def test_variavel_relativa_a_raiz(self):
+        os.environ[ct.VAR_SPECS] = "specs"
+        self.assertTrue(ct.pasta_specs_alterada())
+        self.assertEqual(ct.pasta_specs(), ct.SPECS_DIR.resolve())
+        self.assertEqual(ct.descrever_pasta_specs(), "specs")
+
+    def test_pasta_explicita_ignora_a_variavel(self):
+        with tempfile.TemporaryDirectory() as d:
+            pasta = self._copia_alterada(Path(d))
+            os.environ[ct.VAR_SPECS] = str(pasta)
+            self.assertNotIn("MARCA_DA_ITERACAO",
+                             ct.texto_do_contrato("single cycle", "rv32i", ct.SPECS_DIR))
+
+    def test_pasta_inexistente_vira_erro_de_contrato(self):
+        os.environ[ct.VAR_SPECS] = "pasta/que/nao/existe"
+        with self.assertRaises(ct.ErroContrato):
+            ct.ler_configuracao_cpu()
+        with self.assertRaises(ct.ErroContrato):
+            ct.texto_de_testes()
 
 
 if __name__ == "__main__":

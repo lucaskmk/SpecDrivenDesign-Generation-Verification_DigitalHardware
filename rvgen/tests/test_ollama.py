@@ -177,7 +177,7 @@ class TestComandoPreparar(unittest.TestCase):
     """O que `preparar` faz -- e, principalmente, o que ele nao faz sem um sim."""
 
     def _rodar(self, argv, *, tty=False, servidor=None, binario=None,
-               instalados=(), respostas=()):
+               instalados=(), respostas=(), local_pronto=True):
         acoes = []
         entradas = iter(respostas)
 
@@ -200,12 +200,16 @@ class TestComandoPreparar(unittest.TestCase):
             mock.patch.object(ol, "iniciar_servidor",
                               side_effect=lambda *a, **k: acoes.append("serve") or "0.32.1"),
             mock.patch.object(cli.ex, "checar_local",
-                              return_value=Disponibilidade(False, "sem ghdl", "wsl")),
+                              return_value=Disponibilidade(True, "ghdl e riscv-tests ok")
+                              if local_pronto else
+                              Disponibilidade(False, "sem ghdl", "wsl")),
             mock.patch.object(cli.ex, "checar_docker",
                               return_value=Disponibilidade(True, "imagem ok")),
             mock.patch.object(cli, "_interativo", return_value=tty),
             mock.patch("builtins.input", side_effect=lambda *a: next(entradas)),
-            mock.patch.dict("os.environ", {"RVGEN_MODELO": ""}, clear=False),
+            # variaveis ja definidas (mesmo vazias) vencem o .env real do repositorio
+            mock.patch.dict("os.environ", {"RVGEN_MODELO": "", "RVGEN_PROVEDOR": "ollama",
+                                           "OPENROUTER_API_KEY": ""}, clear=False),
         ]
         for p in patches:
             p.start()
@@ -249,8 +253,18 @@ class TestComandoPreparar(unittest.TestCase):
                                            binario=[None, Path("ollama")])
         self.assertEqual(acoes, ["instalar", "serve", "baixar"])
         self.assertEqual(codigo, 0, saida)
-        self.assertIn("executor do rvverify: docker", saida)
+        self.assertIn("executor do spec-riscv-test: local", saida)
         self.assertIn("Tudo pronto", saida)
+
+    def test_docker_nao_substitui_o_executor_local_do_veredito(self):
+        # o veredito exige o spec-riscv-test local (Linux/WSL); a imagem Docker
+        # so tem binutils, entao "docker pronto" nao tira a pendencia
+        codigo, saida, acoes = self._rodar(["--sim"], tty=False, local_pronto=False,
+                                           servidor=("http://s", "0.32.1"),
+                                           instalados=["qwen2.5-coder:14b"])
+        self.assertEqual(codigo, 1, saida)
+        self.assertIn("executor local do spec-riscv-test: sem ghdl", saida)
+        self.assertNotIn("Tudo pronto", saida)
 
     def test_progresso_uma_linha_por_camada_e_unidade_certa(self):
         # a sequencia que o Ollama 0.32.1 mandou de verdade, encurtada

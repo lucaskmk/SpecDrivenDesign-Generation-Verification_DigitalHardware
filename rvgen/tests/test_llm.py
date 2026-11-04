@@ -13,10 +13,12 @@ pytest; o pytest do repositorio coleta estes testes igual.
 from __future__ import annotations
 
 import unittest
+import urllib.error
+from unittest import mock
 
 from rvgen.config import carregar_env, ler_config
-from rvgen.llm import (ClienteGemini, ClienteOllama, ClienteOpenAI, ErroLLM, extrair_json,
-                       extrair_python, extrair_vhdl)
+from rvgen.llm import (ClienteGemini, ClienteOllama, ClienteOpenAI, ErroLLM, _espera_pedida,
+                       extrair_json, extrair_python, extrair_vhdl)
 from rvgen.tests.servidor_falso import ServidorFalso
 
 
@@ -149,6 +151,32 @@ class TestClienteOpenAI(unittest.TestCase):
         with ServidorFalso({("POST", "/v1/chat/completions"): rota}) as s:
             with self.assertRaisesRegex(ErroLLM, "HTTP 401: No auth credentials found"):
                 ClienteOpenAI(f"{s.url}/v1", "sk-x", "m").conversar([])
+            self.assertEqual(len(s.recebidas), 1)      # erro definitivo: uma chamada so
+
+    def test_repete_falha_transitoria_com_espera_crescente(self):
+        ok = {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]}
+        fila = [(503, {"error": "indisponivel"}), (429, {"error": "devagar"}), (200, ok)]
+        with ServidorFalso({("POST", "/v1/chat/completions"): lambda c, h: fila.pop(0)}) as s, \
+                mock.patch("rvgen.llm.time.sleep") as dormir:
+            r = ClienteOpenAI(f"{s.url}/v1", "sk", "m").conversar([])
+            pedidos = len(s.recebidas)
+        self.assertEqual((r.texto, pedidos), ("ok", 3))
+        self.assertEqual([c.args[0] for c in dormir.call_args_list], [2.0, 4.0])
+
+    def test_desiste_depois_de_tres_tentativas_e_diz_quantas(self):
+        rota = lambda c, h: (502, {"error": "upstream caiu"})  # noqa: E731
+        with ServidorFalso({("POST", "/v1/chat/completions"): rota}) as s, \
+                mock.patch("rvgen.llm.time.sleep"):
+            with self.assertRaisesRegex(ErroLLM, r"HTTP 502: upstream caiu.*depois de 3 tentativas"):
+                ClienteOpenAI(f"{s.url}/v1", "sk", "m").conversar([])
+            self.assertEqual(len(s.recebidas), 3)
+
+    def test_retry_after_e_lido_do_cabecalho_quando_vem_em_segundos(self):
+        e = urllib.error.HTTPError("u", 429, "x", {"Retry-After": "7"}, None)
+        self.assertEqual(_espera_pedida(e), 7.0)
+        self.assertIsNone(_espera_pedida(urllib.error.HTTPError("u", 429, "x", {}, None)))
+        self.assertIsNone(_espera_pedida(
+            urllib.error.HTTPError("u", 429, "x", {"Retry-After": "Wed, 21 Oct"}, None)))
 
 
 class TestClienteGemini(unittest.TestCase):
@@ -225,6 +253,16 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(amb["RVGEN_MODELO"], "qwen2.5-coder:7b")
         self.assertEqual(amb["RVGEN_PROVEDOR"], "ollama")   # o ambiente venceu
         self.assertNotIn("OPENROUTER_API_KEY", amb)          # valor vazio ignorado
+
+    def test_chave_do_openrouter_torna_o_openrouter_o_padrao(self):
+        cfg = ler_config({"OPENROUTER_API_KEY": "k"}, usar_env_arquivo=False)
+        self.assertEqual(cfg.provedor, "openrouter")
+        self.assertEqual(cfg.modelo_externo, "openai/gpt-5.6-luna")
+        # o provedor explicito vence a chave; chave vazia nao conta
+        self.assertEqual(ler_config({"OPENROUTER_API_KEY": "k", "RVGEN_PROVEDOR": "ollama"},
+                                    usar_env_arquivo=False).provedor, "ollama")
+        self.assertEqual(ler_config({"OPENROUTER_API_KEY": "  "},
+                                    usar_env_arquivo=False).provedor, "ollama")
 
     def test_defaults_e_valor_invalido(self):
         cfg = ler_config({}, usar_env_arquivo=False)

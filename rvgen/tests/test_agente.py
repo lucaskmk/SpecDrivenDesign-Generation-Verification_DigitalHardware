@@ -20,11 +20,11 @@ import unittest
 from pathlib import Path
 
 from rvgen import contrato as ct
-from rvgen.agente import (Agente, ErroGeracao, ErroIntegridade,
+from rvgen.agente import (Agente, ErroGeracao, ErroIntegridade, ErroLimite,
                              _falha_de_assertion, componentes_nao_integrados,
                              tabela_falhas_cocotb, validar_arquitetura)
 from rvgen.executor import Execucao, Executor
-from rvgen.llm import Resposta
+from rvgen.llm import ErroLLM, Resposta
 
 
 def vhdl(nome: str, marca: str = "") -> str:
@@ -40,6 +40,10 @@ def vhdl(nome: str, marca: str = "") -> str:
 def testbench() -> str:
     return ("```python\nimport cocotb\n\n@cocotb.test()\nasync def smoke(dut):\n"
             "    assert dut is not None\n```")
+
+
+# ajudante, nao teste: o nome comeca com "test" e o pytest o coletaria
+testbench.__test__ = False
 
 
 class ModeloFalso:
@@ -492,6 +496,32 @@ AssertionError: expected 1, observed 0
         self.assertTrue((r.sessao / "testes.md").exists())
         resultado = json.loads((r.sessao / "resultado.json").read_text(encoding="utf-8"))
         self.assertEqual((resultado["veredito"], resultado["modelo"]), ("aprovado", "falso:1b"))
+
+    def test_teto_de_chamadas_para_com_erro_proprio_e_registra_o_motivo(self):
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        agente = self.agente(modelo, ExecutorFalso([ok(1), ok(24), ok(35)]), max_chamadas=2)
+        with self.assertRaises(ErroLimite) as ctx:
+            agente.gerar()
+        self.assertIn("teto de 2 chamadas", str(ctx.exception))
+        self.assertIn("retome", str(ctx.exception))
+        self.assertEqual(len(modelo.pedidos), 2)             # a terceira nem saiu
+        eventos = [json.loads(l) for l in
+                   (agente.sessao / "sessao.jsonl").read_text(encoding="utf-8").splitlines()]
+        [limite] = [e for e in eventos if e["evento"] == "limite_atingido"]
+        self.assertEqual((limite["chamadas"], limite["motivo"]),
+                         (2, "teto de 2 chamadas ao modelo atingido"))
+
+    def test_teto_de_tokens_deixa_passar_no_maximo_uma_chamada_a_mais(self):
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        # cada resposta falsa gasta 10 + 5 tokens: 15 < 20 libera a 2a, 30 >= 20 barra a 3a
+        agente = self.agente(modelo, ExecutorFalso([ok(1), ok(24), ok(35)]), max_tokens=20)
+        with self.assertRaisesRegex(ErroLimite, "teto de 20 tokens atingido"):
+            agente.gerar()
+        self.assertEqual(len(modelo.pedidos), 2)
+
+    def test_erro_de_limite_nao_e_engolido_como_falha_do_modelo(self):
+        self.assertTrue(issubclass(ErroLimite, ErroGeracao))
+        self.assertFalse(issubclass(ErroLimite, ErroLLM))
 
     def test_tela_mostra_as_fases_em_ordem(self):
         modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})

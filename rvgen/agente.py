@@ -76,6 +76,14 @@ class ErroGeracao(RuntimeError):
     """A geracao nao pode continuar (resposta inutilizavel, validador mudo...)."""
 
 
+class ErroLimite(ErroGeracao):
+    """O teto de chamadas ou de tokens pedido pelo usuario foi atingido.
+
+    Nao e uma falha do modelo: quem chama nao deve trata-la como resposta ruim
+    e tentar de novo. A sessao fica no disco e pode ser retomada.
+    """
+
+
 class ErroIntegridade(ErroGeracao):
     """Um arquivo do validador ou uma fonte fornecida mudou durante a geracao."""
 
@@ -588,6 +596,8 @@ class Agente:
                   regressoes_componentes: bool = False,
                   gates_componentes: bool = False,
                  sessao_existente: Path | None = None,
+                 max_chamadas: int | None = None,
+                 max_tokens: int | None = None,
                  relatar: Callable[[str], None] = print,
                  protegidos: Callable[[], str] | None = None,
                  caso_de_fumaca: Callable[[], str] = _caso_de_fumaca) -> None:
@@ -601,6 +611,9 @@ class Agente:
         self.max_casos_teste = max_casos_teste
         self.max_casos_internos = max(1, max_casos_internos)
         self.parallel_testes = max(1, parallel_testes)
+        # tetos desta execucao (None = sem teto); `retomar` comeca a contar de novo
+        self.max_chamadas = max_chamadas if max_chamadas and max_chamadas > 0 else None
+        self.max_tokens = max_tokens if max_tokens and max_tokens > 0 else None
         self.exemplo = Path(exemplo).resolve() if exemplo else None
         self.descricao = (descricao or "").strip() or None
         self.forcar = forcar
@@ -1514,7 +1527,16 @@ class Agente:
                  temperatura: float | None = None) -> Resposta:
         """Uma chamada ao modelo, sempre registrada (FR-RV-50)."""
         with self._lock_sessao:
-            self._chamadas += 1
+            motivo = self._teto_atingido()
+            if motivo is None:
+                self._chamadas += 1
+        if motivo:
+            # fora do lock: `_log` toma o mesmo lock
+            self._log({"evento": "limite_atingido", "fase": fase, "alvo": alvo,
+                       "motivo": motivo, "chamadas": self._chamadas,
+                       "tokens_entrada": self._tokens[0], "tokens_saida": self._tokens[1]})
+            raise ErroLimite(f"{motivo}. A sessao foi preservada; retome com "
+                             f"`python -m rvgen retomar` e um teto maior.")
         try:
             r = self.cliente.conversar(mensagens, schema=schema, temperatura=temperatura)
         except ErroLLM as e:
@@ -1543,6 +1565,19 @@ class Agente:
                        "tokens_saida": r.tokens_saida,
                        "diagnostico": "o provedor encerrou a resposta por limite de comprimento"})
         return r
+
+    def _teto_atingido(self) -> str | None:
+        """Por que a proxima chamada nao deve acontecer (ou None).
+
+        Os tokens so se conhecem depois de cada resposta, entao o teto de
+        tokens pode ser ultrapassado por, no maximo, uma chamada.
+        """
+        if self.max_chamadas is not None and self._chamadas >= self.max_chamadas:
+            return f"teto de {self.max_chamadas} chamadas ao modelo atingido"
+        usados = self._tokens[0] + self._tokens[1]
+        if self.max_tokens is not None and usados >= self.max_tokens:
+            return f"teto de {self.max_tokens} tokens atingido ({usados} usados)"
+        return None
 
     def _declaracoes(self, blocos: list[dict], exceto: str | None = None) -> str:
         partes = []
@@ -1616,6 +1651,9 @@ class Agente:
                 estado = "✓" if indice < fase else "●" if indice == fase else "○"
                 partes.append(f"{estado} {nome}")
             self.relatar("  fluxo: " + " ──▶ ".join(partes))
+            if self._chamadas:
+                self.relatar(f"  uso ate aqui: {self._chamadas} chamadas, "
+                             f"{self._tokens[0]} tokens de entrada, {self._tokens[1]} de saida")
             self._fase_fluxo = fase
         if processo:
             self.relatar(f"  processo: {processo}")
@@ -3790,6 +3828,8 @@ async def inventory_visible_hierarchy(dut):
         self.relatar(f"  triagem ambigua: criando diagnostico independente de {bloco['name']} ...")
         try:
             diagnostico = self._escrever_diagnostico_componente(bloco, evidencia)
+        except ErroLimite:
+            raise
         except ErroGeracao as erro:
             # A incapacidade de a LLM produzir um pequeno arquivo Python não é
             # evidência sobre o DUT e não deve encerrar a geração. O chamador
@@ -4131,6 +4171,8 @@ async def inventory_visible_hierarchy(dut):
                                 rejeicao_anterior=rejeicao_plano_interno,
                                 casos_aprovados=casos_internos,
                                 contexto_suite=self._contexto_interno_isolado(bloco, teste_atual))
+                        except ErroLimite:
+                            raise
                         except ErroGeracao as erro:
                             replanejamentos_internos += 1
                             rejeicao_plano_interno = str(erro)
@@ -5094,6 +5136,8 @@ async def inventory_visible_hierarchy(dut):
                         regressao = self._escrever_regressao(
                             bloco_alvo, evidencia,
                             len(list((self.sessao / "regressoes").glob("*.py"))) + 1)
+                    except ErroLimite:
+                        raise
                     except ErroGeracao as erro:
                         nota = (f"Component hypothesis testbench generation failed for "
                                 f"{bloco_alvo['file']}; this is not DUT evidence: {erro}")
@@ -5389,7 +5433,8 @@ async def inventory_visible_hierarchy(dut):
                     "regressoes_componentes": self.regressoes_componentes,
                     "gates_componentes": self.gates_componentes,
                    "exemplo": str(self.exemplo) if self.exemplo else None,
-                   "descricao": self.descricao})
+                   "descricao": self.descricao,
+                   "specs": ct.descrever_pasta_specs()})
 
         self._resumir_cpu_proposta()
         instrucoes = self._inventariar_instrucoes()

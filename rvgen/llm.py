@@ -107,21 +107,61 @@ def _requisicao(url: str, corpo: dict, headers: dict[str, str] | None) -> urllib
     return urllib.request.Request(url, data=dados, headers=cabecalhos, method="POST")
 
 
-def post_json(url: str, corpo: dict, *, headers: dict[str, str] | None = None,
-              timeout: float = 60.0) -> dict:
-    """POST com corpo JSON, resposta JSON."""
+# Falhas HTTP que costumam passar sozinhas: pedido expirado, limite de taxa e
+# erro do servidor (o OpenRouter devolve 502/503 quando o provedor de tras cai).
+_HTTP_TRANSITORIOS = frozenset({408, 425, 429, 500, 502, 503, 504})
+_ESPERA_MAXIMA_S = 30.0
+
+
+def _espera_pedida(e: urllib.error.HTTPError) -> float | None:
+    """Segundos pedidos pelo servidor em `Retry-After`, se vieram como numero."""
     try:
-        with urllib.request.urlopen(_requisicao(url, corpo, headers),
-                                    timeout=timeout) as r:
-            return json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        raise ErroLLM(f"{url}: {_mensagem_de_erro(e)}") from None
-    except urllib.error.URLError as e:
-        raise ErroLLM(f"{url}: sem conexao ({e.reason})") from None
-    except (TimeoutError, OSError) as e:
-        raise ErroLLM(f"{url}: {e}") from None
-    except ValueError as e:
-        raise ErroLLM(f"{url}: resposta nao e JSON ({e})") from None
+        return float(e.headers.get("Retry-After", ""))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def post_json(url: str, corpo: dict, *, headers: dict[str, str] | None = None,
+              timeout: float = 60.0, tentativas: int = 3, base_s: float = 2.0,
+              pausar: Callable[[float], None] | None = None) -> dict:
+    """POST com corpo JSON, resposta JSON.
+
+    Falha transitoria (HTTP 408/425/429/5xx, conexao recusada ou interrompida)
+    e repetida ate `tentativas` vezes, esperando `base_s`, `2*base_s`, ... ou o
+    `Retry-After` do servidor, no maximo 30 s. Erro definitivo (chave recusada,
+    pedido invalido, resposta que nao e JSON) e uma chamada so. O estouro do
+    `timeout` tambem nao e repetido: o pedido pode ja ter sido cobrado.
+    """
+    total = max(1, tentativas)
+    for numero in range(1, total + 1):
+        pedida = None
+        try:
+            with urllib.request.urlopen(_requisicao(url, corpo, headers),
+                                        timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            pedida = _espera_pedida(e)
+            erro, transitorio = (ErroLLM(f"{url}: {_mensagem_de_erro(e)}"),
+                                 e.code in _HTTP_TRANSITORIOS)
+        except urllib.error.URLError as e:
+            erro, transitorio = ErroLLM(f"{url}: sem conexao ({e.reason})"), True
+        except TimeoutError as e:
+            erro, transitorio = ErroLLM(f"{url}: {e}"), False
+        except OSError as e:
+            erro, transitorio = ErroLLM(f"{url}: {e}"), True
+        except ValueError as e:
+            raise ErroLLM(f"{url}: resposta nao e JSON ({e})") from None
+        if not transitorio:
+            raise erro from None
+        if numero == total:
+            raise ErroLLM(f"{erro} (depois de {numero} tentativa"
+                          f"{'s' if numero > 1 else ''})") from None
+        # `time.sleep` e resolvido na hora da espera (e nao como valor padrao do
+        # parametro) para que um teste possa substitui-lo.
+        (pausar or time.sleep)(min(_ESPERA_MAXIMA_S,
+                                   pedida if pedida is not None
+                                   else base_s * 2 ** (numero - 1)))
+    raise AssertionError("inalcancavel")                     # pragma: no cover
 
 
 def post_linhas_json(url: str, corpo: dict, *, timeout: float = 60.0) -> Iterator[dict]:

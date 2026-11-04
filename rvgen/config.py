@@ -8,7 +8,8 @@ Tudo o que muda de uma maquina para outra entra por variavel de ambiente, e
 o `.env` da raiz (o mesmo da trilha A, ver `.env.example`) so preenche o que
 o ambiente ainda nao definiu -- o ambiente sempre vence o arquivo.
 
-    RVGEN_PROVEDOR       ollama | openrouter | vllm | google (padrao: ollama)
+    RVGEN_PROVEDOR       ollama | openrouter | vllm | google
+                         (padrao: openrouter se OPENROUTER_API_KEY estiver definida, senao ollama)
     RVGEN_MODELO         nome do modelo                  (padrao: perfil pela VRAM)
     OLLAMA_HOST          endereco do servidor Ollama     (padrao: candidatos)
     OPENROUTER_API_KEY   chave do provedor externo
@@ -147,11 +148,15 @@ def ler_config(ambiente: MutableMapping[str, str] | None = None,
     amb = os.environ if ambiente is None else ambiente
     if usar_env_arquivo:
         carregar_env(ambiente=amb)
+    chave_openrouter = (amb.get("OPENROUTER_API_KEY") or "").strip() or None
     return Config(
-        provedor=_escolha(amb, "RVGEN_PROVEDOR", "ollama", PROVEDORES),
+        # Com a chave do OpenRouter definida, o padrao e o modelo externo
+        # (SPECHDL_LLM_MODEL); sem ela, continua o Ollama local.
+        provedor=_escolha(amb, "RVGEN_PROVEDOR",
+                          "openrouter" if chave_openrouter else "ollama", PROVEDORES),
         modelo=(amb.get("RVGEN_MODELO") or "").strip() or None,
         ollama_host=(amb.get("OLLAMA_HOST") or "").strip() or None,
-        openrouter_key=(amb.get("OPENROUTER_API_KEY") or "").strip() or None,
+        openrouter_key=chave_openrouter,
         openrouter_url=(amb.get("RVGEN_OPENROUTER_URL") or OPENROUTER_URL).rstrip("/"),
         modelo_externo=(amb.get("SPECHDL_LLM_MODEL") or "").strip()
         or MODELO_EXTERNO_PADRAO,
