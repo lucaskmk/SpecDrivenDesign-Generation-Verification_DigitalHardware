@@ -116,6 +116,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <a href="#saude">Saúde</a>
   <a href="#achados">Achados</a>
   <a href="#antesdepois">Antes → depois</a>
+  <a href="#feito">Feito em 29/10</a>
   <a href="#sugestoes">Sugestões</a>
   <a href="#bom">O que está bom</a>
   <a href="#limites">Limites</a>
@@ -131,6 +132,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
     <li>Testes: <b>21 falhas</b> nas partes que consegui rodar, quase todas por dependência de máquina; o CI está apontado para uma pasta que não existe.</li>
   </ul>
   Detalhes e correções sugeridas na <a href="#achados">seção 5</a>.
+  <p style="margin:8px 0 0"><b>Atualização de 29/10:</b> quase tudo isso foi corrigido e testado; os testes passaram a ter <b>0 falhas</b> no Windows e no Linux. O que mudou, como foi verificado e o que falta está na <a href="#feito">seção 7</a>.</p>
 </div>
 
 <div class="legend">
@@ -212,6 +214,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 </figure>
 
 <h2 id="saude">4 · Saúde dos testes (o que eu consegui rodar)</h2>
+<div class="note">Esta seção é o retrato <b>antes</b> das correções. Depois delas: 281 ok e 0 falhas no Linux com GHDL e cocotb, 273 ok e 0 falhas no Windows (<a href="#feito">seção 7</a>).</div>
 <p>Rodei com o Python do sistema, <b>sem GHDL, sem cocotb e sem compilador RISC-V</b> (o PC é Windows). Isso explica os testes pulados, mas não todas as falhas.</p>
 <div class="bars">
   <div class="bar"><span><code>rvverify/tests</code></span><div class="track"><div class="p" style="width:79%"></div><div class="s" style="width:21%"></div></div><span>84 ok · 22 pulados · 0 falhas</span></div>
@@ -297,7 +300,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
     <li>O <code>examples/</code> local e <code>outputs/</code> sobraram da trilha A; apagar.</li>
   </ul></div>
 
-<h2 id="antesdepois">6 · Antes → depois (proposta, nada foi alterado)</h2>
+<h2 id="antesdepois">6 · Antes → depois (a proposta; o que foi feito está na seção 7)</h2>
 <p>Regra desta seção: <b>a direção nova é a do commit do Corsi</b> (<code>bd302b6</code>, 07/10/2026). O que sobrou de antes dele é o que está desatualizado, não o contrário. Primeiro a evidência; depois a tabela de mudanças.</p>
 
 <h3>6.1 · O que o commit do Corsi mudou</h3>
@@ -413,7 +416,57 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 </div>
 <p class="note">Cuidado com conflito: o Corsi é quem mais mexe em <code>rvgen/</code>, <code>specs/</code> e <code>spec-riscv-test/</code>. Para essas pastas, a alteração mais segura é combinar com ele antes ou fazer em commits pequenos.</p>
 
-<h2 id="sugestoes">7 · Ordem sugerida de trabalho</h2>
+<h2 id="feito">7 · O que foi feito em 29/10</h2>
+<p>Ponto de retorno: o commit <code>a3d29d6</code>, feito antes de qualquer mudança. Tudo abaixo está na árvore de trabalho e <b>ainda não foi commitado</b>. A direção seguida é a do commit do Corsi (seção 6).</p>
+
+<div class="cols">
+  <div class="card act"><h3>Testes, antes → depois</h3>
+    <p><b>Linux</b> (imagem <code>rafaelcorsi/pl-descomp-cocotb</code>: GHDL 2.0, cocotb 2.0): 21 falhas → <b>281 ok, 20 pulados, 0 falhas</b>.<br>
+    <b>Windows</b> (sem GHDL nem cocotb): 21 falhas e o <code>pytest</code> da raiz abortando → <b>273 ok, 26 pulados, 0 falhas</b>.<br>
+    Os pulados dependem de ferramenta ausente (binutils RISC-V, imagem <code>spechdl-toolchain</code>) e dizem qual.</p></div>
+  <div class="card act"><h3>Achado novo, confirmado rodando</h3>
+    <p>O <code>rvverify</code> <b>não conseguia aprovar nenhuma CPU</b> no contrato atual. Com o <code>tb_virtual</code> antigo, a CPU gabarito (correta) terminava o caso <code>add</code> com a RAM toda zerada: o endereço dos stores era lido antes de a instrução assentar. E o relatório da falha derrubava o validador com <code>AttributeError</code>. Corrigido: 24/24 RV32I.</p></div>
+</div>
+
+<div class="tblwrap">
+<table>
+<tr><th>Achado</th><th>O que mudou</th><th>Onde</th><th>Como foi verificado</th></tr>
+<tr><td>A4 <span class="st ok">feito</span></td><td>As specs dizem o que o código já fazia: o <code>spec-riscv-test</code> julga o <code>rvgen</code>; o <code>rvverify</code> valida entregas por <code>cpu.toml</code>.</td><td><code>specs/constitution.md</code>, <code>plan.md</code>, <code>spec.md</code>, <code>testes.md</code>, <code>cpu.md</code></td><td>Leitura. Falta o Corsi confirmar.</td></tr>
+<tr><td>A1 <span class="st ok">feito</span></td><td>O prompt não manda mais declarar <code>RV32M_ENABLE</code>, não fala em “rodar a CPU duas vezes” e não cita o pacote antigo (<code>ALU_OP_TYPE_*</code>).</td><td><code>rvgen/contrato.py</code></td><td>Teste novo em <code>test_contrato.py</code>, nas duas ISAs.</td></tr>
+<tr><td>A2 <span class="st ok">feito</span></td><td>README, <code>.env.example</code> e <code>--help</code> dizem que o veredito só roda em Linux/WSL2 e que o Docker só serve para teste de componente.</td><td><code>README.md</code>, <code>.env.example</code>, <code>rvgen/__main__.py</code></td><td>Teste novo do <code>preparar</code>: “Docker pronto” não tira a pendência do executor local.</td></tr>
+<tr><td>A3 <span class="st ok">feito</span></td><td>CPU nova <code>cpus/rv32i_gabarito</code> (RV32I monociclo, um arquivo, contrato virtual). O <code>_modelo</code> e o <code>entregas/README.md</code> foram reescritos para o contrato atual; <code>cpus/README.md</code> marca as duas CPUs antigas como legado.</td><td><code>cpus/</code>, <code>entregas/</code></td><td><code>rvverify</code>: 24/24 casos RV32I.</td></tr>
+<tr><td>M1 <span class="st ok">feito</span></td><td><code>tb_virtual</code> segue o protocolo do <code>tb_riscv</code> (dois <code>ReadWrite</code> por ciclo); relatório no formato do <code>feedback</code>; travamento com os PCs mais visitados; store fora da RAM vira aviso.</td><td><code>rvverify/tb_virtual.py</code>, <code>conformance.py</code></td><td><code>rvverify/tests/test_virtual.py</code> (3 testes): falham 3/3 com o arquivo antigo e passam 3/3 com o novo.</td></tr>
+<tr><td>B (mapa) <span class="st ok">feito</span></td><td><code>rvverify/memmap.py</code> é a única definição da RAM (<code>0x00FC8100</code>, 512 B); o testbench recebe o valor do <code>cpu.toml</code>. Não foi para o <code>cpu.md</code> para não engordar o prompt.</td><td><code>rvverify/memmap.py</code>, <code>rvgen/contrato.py</code></td><td>Testes existentes.</td></tr>
+<tr><td>M2 <span class="st ok">feito</span></td><td>Logs reais do Quartus restaurados do histórico como fixture (324 KB); testes de montagem pulam sem binutils; os do <code>preparar</code> não dependem mais da GPU nem do <code>.env</code> (o <code>resolver_modelo</code> ignorava o mock); o ajudante <code>testbench</code> não é mais coletado.</td><td><code>quartus_testing/tests/</code>, <code>rvgen/tests/</code>, <code>rvgen/ollama.py</code></td><td>0 falhas nos dois ambientes.</td></tr>
+<tr><td>M3 <span class="st ok">feito</span></td><td>Workflow morto removido. <code>tests.yml</code> com dois jobs: sem simulador, e com a imagem das aulas.</td><td><code>.github/workflows/</code></td><td>Os comandos rodaram aqui; o workflow em si ainda não rodou no GitHub.</td></tr>
+<tr><td>M7 <span class="st ok">feito</span></td><td><code>[project]</code> com Python ≥ 3.11 e extras <code>sim</code>/<code>dev</code> (cocotb 2, pytest). <code>testpaths</code> sem <code>cpus</code> (legado), com Quartus e <code>spec-riscv-test</code>.</td><td><code>pyproject.toml</code></td><td>Validado pelo leitor do setuptools. O <code>pip install -e</code> não rodou (sem venv/rede na imagem).</td></tr>
+<tr><td>M5 <span class="st ok">feito</span></td><td>429, 408, 425, 5xx e conexão interrompida são repetidos até 3 vezes (2 s, 4 s ou o <code>Retry-After</code>, até 30 s). Timeout e erro 4xx não, porque o pedido pode já ter sido cobrado.</td><td><code>rvgen/llm.py</code></td><td>3 testes novos com servidor HTTP falso.</td></tr>
+<tr><td>M6 <span class="st ok">feito</span></td><td><code>--max-chamadas</code> e <code>--max-tokens</code> em <code>gerar</code> e <code>retomar</code>: param com a sessão preservada (<code>ErroLimite</code>, que os laços de tentativa não engolem). O uso acumulado aparece a cada fase.</td><td><code>rvgen/agente.py</code>, <code>rvgen/__main__.py</code></td><td>3 testes novos.</td></tr>
+<tr><td>Provedor <span class="st ok">feito</span></td><td>Com <code>OPENROUTER_API_KEY</code>, o padrão é o <code>openrouter</code> (modelo <code>openai/gpt-5.6-luna</code>); sem a chave, continua o Ollama.</td><td><code>rvgen/config.py</code></td><td>Teste novo.</td></tr>
+<tr><td>A5 <span class="st pa">em parte</span></td><td>Saiu a regra 8 (<code>-- REQ:</code> obrigatório) do <code>vhdl.md</code> e as referências mortas do <code>.gitignore</code>. As citações <code>FR-RV-xx</code> em comentários de ~90 arquivos ficaram.</td><td><code>specs/vhdl.md</code>, <code>.gitignore</code></td><td>Teste novo: o prompt não contém <code>-- REQ:</code>.</td></tr>
+<tr><td>M4 <span class="st di">não feito</span></td><td>Dividir o <code>agente.py</code>. O Corsi é quem mais mexe nele; dividir agora geraria conflito com o trabalho dele sem mudar comportamento. Combinar antes.</td><td>—</td><td>—</td></tr>
+<tr><td>M8 <span class="st di">não feito</span></td><td>Modelo diferente por papel. Depende da resposta do professor.</td><td>—</td><td>—</td></tr>
+</table>
+</div>
+
+<h3>O que continua sem verificação</h3>
+<ul>
+  <li><b>A suíte oficial (<code>spec-riscv-test</code>) não rodou</b> em nenhuma CPU: exige um compilador RISC-V e o clone do <code>riscv-tests</code>. O gabarito foi aprovado só pelo <code>rvverify</code>.</li>
+  <li><b>Nenhuma geração real com a luna</b> foi feita (é paga; o teto de gasto é decisão sua).</li>
+  <li>O RV32M no <code>rvverify</code> exige um generic que o contrato atual proíbe, então uma CPU só RV32I não sai <code>aprovado</code> (sai <code>parcial</code> ou <code>incompleto</code>). Fica para a fase IM.</li>
+  <li>As pastas locais <code>examples/</code> e <code>outputs/</code> (sobras da trilha A, fora do git) não foram apagadas: apagar não tem volta.</li>
+</ul>
+
+<h3>Para ter o veredito no seu PC</h3>
+<p>O seu WSL (Ubuntu 24.04) já tem <code>ghdl</code>, <code>gcc</code> e <code>make</code>. Faltam o compilador RISC-V, o cocotb e o clone do <code>riscv-tests</code>; o <code>sudo</code> pede a sua senha:</p>
+<pre><code>sudo apt install python3-venv gcc-riscv64-unknown-elf
+python3 -m venv .venv &amp;&amp; .venv/bin/pip install -e ".[dev]"
+cd spec-riscv-test &amp;&amp; python3 -m venv .venv &amp;&amp; .venv/bin/pip install -e . &amp;&amp; cd ..
+git clone --recursive https://github.com/riscv-software-src/riscv-tests
+python -m rvgen preparar --verificar</code></pre>
+
+<h2 id="sugestoes">8 · Ordem sugerida de trabalho</h2>
+<p><b>Situação em 29/10:</b> feitos os passos 2, 4, 6 e 7, e o 8 em parte. O 3 está documentado, mas o WSL ainda não foi montado. Faltam o 1 (confirmar com o Corsi), o 5 (primeira rodada com a luna) e o 9 (dividir o <code>agente.py</code>).</p>
 <div class="tblwrap">
 <table>
 <tr><th>#</th><th>O que fazer</th><th>Por quê primeiro</th><th>Esforço</th></tr>
@@ -429,7 +482,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 </table>
 </div>
 
-<h2 id="bom">8 · O que está bem feito</h2>
+<h2 id="bom">9 · O que está bem feito</h2>
 <div class="cols">
   <div class="card"><h3>Segurança do juiz</h3><p>A IA só escreve em <code>src/*.vhd</code> (<code>_destino</code> recusa o resto), e os arquivos do validador são conferidos por hash antes e depois da geração; se mudaram, o veredito é recusado.</p></div>
   <div class="card"><h3>Disciplina de correção</h3><p>Uma correção por vez, medida de novo, e desfeita se piorar; regressões viram testes; resposta repetida sobe a temperatura.</p></div>
@@ -439,7 +492,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <div class="card"><h3>Quartus</h3><p>Relatório com números reais do Quartus (Fmax, ALMs, potência), com fixtures de log para testar o parser.</p></div>
 </div>
 
-<h2 id="limites">9 · Limites desta revisão</h2>
+<h2 id="limites">10 · Limites desta revisão</h2>
 <ul>
   <li><b>Não rodei simulação nenhuma</b> (sem GHDL, cocotb nem compilador RISC-V neste PC). Achados A3 e M1 são por leitura; A1, A5, M2, M3 e os números de testes foram executados.</li>
   <li><b>Não chamei a LLM</b> nem medi custo ou tempo.</li>

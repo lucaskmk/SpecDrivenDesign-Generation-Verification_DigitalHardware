@@ -1,8 +1,9 @@
 # Fluxo do rvgen (resumo para colar numa IA)
 
-Versão curta de `docs/fluxo-rvgen.html`. Lido no commit `bd302b6`; **nada foi
-executado**. Prefira este arquivo ao `rvgen/agente.py` (5.457 linhas, 340 KB).
-Números de linha envelhecem: procure pelo nome da função.
+Versão curta de `docs/fluxo-rvgen.html`. Lido no commit `bd302b6` e atualizado
+em 29/10/2026 depois das correções (lista em `docs/projeto-completo.html`,
+seção 7). Prefira este arquivo ao `rvgen/agente.py` (~5.500 linhas). Números
+de linha envelhecem: procure pelo nome da função.
 
 ## Fluxo, em ordem
 
@@ -45,18 +46,18 @@ Números de linha envelhecem: procure pelo nome da função.
    `--iteracoes` (12).
 10. **Veredito.** Fim de `gerar` (5377): suíte completa sem filtro; antes, confere
     que nenhum arquivo do validador mudou (`arquivos_protegidos`, `hash_de`). Nenhuma
-    IA decide. **No código atual quem decide é o `spec-riscv-test`, não o `rvverify`**
-    (ver seção Certificação).
+    IA decide. **Quem decide é o `spec-riscv-test`** (seção Certificação).
 11. **Opcional.** `quartus_testing/quartus_cpu_check.py`: Fmax, área, potência.
     Não muda o veredito.
 
-## Certificação: specs dizem `rvverify`, código usa `spec-riscv-test`
+## Certificação: o `spec-riscv-test` julga o `rvgen`
 
-- **Specs:** `constitution.md`: "`rvverify` é a única autoridade do veredito da CPU
-  integrada"; `plan.md` e `spec.md` passo 8 idem.
-- **Código:** `rvgen/executor.py`: "o veredito vem sempre do spec-riscv-test real".
-  O `rvgen` nunca chama o `rvverify`. `renderizar_cpu_toml` só é usada em testes, então
-  o `rvgen` não gera o `cpu.toml` que o `rvverify` exige.
+- **Decidido em 29/10:** `constitution.md`, `plan.md`, `spec.md` (passo 8) e
+  `testes.md` agora dizem o que o código e os READMEs do commit `bd302b6` (Corsi)
+  já faziam: o `spec-riscv-test` é a única autoridade do veredito do `rvgen`.
+  Falta o Corsi confirmar.
+- **O `rvverify`** continua validando entregas por `cpu.toml`. O `rvgen` não o chama
+  nem gera `cpu.toml` (`renderizar_cpu_toml` só é usada em testes).
 
 | | `rvverify` | `spec-riscv-test` |
 |---|---|---|
@@ -66,11 +67,15 @@ Números de linha envelhecem: procure pelo nome da função.
 | esperado vem de | modelo Python (`reference.py`) | o programa oficial (`tohost`) |
 | veredito | aprovado/reprovado/incompleto/parcial | aprovado se suíte completa passa |
 
-Não testei se o modo `virtual` do `rvverify` casa com a interface do `cpu.md`.
-Divergência spec × código: o `CLAUDE.md` manda atualizar a spec antes. Opções:
-(A) `rvgen` chama o `rvverify` no veredito; (B) `spec-riscv-test` julga o laço e o
-`rvverify` certifica depois; (C) corrigir constituição/plano para `spec-riscv-test`.
-Perguntar ao professor qual é o "certificado real".
+O modo `virtual` do `rvverify` foi testado com `cpus/rv32i_gabarito` (24/24 RV32I)
+depois de duas correções no `tb_virtual`: o endereço de dados era lido antes de a
+instrução assentar (stores iam para o endereço errado e a RAM terminava zerada), e
+o relatório de falha derrubava o `feedback` com `AttributeError`.
+
+Sobre o nome "oficial": `riscv-tests` são testes unitários da organização
+`riscv-software-src`; a suíte que se descreve como certificação é a
+`riscv-arch-test`, que o projeto não usa. E o `spec-riscv-test` roda os programas
+oficiais com um ambiente próprio (sem CSR/ECALL, relinkado em 0).
 
 ## Flags que importam
 
@@ -81,7 +86,8 @@ Perguntar ao professor qual é o "certificado real".
 | `--gates-componentes` | a pilha: contratos globais → VHDL → teste → congela, bloco a bloco |
 | `--regressoes-componentes` | falha corrigida vira teste permanente |
 | `--iteracoes N` | orçamento de correções (12) |
-| `--provedor/--modelo` | `ollama` (padrão do código), `openrouter`, `vllm`, `google` |
+| `--max-chamadas N`, `--max-tokens N` | param com a sessão preservada (sem teto por padrão) |
+| `--provedor/--modelo` | `openrouter` é o padrão quando há `OPENROUTER_API_KEY`; senão `ollama`. Também `vllm`, `google` |
 
 Fluxo do professor = as três flags de componente juntas:
 
@@ -95,11 +101,13 @@ Nome simples grava em `experimentos/<nome>/`; caminho grava no caminho.
 
 - `.env` tem `SPECHDL_LLM_MODEL=openai/gpt-5.6-luna` e chave do OpenRouter. Esse é
   `config.MODELO_EXTERNO_PADRAO`. "luna 6" = `gpt-5.6-luna` (presumido).
-- **O provedor padrão do código ainda é `ollama`.** Use `--provedor openrouter` ou
-  `RVGEN_PROVEDOR=openrouter` no `.env`; senão o `rvgen` procura Ollama e falha.
+- **Com a chave no `.env`, o padrão já é o OpenRouter** (`config.ler_config`, desde
+  29/10). `RVGEN_PROVEDOR` ou `--provedor` ainda vencem.
 - `ClienteOpenAI` (`llm.py`): POST em `/chat/completions` com `model`, `messages`,
-  `temperature` 0,2. O schema JSON **não** vai para a API (só no prompt);
-  `extrair_json` valida e o agente reenvia até 2 vezes.
+  `temperature` 0,2. Falha transitória (429, 5xx, conexão) é repetida até 3 vezes
+  (2 s, 4 s, ou o `Retry-After`); estouro de timeout não, porque pode já ter sido
+  cobrado. O schema JSON **não** vai para a API (só no prompt); `extrair_json` valida
+  e o agente reenvia até 2 vezes.
 - Sem `--exemplo`: o modelo não recebe nenhuma CPU de referência.
 - Cada chamada tem mensagens novas, sem histórico. Chamadas sequenciais por padrão.
 - Sem medida de tempo/custo com luna no repositório (os 17–18 min são do Ollama 14B).
@@ -137,15 +145,16 @@ A IA só escreve em `<pasta>/src/*.vhd` (`_destino` recusa o resto). Tudo mais e
 ## RV32I agora, IM depois
 
 `cpu.md` está em "RV32I single cycle". O código já aceita `RV32IM`
-(`ISAS = ("rv32i","rv32im")`): o juiz passa a rodar 48 programas e o prompt pede o
-generic `RV32M_ENABLE`, com o testbench rodando a CPU duas vezes. Atenção: `cpu.md`
-exige entidade exata sem generic; parece inconsistente com o prompt de IM (não
-testado). Não há tabela de referência do M em `specs/`.
+(`ISAS = ("rv32i","rv32im")`): o juiz passa a rodar 48 programas. Desde 29/10 o
+prompt diz que a entidade `cpu` não tem generic (antes mandava declarar
+`RV32M_ENABLE`, que o `spec-riscv-test` recusa). Pendências para o IM: o `rvverify`
+só roda a etapa RV32M quando há generic, e não há tabela de referência do M em
+`specs/`.
 
 ## A confirmar com o professor
 
 1. Mesma IA para VHDL e testes (viés só reduzido por contexto).
 2. A "outra IA que testa a CPU" é o testbench do bloco `cpu`; a suíte oficial é
    determinística, não IA.
-3. `CLAUDE.md` ainda descreve o fluxo Streamlit/Yosys; o README atual descreve o
-   fluxo de terminal. O próprio CLAUDE.md manda atualizar a spec antes.
+3. Que o juiz do `rvgen` é o `spec-riscv-test` (specs já atualizadas) e se
+   "certificado real" precisa ser o `riscv-arch-test`.
