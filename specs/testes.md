@@ -99,12 +99,13 @@ externo exclusivamente através dessas portas:
 
 Não instancie ROM, RAM ou qualquer memória VHDL. Não use sinais internos para
 inspecionar registradores, ALU ou controle. O ambiente Python apenas responde
-ao protocolo público da entidade; `rvverify` continua sendo a autoridade final.
+ao protocolo público da entidade; o `spec-riscv-test` continua sendo a
+autoridade final.
 
 ## Escopo e cobertura de componentes
 
-- Testes de componentes são diagnósticos rápidos e representativos; `rvverify`
-  é a autoridade para a cobertura integrada completa da CPU.
+- Testes de componentes são diagnósticos rápidos e representativos; o
+  `spec-riscv-test` é a autoridade para a cobertura integrada completa da CPU.
 - Crie casos somente para comportamentos, operações e casos de borda declarados
   no contrato semântico do componente. Não invente cenários adicionais.
 - Cubra classes semânticas, não todo o domínio de valores: para cada regra,

@@ -29,7 +29,8 @@ Esta é a única interface externa da CPU. Não crie `cpu_top`, generics de ROM,
 nem instancie ROM ou RAM dentro da CPU. Blocos internos, seus nomes e suas
 portas são livres, desde que `src/cpu.vhd` implemente exatamente esta entidade.
 
-O `rvverify` fornece ROM e RAM virtuais pelas portas acima.
+O validador (`spec-riscv-test` no `rvgen`, `rvverify` nas entregas) fornece ROM
+e RAM virtuais pelas portas acima.
 
 ### Busca e PC
 
