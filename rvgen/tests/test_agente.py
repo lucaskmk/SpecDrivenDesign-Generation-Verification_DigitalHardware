@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Testes do laco do agente, com modelo e executor falsos.
 
-REQ: FR-RV-47 (entrega completa), FR-RV-48 (correcao guiada pelo
-diagnostico, desfazendo o que piora), FR-RV-49 (veredito so da execucao
-completa; escrita so em src/; arquivos protegidos), FR-RV-50 (sessao).
+Cobre a entrega completa, a correcao guiada pelo diagnostico (desfazendo o
+que piora), o veredito so da execucao completa, a escrita so em src/, os
+arquivos protegidos e o registro da sessao.
 
 O modelo falso responde por fase, olhando o pedido; o executor falso devolve
 relatorios no formato do `--json` do rvverify, em sequencia. Assim cada
 caminho do laco e exercitado sem GHDL e sem Ollama -- rodar os dois de
-verdade e o papel da TRV-9.8.
+verdade e o papel da execucao ponta a ponta.
 """
 
 from __future__ import annotations
@@ -519,6 +519,38 @@ AssertionError: expected 1, observed 0
             agente.gerar()
         self.assertEqual(len(modelo.pedidos), 2)
 
+    def test_retomada_soma_a_sessao_inteira_e_o_teto_segue_por_execucao(self):
+        componentes = [{"compilacao": {"ok": True}, "passed": True, "detail": "ok"}] * 12
+        gates = {"testes_componentes": True, "gates_componentes": True}
+        primeira = self.agente(ModeloFalso({"decomposicao": [PLANO_VALIDO]}),
+                               ExecutorFalso([ok(1), ok(24), ok(35)], list(componentes)),
+                               max_chamadas=12, **gates)
+        with self.assertRaises(ErroLimite):
+            primeira.gerar()
+        self.assertFalse((primeira.sessao / "resultado.json").exists())
+
+        # o teto de 6 vale so para esta execucao: a sessao ja tem 12 chamadas
+        modelo = ModeloFalso()
+        r = self.agente(modelo, ExecutorFalso([ok(1), ok(24), ok(35)], list(componentes)),
+                        sessao_existente=primeira.sessao, max_chamadas=6, **gates).retomar()
+        self.assertTrue(r.objetivo_atingido)
+        self.assertEqual((r.chamadas, r.tokens_entrada, r.tokens_saida), (6, 60, 30))
+        esperado = {"chamadas": 18, "tokens_entrada": 180, "tokens_saida": 90,
+                    "segundos_modelo": 1.8, "execucoes": 2}
+        self.assertEqual(r.totais_sessao, esperado)
+        resultado = json.loads((r.sessao / "resultado.json").read_text(encoding="utf-8"))
+        self.assertEqual((resultado["chamadas"], resultado["tokens_entrada"]), (6, 60))
+        self.assertEqual(resultado["sessao"], esperado)
+
+    def test_sem_retomada_os_totais_da_sessao_sao_os_da_execucao(self):
+        r = self.agente(ModeloFalso({"decomposicao": [PLANO_VALIDO]}),
+                        ExecutorFalso([ok(1), ok(24), ok(35)])).gerar()
+        resultado = json.loads((r.sessao / "resultado.json").read_text(encoding="utf-8"))
+        self.assertEqual(resultado["sessao"]["execucoes"], 1)
+        self.assertEqual(resultado["sessao"]["chamadas"], resultado["chamadas"])
+        self.assertEqual((resultado["sessao"]["tokens_entrada"], resultado["sessao"]["tokens_saida"]),
+                         (resultado["tokens_entrada"], resultado["tokens_saida"]))
+
     def test_erro_de_limite_nao_e_engolido_como_falha_do_modelo(self):
         self.assertTrue(issubclass(ErroLimite, ErroGeracao))
         self.assertFalse(issubclass(ErroLimite, ErroLLM))
@@ -936,7 +968,7 @@ new strategy
         self.assertIn("correcao", (self.pasta / "src" / "alu.vhd").read_text(encoding="utf-8"))
 
     def test_relatorio_sem_os_erros_le_o_build_log_e_mostra_a_linha(self):
-        # o que o rvverify mandou de verdade na TRV-9.8, antes da correcao do
+        # o que o rvverify mandou numa execucao real, antes da correcao do
         # builder: a falha do `ghdl -m` virou "manifesto", sem erro nenhum
         manifesto = relatorio(compilou=None, casos=[("-/manifesto", False, "manifesto")])
         log = ("/job/entregas/gerada/src/alu.vhd:3:10: no declaration for \"x\"\n"
@@ -963,7 +995,7 @@ new strategy
         self.assertIn("alu.vhd:3:1: erro aqui\n    end alu;", pedido)
 
     def test_resposta_repetida_sobe_a_temperatura_ate_mudar(self):
-        # TRV-9.8: com temperatura 0,2 o modelo devolveu o mesmo arquivo 10 vezes
+        # numa execucao real, com temperatura 0,2 o modelo devolveu o mesmo arquivo 10 vezes
         erro = {"arquivo": "alu.vhd", "linha": 2, "coluna": 1, "mensagem": "erro"}
         alu = vhdl("alu", "versao original")
         modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO],
@@ -981,7 +1013,7 @@ new strategy
         self.assertIn("versao nova", (self.pasta / "src" / "alu.vhd").read_text(encoding="utf-8"))
 
     def test_mudar_sem_melhorar_mantem_a_temperatura_alta(self):
-        # TRV-9.12: so uma MELHORA do placar devolve a temperatura normal
+        # so uma MELHORA do placar devolve a temperatura normal
         erro = {"arquivo": "alu.vhd", "linha": 2, "coluna": 1, "mensagem": "erro"}
         nao_compila = relatorio(compilou=False, erros=[erro],
                                 casos=[("rv32i/add", False, "compilacao")])
@@ -1191,6 +1223,7 @@ class TestComandoGerar(unittest.TestCase):
         self.assertEqual(codigo, 0, f"stderr:\n{erros}\nstdout:\n{saida}")
         self.assertIn("APROVADO   (OBJETIVO ATINGIDO)", saida)
         self.assertIn("descricao: 41 caracteres", saida)
+        self.assertRegex(saida, r"sessao inteira : 1 execucao\(oes\), \d+ chamadas")
         self.assertIn("validar de novo: spec-riscv-test --cpu _teste_rvgen_", saida)
 
     def _ponta_a_ponta_specs(self, ambiente):

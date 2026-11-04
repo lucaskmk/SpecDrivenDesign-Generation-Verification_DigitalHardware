@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Testes do `rvgen preparar` e do modulo do Ollama -- sem instalar nada.
 
-REQ: FR-RV-43 (cada item reportado), FR-RV-44 (instalar ou baixar so com
-confirmacao), FR-RV-45 (iniciar o servidor com log), FR-RV-46 (perfil pela
-VRAM).
+Cada item e reportado; instalar ou baixar so com confirmacao; o servidor e
+iniciado com log; o perfil sai da VRAM.
 
 O Ollama aqui e um servidor HTTP falso; instalador, `ollama serve` e
 `nvidia-smi` sao funcoes falsas. O que interessa provar e o contrato: o que

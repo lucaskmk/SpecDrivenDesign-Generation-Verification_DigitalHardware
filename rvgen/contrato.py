@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """O contrato fixo da CPU gerada e o `cpu.toml` dela.
 
-REQ: FR-RV-47 (ISAs aceitas e contrato determinístico), FR-RV-05, FR-RV-06,
-FR-RV-09, FR-RV-15, FR-RV-16.
-
-A ideia central: tudo o que NAO precisa de IA nao passa por IA. O modelo so
-escreve VHDL. O top-level, os nomes que o testbench le por hierarquia e o
-manifesto sao fixados aqui -- o mesmo contrato que um aluno recebe em
+Aqui ficam as ISAs aceitas e o contrato determinístico. A ideia central:
+tudo o que NAO precisa de IA nao passa por IA. O modelo so escreve VHDL.
+O top-level, os nomes que o testbench le por hierarquia e o manifesto sao
+fixados aqui -- o mesmo contrato que um aluno recebe em
 `entregas/README.md`, com os nomes escolhidos de antemao. Assim o `cpu.toml`
 sai sempre certo, e o modelo nao gasta iteracao adivinhando caminho de
 observacao.
@@ -302,11 +300,12 @@ def _instancias(texto: str) -> dict[str, str]:
 def verificar_contrato(fontes: dict[str, str]) -> list[tuple[str, str]]:
     """Divergencias do contrato visiveis no texto das fontes, antes do GHDL.
 
-    REQ: FR-RV-48. Inspecao estatica por expressao regular: aponta o que o
-    GHDL ou o testbench vao reclamar depois -- um rotulo de instancia errado
-    so aparece como "caminho de observacao inexistente" DEPOIS de compilar,
-    e um acesso hierarquico da um erro de compilacao que o modelo local nao
-    soube ler (TRV-9.8). Devolve (arquivo, aviso em ingles, para o prompt).
+    Inspecao estatica por expressao regular, que alimenta o laco de correcao:
+    aponta o que o GHDL ou o testbench vao reclamar depois -- um rotulo de
+    instancia errado so aparece como "caminho de observacao inexistente"
+    DEPOIS de compilar, e um acesso hierarquico da um erro de compilacao que
+    o modelo local nao soube ler numa execucao real. Devolve (arquivo, aviso
+    em ingles, para o prompt).
     E sugestao: nunca muda o veredito, que é só da suíte oficial.
     """
     arq_top = f"src/{TOP}.vhd"
@@ -346,11 +345,9 @@ def renderizar_cpu_toml(nome: str, pasta: Path, isa: str,
     """O `cpu.toml` da entrega. Nenhum campo vem do modelo."""
     fontes = list(arquivos)
     linhas = [
-        "# Manifesto gerado por rvgen (FR-RV-47): deterministico, a partir do",
-        "# contrato fixo em rvgen/contrato.py. Nao foi escrito",
-        "# pelo modelo de linguagem; so as fontes em src/ foram.",
-        "#",
-        "# REQ: FR-RV-05, FR-RV-06, FR-RV-09, FR-RV-15, FR-RV-16, FR-RV-21",
+        "# Manifesto gerado por rvgen: deterministico, a partir do contrato",
+        "# fixo em rvgen/contrato.py. Nao foi escrito pelo modelo de",
+        "# linguagem; so as fontes em src/ foram.",
         "",
         "[design]",
         f"name = {_toml(nome)}",

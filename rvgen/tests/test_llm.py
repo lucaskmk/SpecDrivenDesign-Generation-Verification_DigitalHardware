@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Testes do cliente unico de LLM, contra servidores HTTP falsos.
 
-REQ: FR-RV-46 (Ollama e OpenRouter pela mesma interface), FR-RV-50 (tokens
-e duracao de cada chamada).
+Ollama e OpenRouter pela mesma interface, com tokens e duracao de cada
+chamada.
 
 Nada aqui fala com um modelo de verdade: o que se testa e o CONTRATO de cada
 API -- o que o cliente manda, como junta o streaming, como relata o erro que
@@ -67,7 +67,7 @@ class TestClienteOllama(unittest.TestCase):
                 ClienteOllama(s.url, "x").conversar([])
 
     def test_corte_do_servidor_e_retomado_com_o_texto_parcial(self):
-        # o que o Ollama 0.32.1 fez de verdade na TRV-9.8: encerrou o streaming
+        # o que o Ollama 0.32.1 fez numa execucao real: encerrou o streaming
         # no meio de um literal "000...0", sem `done` e sem erro
         def rota(corpo, h):
             ultima = corpo["messages"][-1]
@@ -257,7 +257,7 @@ class TestConfig(unittest.TestCase):
     def test_chave_do_openrouter_torna_o_openrouter_o_padrao(self):
         cfg = ler_config({"OPENROUTER_API_KEY": "k"}, usar_env_arquivo=False)
         self.assertEqual(cfg.provedor, "openrouter")
-        self.assertEqual(cfg.modelo_externo, "openai/gpt-5.6-luna")
+        self.assertEqual(cfg.modelo_externo, "openai/gpt-6-luna")
         # o provedor explicito vence a chave; chave vazia nao conta
         self.assertEqual(ler_config({"OPENROUTER_API_KEY": "k", "RVGEN_PROVEDOR": "ollama"},
                                     usar_env_arquivo=False).provedor, "ollama")

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Configuracao do gerador: arquivo `.env`, variaveis de ambiente e defaults.
 
-REQ: FR-RV-46 (provedor e modelo escolhidos por configuracao, sem mudar
-codigo).
-
-Tudo o que muda de uma maquina para outra entra por variavel de ambiente, e
-o `.env` da raiz (o mesmo da trilha A, ver `.env.example`) so preenche o que
+Provedor e modelo sao escolhidos por configuracao, sem mudar codigo. Tudo o
+que muda de uma maquina para outra entra por variavel de ambiente, e o
+`.env` da raiz (o mesmo da trilha A, ver `.env.example`) so preenche o que
 o ambiente ainda nao definiu -- o ambiente sempre vence o arquivo.
 
     RVGEN_PROVEDOR       ollama | openrouter | vllm | google
@@ -57,9 +55,9 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1"
 # OpenRouter, sem chave obrigatoria.
 VLLM_URL_PADRAO = "http://localhost:8000/v1"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
-# O mesmo default de `.env.example` e de `legado/scripts/llm_playground.py`:
-# quem ja configurou a trilha A nao precisa configurar nada de novo.
-MODELO_EXTERNO_PADRAO = "openai/gpt-5.6-luna"
+# O mesmo default de `.env.example`; e o modelo do experimento
+# experimentos/luna6_prof_3 (ver docs/artigo.md, secao 3).
+MODELO_EXTERNO_PADRAO = "openai/gpt-6-luna"
 IMAGEM_DOCKER_PADRAO = "spechdl-toolchain"
 
 

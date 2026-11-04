@@ -1,8 +1,6 @@
-# Manifesto gerado por rvgen (FR-RV-47): deterministico, a partir do
-# contrato fixo em rvgen/contrato.py. Nao foi escrito
-# pelo modelo de linguagem; so as fontes em src/ foram.
-#
-# REQ: FR-RV-05, FR-RV-06, FR-RV-09, FR-RV-15, FR-RV-16, FR-RV-21
+# Manifesto gerado por rvgen: deterministico, a partir do contrato
+# fixo em rvgen/contrato.py. Nao foi escrito pelo modelo de
+# linguagem; so as fontes em src/ foram.
 
 [design]
 name = "luna6_prof_3"
