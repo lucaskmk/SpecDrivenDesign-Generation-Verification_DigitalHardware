@@ -1124,7 +1124,7 @@ new strategy
 class TestComandoGerar(unittest.TestCase):
     """`python -m rvgen gerar`: o que e recusado antes de gastar uma chamada."""
 
-    def _main(self, argv, patches=None):
+    def _main(self, argv, patches=None, ambiente=None):
         import io
         from contextlib import redirect_stderr, redirect_stdout
         from unittest import mock
@@ -1134,7 +1134,7 @@ class TestComandoGerar(unittest.TestCase):
         ps = [mock.patch.object(obj, nome, valor)
               for (obj, nome), valor in (patches or {}).items()]
         ps.append(mock.patch.dict("os.environ", {"RVGEN_PROVEDOR": "ollama",
-                                                 "RVGEN_MODELO": ""}))
+                                                 "RVGEN_MODELO": "", **(ambiente or {})}))
         for p in ps:
             p.start()
         try:
@@ -1192,6 +1192,93 @@ class TestComandoGerar(unittest.TestCase):
         self.assertIn("APROVADO   (OBJETIVO ATINGIDO)", saida)
         self.assertIn("descricao: 41 caracteres", saida)
         self.assertIn("validar de novo: spec-riscv-test --cpu _teste_rvgen_", saida)
+
+    def _ponta_a_ponta_specs(self, ambiente):
+        """Roda o gerar com falsos; devolve a saida e o evento inicio da sessao."""
+        from rvgen import __main__ as cli
+        from rvgen import ollama as ol
+        from rvgen.config import REPO_ROOT
+
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        executor = ExecutorFalso([ok(1), ok(24), ok(35)])
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT, prefix="_teste_rvgen_") as d:
+            codigo, saida, erros = self._main(
+                ["gerar", d, "--modelo", "m:1"],
+                {(cli.ex, "escolher_executor"): lambda *a, **k: executor,
+                 (ol, "localizar_servidor"): lambda *a, **k: ("http://falso", "0.32.1"),
+                 (ol, "modelos_instalados"): lambda *a, **k: ["m:1"],
+                 (cli, "ClienteOllama"): lambda *a, **k: modelo,
+                 (cli.Agente, "__init__"): _init_com_selo_fixo}, ambiente)
+            self.assertEqual(codigo, 0, f"stderr:\n{erros}\nstdout:\n{saida}")
+            (log,) = Path(d).glob(".rvgen/sessao-*/sessao.jsonl")
+            eventos = [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines()]
+        inicio = next(e for e in eventos if e.get("evento") == "inicio")
+        return saida, inicio
+
+    def test_specs_da_iteracao_no_cabecalho_e_no_evento_inicio(self):
+        saida, inicio = self._ponta_a_ponta_specs({"RVGEN_SPECS_DIR": "iteracoes/base/specs"})
+        self.assertIn("  specs   : iteracoes/base/specs  (RVGEN_SPECS_DIR)", saida)
+        self.assertIn("de iteracoes/base/specs/cpu.md)", saida)
+        self.assertEqual(inicio["specs"], "iteracoes/base/specs")
+
+    def test_sem_variavel_evento_inicio_registra_specs(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict("os.environ"):
+            os.environ.pop("RVGEN_SPECS_DIR", None)
+            saida, inicio = self._ponta_a_ponta_specs(None)
+        self.assertNotIn("  specs   :", saida)
+        self.assertIn("de specs/cpu.md)", saida)
+        self.assertEqual(inicio["specs"], "specs")
+
+    def test_specs_parciais_saem_2_sem_traceback(self):
+        from rvgen import ollama as ol
+        from rvgen.config import REPO_ROOT
+        nunca = lambda *a, **k: self.fail("nao deveria procurar o Ollama")  # noqa: E731
+        with tempfile.TemporaryDirectory() as sp:
+            (Path(sp) / "cpu.md").write_bytes((REPO_ROOT / "specs" / "cpu.md").read_bytes())
+            codigo, saida, erros = self._main(["gerar", "x"], {(ol, "localizar_servidor"): nunca},
+                                              {"RVGEN_SPECS_DIR": sp})
+        self.assertEqual(codigo, 2, erros)
+        self.assertIn("ERRO:", erros)
+        self.assertIn("vhdl.md", erros)
+        self.assertNotIn("Traceback", erros)
+        self.assertEqual(saida, "")
+
+    def test_specs_inexistentes_citam_a_variavel(self):
+        codigo, _, erros = self._main(["gerar", "x"],
+                                      ambiente={"RVGEN_SPECS_DIR": "iteracoes/it-999/specs"})
+        self.assertEqual(codigo, 2)
+        self.assertIn("RVGEN_SPECS_DIR='iteracoes/it-999/specs'", erros)
+        self.assertIn("nao existe", erros)
+
+    def test_retomar_com_outras_specs_e_recusado(self):
+        import os
+        from unittest import mock
+
+        from rvgen import ollama as ol
+        from rvgen.config import REPO_ROOT
+        nunca = lambda *a, **k: self.fail("nao deveria procurar o Ollama")  # noqa: E731
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT, prefix="_teste_rvgen_") as d:
+            sessao = Path(d) / ".rvgen" / "sessao-x"
+            sessao.mkdir(parents=True)
+            inicio = {"evento": "inicio", "specs": "iteracoes/base/specs",
+                      "testes_componentes": True, "gates_componentes": True}
+            (sessao / "sessao.jsonl").write_text(json.dumps(inicio) + "\n", encoding="utf-8")
+            with mock.patch.dict("os.environ"):
+                os.environ.pop("RVGEN_SPECS_DIR", None)
+                codigo, _, erros = self._main(["gerar", d, "--retomar", "x"],
+                                              {(ol, "localizar_servidor"): nunca})
+            self.assertEqual(codigo, 2)
+            self.assertIn("RVGEN_SPECS_DIR=iteracoes/base/specs", erros)
+            # sessao antiga (sem specs no evento) e a variavel definida: tambem recusa
+            inicio.pop("specs")
+            (sessao / "sessao.jsonl").write_text(json.dumps(inicio) + "\n", encoding="utf-8")
+            codigo, _, erros = self._main(["gerar", d, "--retomar", "x"],
+                                          {(ol, "localizar_servidor"): nunca},
+                                          {"RVGEN_SPECS_DIR": "iteracoes/base/specs"})
+            self.assertEqual(codigo, 2)
+            self.assertIn("remova RVGEN_SPECS_DIR", erros)
 
     def test_pasta_existente_nao_cita_sessao_que_nao_existe(self):
         from rvgen import __main__ as cli

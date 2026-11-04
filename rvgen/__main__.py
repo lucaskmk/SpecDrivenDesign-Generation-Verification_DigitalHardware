@@ -424,6 +424,10 @@ def cmd_gerar(args: argparse.Namespace) -> int:
         cfg = ler_config()
         cpu = ct.ler_configuracao_cpu()
         ct.validar_isa(cpu["isa"])  # antes de qualquer modelo
+        # o Agente monta o contrato com todos os .md; falta de um deles
+        # (RVGEN_SPECS_DIR parcial) vira ERRO aqui, nao traceback depois
+        ct.texto_do_contrato(cpu["microarquitetura"], cpu["isa"])
+        ct.texto_de_testes()
     except (ErroConfig, ct.ErroContrato) as e:
         return erro(str(e))
     pasta = resolver_pasta(args.pasta)
@@ -437,6 +441,15 @@ def cmd_gerar(args: argparse.Namespace) -> int:
             inicio_sessao = next(e for e in eventos if e.get("evento") == "inicio")
         except (OSError, json.JSONDecodeError, StopIteration) as e:
             return erro(f"--retomar {args.retomar}: sessao invalida ou sem evento inicial: {e}")
+        # a retomada usa as mesmas specs da sessao (sessoes antigas: specs/)
+        specs_sessao = inicio_sessao.get("specs") or "specs"
+        specs_agora = ct.descrever_pasta_specs()
+        if specs_sessao != specs_agora:
+            como = (f"remova {ct.VAR_SPECS} (Remove-Item Env:{ct.VAR_SPECS} no PowerShell)"
+                    if specs_sessao == "specs" else f"defina {ct.VAR_SPECS}={specs_sessao}")
+            return erro(f"--retomar {args.retomar}: a sessao foi criada com as specs de "
+                        f"{specs_sessao}, mas agora o rvgen le {specs_agora}; {como} "
+                        f"e rode de novo.")
         args.testes_componentes = bool(inicio_sessao.get("testes_componentes"))
         args.testes_internos = bool(args.testes_internos or inicio_sessao.get("testes_internos"))
         args.regressoes_componentes = bool(inicio_sessao.get("regressoes_componentes"))
