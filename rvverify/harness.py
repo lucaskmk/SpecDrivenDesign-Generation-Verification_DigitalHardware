@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Harness cocotb PARAMETRIZADO por manifesto: clock, reset, parada, metricas.
 
-REQ: FR-RV-21 (reset, clock, teto de ciclos, termino normal, travamento,
-primeiro ciclo de falha, exit code), FR-RV-24 (metricas de eficiencia),
-FR-RV-06 (leitura de registradores e RAM), NFR-RV-02 (nada e declarado como
-medido sem a ferramenta correspondente).
+Cobre reset, clock, teto de ciclos, termino normal, travamento, primeiro
+ciclo de falha, exit code, metricas de eficiencia e leitura de registradores
+e RAM. Nada e declarado como medido sem a ferramenta correspondente.
 
 Este modulo nao sabe nada sobre nenhuma CPU especifica. Tudo o que ele le
 dentro do design vem de caminhos declarados no `cpu.toml`:
@@ -26,7 +25,7 @@ TRES MODOS DE PARADA, e a razao de serem tres:
                   estagio de commit e e tomada. Observar o PC de busca aqui
                   daria resultado errado: numa CPU always-not-taken que
                   resolve saltos em EX, o PC de busca visita o endereco de
-                  parada uma vez por iteracao de laco (ADR-008).
+                  parada uma vez por iteracao de laco.
     fetch_pc      monociclo/multiciclo sem especulacao. O PC de busca fica
                   ESTACIONARIO no auto-laco; e isso que se observa.
     fixed_cycles  roda N ciclos e le a RAM. Sempre funciona, nao mede nada.
@@ -51,7 +50,7 @@ __all__ = [
     "resolve_handle",
 ]
 
-# Convencao de parada (ADR-003): auto-laco. Usado apenas no reconhecimento
+# Convencao de parada: auto-laco. Usado apenas no reconhecimento
 # aproximado, quando o chamador nao informa os enderecos de parada.
 HALT_JAL_SELF = 0x0000006F    # JAL x0, 0
 HALT_BEQ_SELF = 0x00000063    # BEQ x0, x0, 0
@@ -63,10 +62,10 @@ class ObservationError(AssertionError):
 
 
 class CpuTimeout(Exception):
-    """A CPU nao terminou dentro do teto de ciclos (FR-RV-21: travamento).
+    """A CPU nao terminou dentro do teto de ciclos (travamento).
 
     `dados` carrega o mesmo diagnostico da mensagem, estruturado, para quem
-    precisa apresenta-lo sem interpretar texto (FR-RV-28).
+    precisa apresenta-lo sem interpretar texto.
     """
 
     def __init__(self, message: str, dados: dict | None = None):
@@ -158,7 +157,7 @@ def _bit(handle: Any) -> int | None:
 class RunMetrics:
     """Metricas observadas numa execucao real.
 
-    REQ: FR-RV-24, NFR-RV-02. Cada campo aqui vem de contagem de sinal real
+    Cada campo aqui vem de contagem de sinal real
     durante uma execucao do GHDL. O que nao foi declarado no manifesto nao
     e contado nem estimado -- sai como `null` com o motivo.
     """
@@ -207,7 +206,7 @@ class RunMetrics:
         descontados de flush_d.
 
         Sem os tres sinais em [metrics] nao ha derivacao possivel, e a
-        resposta e None -- nunca um numero chutado (NFR-RV-02).
+        resposta e None -- nunca um numero chutado.
         """
         if not self.observes_instructions:
             return None
@@ -347,7 +346,7 @@ class CpuHarness:
     #
     # Os caminhos de [observe] e [halt] sao resolvidos NA PRIMEIRA LEITURA, e
     # nao na construcao, de proposito: um mesmo manifesto e usado contra
-    # arvores de RTL diferentes (o A/B contra o design original, FR-RV-07), e
+    # arvores de RTL diferentes (o A/B contra o design original), e
     # nem toda execucao le tudo. Uma foto de PC e registradores nao precisa da
     # RAM; exigir a RAM ali abortaria uma comparacao valida. Quem le, exige --
     # e ai o erro aponta o campo do manifesto e o escopo que falhou.
@@ -549,8 +548,8 @@ class CpuHarness:
                              trace_pc: bool = False) -> RunMetrics:
         """Executa ate a parada declarada em [halt] ou ate o teto de ciclos.
 
-        REQ: FR-RV-21 -- termino normal, deteccao de travamento, primeiro
-        ciclo de falha e exit code != 0.
+        Cobre termino normal, deteccao de travamento, primeiro ciclo de
+        falha e exit code != 0.
 
         Depois da deteccao roda `[halt].drain` ciclos extras, para que
         escritas em RAM ainda em voo sejam concluidas; esses ciclos sao

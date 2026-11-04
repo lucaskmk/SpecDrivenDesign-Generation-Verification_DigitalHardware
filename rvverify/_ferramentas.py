@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Acesso ao montador e ao modelo de referencia do validador.
 
-REQ: FR-RV-19 (montador do projeto), FR-RV-23 (modelo de referencia).
-
 Os dois eram arquivos soltos ao lado da CPU de exemplo e subiram para o
-pacote na ADR-013 (`rvverify/asm.py` e `rvverify/reference.py`): sao
+pacote (`rvverify/asm.py` e `rvverify/reference.py`): sao
 infraestrutura do VALIDADOR, nao da CPU de exemplo. Antes, `rvverify`
 importava de uma pasta chamada `cpus/`, o que invertia a direcao da
 dependencia e quebraria se aquele exemplo saisse.

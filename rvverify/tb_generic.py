@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Modulo cocotb GENERICO: roda um programa em qualquer CPU com `cpu.toml`.
 
-REQ: FR-RV-21, FR-RV-22, FR-RV-23, FR-RV-28, NFR-RV-02.
-
 Este e o testbench de top-level do validador. Ele nao conhece nenhuma CPU:
 tudo o que sabe sobre o design vem do manifesto, e tudo o que sabe sobre o
 caso de teste vem de um JSON apontado por `RVVERIFY_SPEC`:
@@ -18,13 +16,13 @@ caso de teste vem de um JSON apontado por `RVVERIFY_SPEC`:
       "report_out":  "caminho/report.json"              # opcional
     }
 
-O modelo de referencia (FR-RV-23) roda do lado do pytest; aqui so chegam os
+O modelo de referencia roda do lado do pytest; aqui so chegam os
 valores ja calculados por ele.
 
 RELATORIO SEMPRE GRAVADO. `report_out` e escrito tambem quando o caso falha,
 com o resultado (`resultado`), cada divergencia estruturada (`falhas`) e o
 erro que interrompeu a execucao (`erro`). E dele que sai o diagnostico
-mostrado ao aluno (FR-RV-28), em vez de interpretar a mensagem da excecao.
+mostrado ao aluno, em vez de interpretar a mensagem da excecao.
 O veredito continua sendo o do cocotb: o relatorio so descreve a falha.
 
 DEGRADACAO GRACIOSA: o relatorio traz `observability` e `unobserved`, dizendo

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Leitura e validacao do `cpu.toml` -- o contrato entre uma CPU e o validador.
 
-REQ: FR-RV-21 (execucao deterministica sob controle do testbench),
-FR-RV-24 (metricas), NFR-RV-02 (nada e declarado como medido sem a
-ferramenta correspondente).
+Execucao deterministica sob controle do testbench e metricas: nada e
+declarado como medido sem a ferramenta correspondente.
 
 O manifesto descreve TUDO o que o validador precisa saber sobre um design
 para exercita-lo sem conhecer o RTL: como compila-lo, como aplicar clock e
@@ -147,7 +146,7 @@ class DesignSpec:
     #
     # A suite de conformidade verifica a MESMA CPU duas vezes -- primeiro como
     # RV32I puro, depois como RV32IM -- e para isso precisa saber qual generic
-    # alternar (FR-RV-16). Sem este campo o validador so consegue exercitar a
+    # alternar. Sem este campo o validador so consegue exercitar a
     # configuracao que o manifesto fixou, e a segunda etapa fica inacessivel.
     #
     # Ausente => a CPU nao implementa RV32M; a etapa da extensao e PULADA e
@@ -187,7 +186,7 @@ class ProgramSpec:
     """[program] -- como o programa entra no design.
 
     `rom_init_file` passa o caminho da imagem `.ram` por generic, na
-    ELABORACAO (o cocotb nao consegue escrever em ROM no GHDL -- ADR-003).
+    ELABORACAO (o cocotb nao consegue escrever em ROM no GHDL).
     `vhdl_constant` significa que o programa esta compilado no proprio RTL;
     nesse modo o validador so consegue rodar o programa embutido.
     """
@@ -228,7 +227,7 @@ class ObserveSpec:
     So `ram` e obrigatorio: sem ela nao ha como conferir resultado nenhum.
     O resto define ate onde a verificacao consegue ir (degradacao graciosa).
     Todo array observado tem de ser 1-D: o VPI do GHDL nao expoe arrays 2-D
-    ao cocotb (ADR-002).
+    ao cocotb.
     """
 
     ram: str
@@ -360,7 +359,7 @@ class CpuManifest:
     def observability(self) -> dict[str, Any]:
         """O que este manifesto permite verificar, e o que NAO permite.
 
-        REQ: NFR-RV-02 -- o relatorio precisa dizer explicitamente o que ficou
+        O relatorio precisa dizer explicitamente o que ficou
         sem observacao, em vez de omitir ou estimar.
         """
         unobserved: list[str] = []

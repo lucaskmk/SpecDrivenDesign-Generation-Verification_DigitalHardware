@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Validador de CPU RISC-V -- ponto de entrada.
 
-REQ: FR-RV-11, FR-RV-16, FR-RV-21, NFR-RV-01, NFR-RV-02
-
     python -m rvverify                      # valida tudo em entregas/
     python -m rvverify entregas/joao        # valida uma entrega
     python -m rvverify examples/            # valida os exemplos de referencia
@@ -62,7 +60,7 @@ SELOS = {
 def progresso(cor: bool):
     """Uma linha por caso: sem ela a tela fica muda por um minuto.
 
-    A saida do GHDL vai para o `sim.log` de cada caso (ADR-011); aqui so
+    A saida do GHDL vai para o `sim.log` de cada caso; aqui so
     aparece o que o aluno precisa acompanhar.
     """
     def on_event(ev: dict) -> None:
@@ -109,7 +107,7 @@ def imprimir_relatorio(rel: dict, cor: bool) -> None:
         print(f"  {rotulo:<20} {n['passou']:>3}/{n['total']:<3} {estado}")
 
     # Veredito por REQUISITO -- e o que o aluno precisa ler para saber o que
-    # corrigir. "3 casos falharam" nao diz nada; "FR-RV-14 nao atendido" diz.
+    # corrigir. "3 casos falharam" nao diz nada; o requisito nao atendido diz.
     # Requisito atendido some da lista: so o que falta aparece.
     por_req = rel.get("por_requisito", {})
     if por_req:

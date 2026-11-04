@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prova de ponta a ponta do caminho GENERICO do validador.
 
-REQ: FR-RV-21 (execucao real com exit code), FR-RV-22, NFR-RV-01, NFR-RV-02.
+Execucao real com exit code, sobre GHDL + cocotb.
 
 Diferente de `test_manifest.py`, este teste roda GHDL de verdade. E ele nao
 passa por nenhum adaptador: monta o programa, escreve o JSON do caso e chama
@@ -39,7 +39,7 @@ pytestmark = pytest.mark.skipif(
 RAM_BASE = 0x00FC8100
 
 PROGRAMA = f"""
-# REQ: FR-RV-22 -- soma simples publicada na RAM
+# soma simples publicada na RAM
     li   x5, 7
     li   x6, 35
     add  x7, x5, x6

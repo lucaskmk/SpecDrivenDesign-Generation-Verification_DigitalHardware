@@ -11,11 +11,11 @@ tirado de execucao real do Quartus e nunca estimado por fora:
   3. recursos       -- ALMs, LUTs (ALUTs), registradores, memoria em bloco
      (M10K/MLAB), DSP, PLLs, pinos, LABs;
   4. potencia       -- estatica, dinamica, de E/S e total, sempre rotulada
-     como ESTIMATIVA (FR-RV-39).
+     como ESTIMATIVA.
 
 Alem disso roda, sobre a mesma CPU, as checagens que ja existiam para o
 Quartus no repositorio (docker/quartus-lite/quartus_smoketest/ e o wrapper
-`analyze`, TRV-8.2 a TRV-8.7): versao da imagem, device instalado, fluxo
+`analyze`): versao da imagem, device instalado, fluxo
 completo, Fmax, potencia, caminho critico, netlist RTL sem GUI e `.sof`.
 
     python quartus_testing/quartus_cpu_check.py cpus/rv32i_pipeline
@@ -23,19 +23,17 @@ completo, Fmax, potencia, caminho critico, netlist RTL sem GUI e `.sof`.
     python quartus_testing/quartus_cpu_check.py <pasta> --device 5CEFA9F23C7 --roteamento-agressivo
 
 O projeto Quartus e GERADO a partir do `cpu.toml` -- as mesmas fontes, na
-mesma ordem de analise, sem gerar nem inferir fonte nova (FR-RV-36) -- numa
+mesma ordem de analise, sem gerar nem inferir fonte nova -- numa
 pasta de saida (default `quartus_testing/resultados/<nome>/`), e o Quartus
-roda dentro da imagem `quartus-lite:25.1` (ADR-015). Nada disto toca o
-veredito do `rvverify` (NFR-RV-06): e uma analise aditiva.
+roda dentro da imagem `quartus-lite:25.1`, separada da imagem leve do
+`rvverify`. Nada disto toca o veredito do `rvverify`: e uma analise aditiva.
 
 Saida: `relatorio.json` (machine-readable), `relatorio.md` (para gente) e as
 evidencias de cada revisao em `quartus_output_<revisao>/`, no mesmo formato
-do wrapper `analyze` (FR-RV-41).
+do wrapper `analyze`.
 
 Exit code: 0 = todas as revisoes compilam; 1 = alguma nao compila;
 2 = problema de entrada ou de ambiente (cpu.toml, Docker, imagem, device).
-
-REQ (repositorio): FR-RV-36 a FR-RV-41, NFR-RV-02, NFR-RV-06.
 """
 
 from __future__ import annotations
@@ -68,7 +66,7 @@ RAIZ_REPO = AQUI.parent
 
 # Os parsers de fit.summary, sta.summary, pow.summary e da saida de
 # report_clock_fmax_summary ja existem no wrapper `analyze` da imagem, e foram
-# conferidos contra relatorios reais do Quartus 25.1 (TRV-8.7). Reaproveitados
+# conferidos contra relatorios reais do Quartus 25.1. Reaproveitados
 # daqui, nao reescritos: um formato, um parser.
 ANALYZE_PY = RAIZ_REPO / "docker" / "quartus-lite" / "quartus_analyzer" / "analyze.py"
 
@@ -76,7 +74,7 @@ ANALYZE_PY = RAIZ_REPO / "docker" / "quartus-lite" / "quartus_analyzer" / "analy
 # Hub -- quem so deu `docker pull` nao precisa dar `docker tag`.
 IMAGENS_PADRAO = ("quartus-lite:25.1", "gabrielgalazzi/imagens_projeto_descomp:25.1")
 
-DEVICE_PADRAO = "5CEBA4F23C7"  # FR-RV-37, ADR-016
+DEVICE_PADRAO = "5CEBA4F23C7"  # alvo do Fitter; string exata conferida na imagem
 MANIFESTO = "cpu.toml"
 MARCADOR_SAIDA = ".quartus_testing"
 RC_TEMPO_ESGOTADO = 124
@@ -318,7 +316,7 @@ def gerar_projeto(cpu: CpuQuartus, pasta: Path, revisoes: list[Revisao], *,
     Copiar (e nao apontar para fora) deixa o projeto montavel sozinho no
     container: o cpu.toml de uma entrega aponta para ../../cpus/..., e montar
     so a pasta da CPU deixaria essas fontes fora do alcance do Quartus. O
-    conteudo e byte a byte o mesmo -- FR-RV-36 continua valendo.
+    conteudo e byte a byte o mesmo -- nenhuma fonte e gerada nem inferida.
 
     Mesmo desenho de implemetation_tests/opus_5_RISCVIM/fpga: tudo o que e
     comum fica num so comum.tcl, e cada revisao so declara seus generics --
@@ -635,7 +633,7 @@ def parse_caminho_critico(texto: str) -> dict | None:
 
 
 def avaliar_restricao(compile_log: str) -> tuple[bool, bool, list[str]]:
-    """(restrito, confiavel, motivos). FR-RV-38: sem a restricao de clock
+    """(restrito, confiavel, motivos). Sem a restricao de clock
     aplicada de verdade, o Fmax e marcado como nao confiavel -- inclusive
     quando o .sdc existe mas o `get_ports {clk}` nao casou com porta nenhuma
     (nome de clock errado no cpu.toml), que o Quartus so avisa."""
@@ -888,7 +886,7 @@ def montar_potencia(pow_summary: str | None) -> dict | None:
         return None
     p = analyze.parse_pow_summary(pow_summary)
     return {
-        "estimativa": True,  # FR-RV-39: nunca medicao
+        "estimativa": True,  # potencia e estimativa, nunca medicao
         "status": p["status"],
         "total_mw": p["total_mw"],
         "dinamica_nucleo_mw": p["core_dynamic_mw"],
@@ -913,7 +911,7 @@ def testar_revisao(docker: Docker, projeto: Projeto, rev: Revisao, cpu: CpuQuart
     }
     checagens: list[dict] = []
 
-    # 1. O wrapper `analyze` da propria imagem (TRV-8.7, FR-RV-41): compila,
+    # 1. O wrapper `analyze` da propria imagem: compila,
     #    extrai fit/timing/Fmax/potencia e preserva o .sof.
     avisar(f"[{rev.nome}] compilando no Quartus (sintese, fit, timing, potencia) -- pode levar varios minutos")
     t0 = time.monotonic()
@@ -960,7 +958,7 @@ def testar_revisao(docker: Docker, projeto: Projeto, rev: Revisao, cpu: CpuQuart
 
     # Uma CPU sem registrador depois da sintese nao e uma CPU pequena: e uma
     # CPU que o Quartus apagou por nao ter nada observavel no topo. Todo
-    # numero dai para frente descreveria um design vazio (NFR-RV-02).
+    # numero dai para frente descreveria um design vazio.
     regs = (recursos or {}).get("registradores")
     resultado["logica_removida"] = bool(sintese_ok and regs == 0)
     if not sintese_ok or regs is None:
@@ -1047,7 +1045,7 @@ def testar_revisao(docker: Docker, projeto: Projeto, rev: Revisao, cpu: CpuQuart
          else "quartus_pow nao produziu pow.summary") if compilacao["compila"]
         else "so existe com a compilacao completa"))
 
-    # 4. Netlist RTL sem GUI (FR-RV-40) -- basta a sintese.
+    # 4. Netlist RTL sem GUI -- basta a sintese.
     if sintese_ok:
         avisar(f"[{rev.nome}] netlist RTL (::quartus::rtl)")
         tcl = f"_qt_netlist_{rev.nome}.tcl"
@@ -1170,7 +1168,7 @@ def executar(args: argparse.Namespace, docker: Docker | None = None, avisar=None
         "saida": _relativo(saida),
     }
     try:
-        # Checagem 1 do smoke test (TRV-8.2): a imagem responde.
+        # Checagem 1 do smoke test: a imagem responde.
         rc = docker.rodar(saida, ["--version"], saida / "_qt_versao.log", timeout_s=600)
         versao = re.search(r"Version (.+)", _ler(saida / "_qt_versao.log") or "")
         relatorio["ambiente"]["quartus"] = versao.group(1).strip() if versao else None
@@ -1190,7 +1188,7 @@ def executar(args: argparse.Namespace, docker: Docker | None = None, avisar=None
             raise ErroDeAmbiente(f"a imagem {imagem} nao respondeu a --version; veja {saida / '_qt_versao.log'}.")
         avisar(f"Quartus {relatorio['ambiente']['quartus']}")
 
-        # Checagem 2 (list_parts.tcl, ADR-016): o device existe na imagem.
+        # Checagem 2 (list_parts.tcl): o device existe na imagem.
         (saida / "_qt_device.tcl").write_text(_tcl_device(familia, device), encoding="utf-8")
         docker.rodar(saida, ["-t", "_qt_device.tcl"], saida / "_qt_device.log", timeout_s=600)
         achou = re.search(r"QT_DEVICE_FOUND=(\d)", _ler(saida / "_qt_device.log") or "")

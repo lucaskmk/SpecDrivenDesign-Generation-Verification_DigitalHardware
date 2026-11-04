@@ -1,7 +1,5 @@
 """Contrato mínimo da suíte de conformidade.
 
-REQ: FR-RV-22, FR-RV-34, FR-RV-35.
-
 Este teste não substitui GHDL. Ele impede que uma alteração futura reduza a
 suíte silenciosamente: cada operação prevista pela cobertura precisa continuar
 com um caso executável e requisitos associados.

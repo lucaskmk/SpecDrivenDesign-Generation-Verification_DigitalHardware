@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Montador RV32I / RV32IM determinístico.
 
-REQ: FR-RV-19 (programas .asm), FR-RV-20 (alternativa registrada à ausência
-de compilador RISC-V), FR-RV-03 (ISA estritamente RISC-V).
+Monta os programas .asm dos testes, com ISA estritamente RISC-V.
 
-Contexto: não existe compilador RISC-V neste ambiente (ver
-`specs/decisions.md`, ADR-004). Este montador é a alternativa adotada, e é
+Contexto: não existe compilador RISC-V neste ambiente, e os programas de teste
+são escritos direto em assembly. Este montador é a alternativa adotada, e é
 código do projeto — portanto entra na cadeia de rastreabilidade e é validado
 por pytest contra os encodings da especificação RISC-V não privilegiada
 ANTES de ser usado para gerar imagens de teste da CPU.
 
 Escopo deliberado: apenas RV32I base e a extensão M. Nenhuma instrução fora
-do RISC-V é aceita (FR-RV-03). `FENCE`, `ECALL` e `EBREAK` são reconhecidas
-mas rejeitadas por padrão, porque a CPU alvo não as implementa (ver ADR-000).
+do RISC-V é aceita. `FENCE`, `ECALL` e `EBREAK` são reconhecidas
+mas rejeitadas por padrão, porque a CPU alvo não as implementa.
 """
 
 from __future__ import annotations
@@ -92,7 +91,7 @@ R_TYPE = {
     "or": (0b110, 0b0000000), "and": (0b111, 0b0000000),
 }
 
-# extensão M — todas com funct7 = 0000001 (FR-RV-13)
+# extensão M — as oito instruções, todas com funct7 = 0000001
 M_TYPE = {
     "mul": 0b000, "mulh": 0b001, "mulhsu": 0b010, "mulhu": 0b011,
     "div": 0b100, "divu": 0b101, "rem": 0b110, "remu": 0b111,
@@ -117,7 +116,7 @@ BRANCHES = {
     "bge": 0b101, "bltu": 0b110, "bgeu": 0b111,
 }
 
-# não implementadas pela CPU alvo (ADR-000)
+# não implementadas pela CPU alvo
 UNSUPPORTED_BY_CPU = {"fence", "fence.i", "ecall", "ebreak"}
 
 
@@ -319,7 +318,7 @@ class Assembler:
     """Montador de dois passes.
 
     `allow_m=False` rejeita instruções da extensão M, o que é usado para
-    garantir que os programas de baseline usam somente RV32I (FR-RV-19).
+    garantir que os programas de baseline usam somente RV32I.
     """
 
     def __init__(self, base_address: int = 0, allow_m: bool = True,
@@ -407,7 +406,8 @@ class Assembler:
             if not self.allow_unsupported:
                 raise AssemblyError(
                     f"`{m}` não é implementada pela CPU alvo "
-                    f"(ver specs/decisions.md, ADR-000); use allow_unsupported=True "
+                    f"(specs/cpu.md não exige FENCE, ECALL nem EBREAK); "
+                    f"use allow_unsupported=True "
                     f"apenas para testar o caminho de instrução inválida"
                 )
             if m == "ecall":
@@ -614,8 +614,8 @@ def assemble_with_symbols(text: str, base_address: int = 0, allow_m: bool = True
     """Como `assemble`, mas também devolve a tabela de símbolos.
 
     A tabela é usada pelo testbench para saber o endereço do auto-laço de
-    parada, o que permite detectar término de forma determinística
-    (FR-RV-21). Isso é necessário porque a CPU resolve saltos no estágio EX:
+    parada, o que permite detectar término de forma determinística. Isso é
+    necessário porque a CPU resolve saltos no estágio EX:
     num auto-laço o PC não fica parado, ele oscila entre o endereço do salto
     e os dois seguintes, que são descartados por flush.
     """
@@ -632,8 +632,8 @@ SELF_LOOP_ENCODINGS = (0x0000006F, 0x00000063)
 def find_halt_addresses(words: list[int], base_address: int = 0) -> list[int]:
     """Endereços de byte de todas as instruções de auto-laço da imagem.
 
-    REQ: FR-RV-08 (convenção de parada documentada), FR-RV-21 (término
-    determinístico).
+    É a convenção de parada do projeto, e o que torna o término
+    determinístico.
     """
     return [base_address + 4 * i
             for i, w in enumerate(words)
@@ -641,9 +641,8 @@ def find_halt_addresses(words: list[int], base_address: int = 0) -> list[int]:
 
 
 # --------------------------------------------------------------------------
-# Imagem .ram  (formato definido em specs/decisions.md, ADR-003)
+# Imagem .ram  (formato do projeto, consumido pela ROM da CPU)
 # --------------------------------------------------------------------------
-# REQ: FR-RV-08 (formato documentado), FR-RV-09 (consumido pela ROM)
 
 def write_ram_image(words: list[int], path: str | Path,
                     header: str | None = None) -> Path:
