@@ -1251,6 +1251,7 @@ class Agente:
                  "where a wrong selection could otherwise pass, and vary one semantic factor at a "
                  "time. Do not mention implementation internals.\n\n"
                 f"Responsibility: {bloco['responsibility']}\n"
+                f"{self._decomposicao_fixa(bloco, arq)}\n"
                 f"Public interface:\n```vhdl\n{interface}\n```\n\n"
                 "Semantic contracts of direct dependencies:\n"
                 f"{self._especificacoes_dependencias(bloco, arq)}")},
@@ -1384,9 +1385,11 @@ class Agente:
                  "rule explicit. The public entity and ports are fixed and must not change. "
                  "Selector encodings of direct dependencies are private contracts: do not require "
                  "different entities to share a numeric encoding. If their encodings differ, define "
-                 "the CPU's explicit semantic adaptation between them, or derive the operation from "
-                 "the instruction, without changing either dependency interface. Do not claim that "
-                 "CPU public-port tests directly observe internal selectors.\n\n"
+                 "the parent's explicit adaptation between them, or derive each dependency's "
+                 "selector from the instruction fields, without changing either dependency "
+                 "interface. Do not claim that CPU public-port tests directly observe internal "
+                 "selectors.\n"
+                 f"{self._decomposicao_fixa(bloco, arq)}\n\n"
                  f"Failure evidence:\n{evidencia}\n\nCurrent contract:\n{anterior}\n\n"
                  "Semantic contracts of direct dependencies:\n"
                  f"{self._especificacoes_dependencias(bloco, arq) if arq else '(not available)'}\n\n"
@@ -1464,8 +1467,10 @@ class Agente:
                     f"Act as an independent semantic reviewer for proposed component "
                     f"`{bloco['name']}`. Check only whether claims made by this spec are "
                      "consistent with the CPU contract, the RV32I reference, the public entity, "
-                     "and direct dependency contracts. Do NOT require a particular internal "
-                     "decomposition, entity, signal name, opcode representation, or implementation. "
+                     "and direct dependency contracts. "
+                     f"{self._decomposicao_fixa(bloco, arq)} "
+                     "Do NOT require any other internal block, entity, signal name, opcode "
+                     "representation, or implementation. "
                      "Direct dependencies may use different private selector encodings; a parent "
                      "component may explicitly adapt between them. Reject an encoding mismatch only "
                      "when the proposed contract claims a direct connection but omits the required "
@@ -1509,6 +1514,28 @@ class Agente:
                             "Reply exactly `APPROVED` or `REVISE` followed by bullet evidence."}]
         raise ErroGeracao("a revisao semantica nao aprovou "
                           f"{bloco['file']} em {self.tentativas_revisao_semantica} tentativas")
+
+    @staticmethod
+    def _decomposicao_fixa(bloco: dict, arq: dict | None) -> str:
+        """A decomposicao aprovada, dita igual ao redator, ao revisor e ao corretor do contrato.
+
+        O `cpu` precisa instanciar os blocos gerados (`_requisito_integracao_top`).
+        Sem esta frase o revisor lia "nao exija decomposicao interna" contra o
+        contrato do `cpu`, o corretor tornava a instanciacao opcional e o laco de
+        revisao nao convergia (rodada real com openai/gpt-6-luna, 29/10/2026).
+        """
+        if bloco["name"] == ct.TOP and arq:
+            partes = [b["name"] for b in arq["blocks"] if b["name"] != ct.TOP]
+        else:
+            partes = [str(d) for d in bloco.get("depends_on", [])]
+        if not partes:
+            return (f"Fixed decomposition (approved architecture): `{bloco['name']}` has no "
+                    "generated dependencies.")
+        lista = ", ".join(f"`{nome}`" for nome in partes)
+        return (f"Fixed decomposition (approved architecture, not open to review): "
+                f"`{bloco['name']}` instantiates each of {lista} exactly once and does not "
+                "reimplement their behavior. A contract that states this is correct; never make "
+                "it optional.")
 
     def _interface_do_bloco(self, bloco: dict) -> str:
         """Declaração pública do DUT para prompts de Cocotb, sem sua arquitetura."""
