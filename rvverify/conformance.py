@@ -47,6 +47,7 @@ from typing import Callable
 from . import feedback
 from ._ferramentas import REPO_ROOT, ref
 from .manifest import CpuManifest, load_manifest
+from .memmap import RAM_BASE
 
 from .asm import (
     AssemblyError,
@@ -531,7 +532,7 @@ fim:
 
 # O catalogo nao depende do mapa de memoria: nomes, etapas, requisitos e
 # descricoes sao os mesmos para qualquer `ram_base`.
-_CATALOG_BASE = 0x00FC8100
+_CATALOG_BASE = RAM_BASE
 
 
 def catalog() -> list[dict]:
@@ -675,6 +676,8 @@ def _run_case(manifest: CpuManifest, case: Case, workdir: Path,
         "expect_regs": {str(k): v for k, v in case.expect_regs.items()},
         "expect_ram": {hex(k): v for k, v in case.expect_ram.items()},
         "program_words": words,
+        "ram_base": manifest.memory.ram_base,
+        "ram_bytes": manifest.memory.ram_bytes,
         "report_out": str(report),
     }
     pair_addrs: list[int] = []
