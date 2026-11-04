@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
 import re
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
@@ -95,15 +97,48 @@ def _ler_texto(caminho: Path) -> str:
     return caminho.read_bytes().decode("utf-8", errors="replace").replace("\r\n", "\n")
 
 
+def _codificar(texto: str, oque: str = "texto") -> bytes:
+    """UTF-8 estrito; recusa surrogates isolados (como um \\ud800 vindo do JSON)."""
+    try:
+        return texto.encode("utf-8")
+    except UnicodeEncodeError as e:
+        raise ErroIteracoes(f"{oque} com caractere inválido (posição {e.start}); "
+                            "nada foi gravado") from e
+
+
+def _gravar_atomico(caminho: Path, dados: bytes) -> None:
+    """Grava num temporario da mesma pasta e troca de uma vez (os.replace).
+
+    Se algo falhar no meio, o arquivo antigo fica intacto.
+    """
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    existe = caminho.exists()
+    if existe and not os.access(caminho, os.W_OK):
+        raise PermissionError(f"{caminho.name} esta marcado como somente leitura")
+    modo = (caminho.stat().st_mode & 0o777) if existe else 0o644
+    fd, tmp = tempfile.mkstemp(dir=caminho.parent, prefix=f".{caminho.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(dados)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, modo)
+        os.replace(tmp, caminho)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def _gravar_texto(caminho: Path, texto: str) -> None:
     """Grava mantendo o fim de linha que o arquivo ja usava (CRLF ou LF)."""
     texto = texto.replace("\r\n", "\n")
     crlf = caminho.exists() and b"\r\n" in caminho.read_bytes()
     if crlf:
         texto = texto.replace("\n", "\r\n")
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    with open(caminho, "w", encoding="utf-8", newline="") as f:
-        f.write(texto)
+    _gravar_atomico(caminho, _codificar(texto))  # codifica antes de tocar no arquivo
 
 
 def _copiar_arvore(origem: Path, destino: Path) -> None:
@@ -127,7 +162,7 @@ class Repositorio:
     def validar_versao(self, versao: str) -> str:
         if not isinstance(versao, str) or not (
                 versao in ("base", "specs") or _ID_ITERACAO_RE.match(versao)):
-            raise ErroIteracoes(f"versao invalida: {versao!r} (use base, specs ou it-NNN)")
+            raise ErroIteracoes(f"versão inválida: {versao!r} (use base, specs ou it-NNN)")
         return versao
 
     def pasta_da_versao(self, versao: str) -> Path:
@@ -139,7 +174,7 @@ class Repositorio:
         else:
             pasta = self.pasta_iteracoes / versao / "specs"
         if not pasta.is_dir():
-            raise ErroNaoEncontrado(f"versao {versao} nao existe ({self._rel(pasta)})")
+            raise ErroNaoEncontrado(f"versão {versao} não existe ({self._rel(pasta)})")
         return pasta
 
     def caminho_relativo_da_versao(self, versao: str) -> str:
@@ -164,7 +199,7 @@ class Repositorio:
 
     def ler_meta(self, it: str) -> dict:
         if not _ID_ITERACAO_RE.match(self.validar_versao(it)):
-            raise ErroIteracoes(f"{it} nao e uma iteracao (it-NNN)")
+            raise ErroIteracoes(f"{it} não é uma iteração (it-NNN)")
         self.pasta_da_versao(it)
         meta = {"id": it, "nome": it, "criada_em": None, "origem": None,
                 "notas": "", "experimentos": []}
@@ -180,9 +215,8 @@ class Repositorio:
         return meta
 
     def _gravar_meta(self, meta: dict) -> None:
-        caminho = self._arquivo_meta(meta["id"])
-        caminho.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
-                           encoding="utf-8")
+        texto = json.dumps(meta, indent=2, ensure_ascii=False) + "\n"
+        _gravar_atomico(self._arquivo_meta(meta["id"]), _codificar(texto, "metadados"))
 
     def _conteudo(self, versao: str) -> dict[str, bytes]:
         """{rel: bytes} de todos os .md da versao (para comparar copias)."""
@@ -217,7 +251,7 @@ class Repositorio:
                     if _ID_ITERACAO_RE.match(p.name)]
         n = max(ids, default=0) + 1
         if n > 999:
-            raise ErroIteracoes("limite de 999 iteracoes atingido")
+            raise ErroIteracoes("limite de 999 iterações atingido")
         return f"it-{n:03d}"
 
     @staticmethod
@@ -225,21 +259,23 @@ class Repositorio:
         nome = str(nome or "").strip()
         nome = re.sub(r"[\x00-\x1f]", " ", nome)
         if len(nome) > LIMITE_NOME:
-            raise ErroIteracoes(f"nome longo demais (max {LIMITE_NOME} caracteres)")
+            raise ErroIteracoes(f"nome longo demais (máx. {LIMITE_NOME} caracteres)")
+        _codificar(nome, "nome")
         return nome or padrao
 
     @staticmethod
     def _limpar_notas(notas: object) -> str:
         notas = str(notas or "")
         if len(notas) > LIMITE_NOTAS:
-            raise ErroIteracoes(f"notas longas demais (max {LIMITE_NOTAS} caracteres)")
+            raise ErroIteracoes(f"notas longas demais (máx. {LIMITE_NOTAS} caracteres)")
+        _codificar(notas, "notas")
         return notas
 
     def criar_iteracao(self, origem: str = "base", nome: str = "", notas: str = "") -> str:
         """Copia a versao ``origem`` para um novo it-NNN e devolve o id."""
         origem = self.validar_versao(origem)
         pasta_origem = self.pasta_da_versao(origem)
-        nome = self._limpar_nome(nome, f"copia de {origem}")
+        nome = self._limpar_nome(nome, f"cópia de {origem}")
         notas = self._limpar_notas(notas)
         self.pasta_iteracoes.mkdir(parents=True, exist_ok=True)
         for _ in range(5):                         # outra aba pode criar ao mesmo tempo
@@ -251,7 +287,7 @@ class Repositorio:
             except FileExistsError:
                 continue
         else:
-            raise ErroIteracoes("nao foi possivel reservar um id de iteracao")
+            raise ErroIteracoes("não foi possível reservar um id de iteração")
         try:
             _copiar_arvore(pasta_origem, pasta / "specs")
             self._gravar_meta({"id": it, "nome": nome, "criada_em": _agora(),
@@ -287,14 +323,14 @@ class Repositorio:
         e confirma, depois de resolver, que o arquivo fica dentro da pasta.
         """
         if not _rel_valido(rel):
-            raise ErroIteracoes(f"arquivo invalido: {rel!r} (so .md dentro da pasta de specs)")
+            raise ErroIteracoes(f"arquivo inválido: {rel!r} (só .md dentro da pasta de specs)")
         partes = PurePosixPath(rel).parts
         pasta = self.pasta_da_versao(versao).resolve()
         caminho = (pasta / Path(*partes)).resolve()
         if caminho == pasta or pasta not in caminho.parents:
             raise ErroIteracoes(f"arquivo fora da pasta de specs: {rel!r}")
         if existir and not caminho.is_file():
-            raise ErroNaoEncontrado(f"{rel} nao existe em {versao}")
+            raise ErroNaoEncontrado(f"{rel} não existe em {versao}")
         return caminho
 
     def arquivos(self, versao: str) -> list[dict]:
@@ -322,15 +358,16 @@ class Repositorio:
         """
         versao = self.validar_versao(versao)
         if versao == "base":
-            raise ErroPermissao("a base e somente leitura; crie uma iteracao a partir dela")
+            raise ErroPermissao("a base é somente leitura; crie uma iteração a partir dela")
         if not isinstance(texto, str):
-            raise ErroIteracoes("texto invalido")
+            raise ErroIteracoes("texto inválido")
         if len(texto) > LIMITE_TEXTO:
-            raise ErroIteracoes(f"texto longo demais (max {LIMITE_TEXTO} caracteres)")
+            raise ErroIteracoes(f"texto longo demais (máx. {LIMITE_TEXTO} caracteres)")
+        _codificar(texto)                          # antes do backup e da gravacao
         caminho = self.validar_rel(versao, rel, existir=False)
         # so edita o que existe; criar, so um obrigatorio que sumiu
         if not caminho.is_file() and rel not in OBRIGATORIOS:
-            raise ErroIteracoes(f"{rel} nao existe em {versao}; o app so edita arquivos "
+            raise ErroIteracoes(f"{rel} não existe em {versao}; o app só edita arquivos "
                                 f"existentes (ou recria {', '.join(OBRIGATORIOS)})")
         texto = texto.replace("\r\n", "\n")
         if caminho.is_file() and _ler_texto(caminho) == texto:
@@ -339,7 +376,7 @@ class Repositorio:
         try:
             _gravar_texto(caminho, texto)
         except PermissionError as e:
-            raise ErroPermissao(f"sem permissao para gravar {rel}: {e}") from e
+            raise ErroPermissao(f"sem permissão para gravar {rel}: {e}") from e
         return {"alterado": True, "backup": backup}
 
     def _backup_da_ativa(self) -> str:
@@ -351,7 +388,7 @@ class Repositorio:
                 return it
         return self.criar_iteracao(
             "specs", "antes-de-editar-specs",
-            "Backup automatico: copia de specs/ feita antes de editar a ativa pelo app.")
+            "Backup automático: cópia de specs/ feita antes de editar a ativa pelo app.")
 
     # -- comparar -----------------------------------------------------------
 
@@ -363,7 +400,7 @@ class Repositorio:
             textos.append(_ler_texto(caminho) if caminho.is_file() else None)
         a, b = textos
         if a is None and b is None:
-            raise ErroNaoEncontrado(f"{rel} nao existe em {versao_a} nem em {versao_b}")
+            raise ErroNaoEncontrado(f"{rel} não existe em {versao_a} nem em {versao_b}")
         linhas = list(difflib.unified_diff(
             (a or "").splitlines(), (b or "").splitlines(),
             fromfile=f"{versao_a}/{rel}", tofile=f"{versao_b}/{rel}", lineterm=""))
@@ -409,9 +446,9 @@ class Repositorio:
         except ct.ErroContrato:
             # o rvgen pararia aqui; monta mesmo assim para mostrar o texto
             cpu = {"microarquitetura": "monociclo", "isa": "rv32i"}
-            aviso = ("cpu.md nao declara ISA/microarquitetura validas: o rvgen recusaria "
-                     "estas specs. O texto abaixo foi montado com monociclo/rv32i so "
-                     "para visualizacao.")
+            aviso = ("cpu.md não declara ISA/microarquitetura válidas: o rvgen recusaria "
+                     "estas specs. O texto abaixo foi montado com monociclo/rv32i só "
+                     "para visualização.")
         try:
             sistema = ct.texto_do_contrato(cpu["microarquitetura"], cpu["isa"], pasta)
         except ct.ErroContrato as e:
@@ -455,7 +492,7 @@ class Repositorio:
             if rel not in textos:
                 checar("erro", rel, f"{rel} ausente: o rvgen precisa dele para montar o prompt.")
             elif not textos[rel].strip():
-                checar("erro", rel, f"{rel} esta vazio: o rvgen precisa dele para montar o prompt.")
+                checar("erro", rel, f"{rel} está vazio: o rvgen precisa dele para montar o prompt.")
 
         cpu_md = textos.get("cpu.md")
         if cpu_md is not None:
@@ -479,11 +516,11 @@ class Repositorio:
                 if fr:
                     partes.append(f"{fr}x \"FR-RV-\"")
                 checar("aviso", rel, f"{' e '.join(partes)} em um arquivo que vai para a IA: "
-                       "sao IDs de requisito sem definicao nas specs; o modelo pode copia-los "
+                       "são IDs de requisito sem definição nas specs; o modelo pode copiá-los "
                        "ou tentar segui-los.")
             if re.search(r"\brvverify\b", texto, re.IGNORECASE):
-                checar("info", rel, "cita o rvverify: confira se o texto nao o trata como "
-                       "autoridade. O juiz do rvgen e o spec-riscv-test; o rvverify valida "
+                checar("info", rel, "cita o rvverify: confira se o texto não o trata como "
+                       "autoridade. O juiz do rvgen é o spec-riscv-test; o rvverify valida "
                        "entregas por cpu.toml.")
 
         p = self.prompt(versao)
@@ -529,8 +566,8 @@ class Repositorio:
         faltando = [p for p in ct._PORTAS_CPU
                     if not re.search(rf"\b{p}\s*:", corpo, re.IGNORECASE)]
         for porta in faltando:
-            checar("erro", "cpu.md", f"a entidade cpu nao declara a porta \"{porta}\" "
-                   f"(sao {len(ct._PORTAS_CPU)} portas obrigatorias).")
+            checar("erro", "cpu.md", f"a entidade cpu não declara a porta \"{porta}\" "
+                   f"(são {len(ct._PORTAS_CPU)} portas obrigatórias).")
 
     # -- promover -----------------------------------------------------------
 
@@ -541,12 +578,12 @@ class Repositorio:
         Arquivos que so existem na ativa sao mantidos (estao no backup).
         """
         if not _ID_ITERACAO_RE.match(self.validar_versao(it)):
-            raise ErroIteracoes("so uma iteracao (it-NNN) pode ser promovida")
+            raise ErroIteracoes("só uma iteração (it-NNN) pode ser promovida")
         origem = self.pasta_da_versao(it)
         self.pasta_ativa.mkdir(parents=True, exist_ok=True)
         backup = self.criar_iteracao(
             "specs", f"antes-de-promover-{it}",
-            f"Backup automatico: specs/ como estava antes de promover {it}.")
+            f"Backup automático: specs/ como estava antes de promover {it}.")
         copiados = []
         for arq in sorted(origem.rglob("*")):
             if not arq.is_file() or any(p.startswith(".") or p == "__pycache__"
@@ -571,8 +608,8 @@ class Repositorio:
     def validar_experimento(nome: str) -> str:
         nome = str(nome or "").strip()
         if not _EXPERIMENTO_RE.match(nome) or ".." in nome:
-            raise ErroIteracoes(f"nome de experimento invalido: {nome!r} "
-                                "(letras, numeros, _ . -; e a pasta em experimentos/)")
+            raise ErroIteracoes(f"nome de experimento inválido: {nome!r} "
+                                "(letras, números, _ . -; é a pasta em experimentos/)")
         return nome
 
     def vincular_experimento(self, it: str, nome: str) -> dict:
@@ -609,7 +646,7 @@ class Repositorio:
         try:
             dados = json.loads((sessao / "resultado.json").read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as e:
-            saida["erro"] = f"resultado.json ilegivel: {e}"
+            saida["erro"] = f"resultado.json ilegível: {e}"
             return saida
         if isinstance(dados, dict):
             chaves = ("veredito", "objetivo_atingido", "placar", "chamadas", "iteracoes",

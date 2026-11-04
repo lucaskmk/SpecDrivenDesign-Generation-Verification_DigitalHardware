@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <meta name="token" content="__TOKEN_ITERACOES__">
 <title>Iterações de specs</title>
 <style>
 :root {
+  color-scheme: light dark;   /* controles nativos seguem o tema */
   --bg: #f6f7f9; --panel: #ffffff; --fg: #1d2330; --muted: #5d6677; --border: #d9dde5;
   --accent: #2f5fd0; --accent-fg: #ffffff; --hover: #eef2fb; --sel: #e2e9fa;
   --err: #b42318; --err-bg: #fdecea; --warn: #9a5b00; --warn-bg: #fff4e0;
@@ -36,6 +38,7 @@ button.primario { background: var(--accent); color: var(--accent-fg); border-col
 button.primario:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
 button.perigo { border-color: var(--err); color: var(--err); }
 input[type=text], input[type=number], select, textarea { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+select { max-width: 100%; min-width: 0; }
 textarea { width: 100%; resize: vertical; }
 code, pre, .mono { font-family: var(--mono); font-size: 13px; }
 a { color: var(--accent); }
@@ -117,6 +120,7 @@ textarea[readonly] { background: var(--code-bg); }
 .checagem .arq { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
 .comparar-sel { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.comparar-sel select { flex: 1 1 180px; text-overflow: ellipsis; }
 .estado { font-size: 12px; white-space: nowrap; }
 .estado.alterado { color: var(--warn); } .estado.igual { color: var(--muted); }
 .estado.so-em-a { color: var(--err); } .estado.so-em-b { color: var(--ok); }
@@ -156,6 +160,8 @@ dialog h3 { margin-top: 0; }
   aside { border-right: none; border-bottom: 1px solid var(--border); max-height: 38vh; }
   main { padding: 12px 16px 32px; }
   .cmd { flex-direction: column; }
+  nav.abas { flex-wrap: wrap; overflow-x: visible; }
+  .comparar-sel select { width: 100%; flex-basis: 100%; }
   .papel { white-space: normal; }
   textarea.editor { min-height: 45vh; }
 }
@@ -263,12 +269,16 @@ function classePapel(papel) {
   return "doc";
 }
 const versao = (id) => est.versoes.find((v) => v.id === id);
-function rotulo(id) {
+function rotulo(id, max) {
   if (id === "base") return "Base";
   if (id === "specs") return "Ativa (specs/)";
   const v = versao(id);
-  return v ? `${id} — ${v.nome}` : id;
+  if (!v) return id;
+  const nome = max && v.nome.length > max ? v.nome.slice(0, max - 1) + "…" : v.nome;
+  return `${id} — ${nome}`;
 }
+// opcao de <select>: nome curto (nao alarga a tela), nome inteiro no title
+const opcaoVersao = (v, sel) => h("option", { value: v.id, selected: sel, title: rotulo(v.id) }, rotulo(v.id, 40));
 function editorSujo() { return est.editor && est.editor.sujo; }
 function podeSair() {
   return !editorSujo() || confirm("Há alterações não salvas em " + est.editor.rel + ". Descartar?");
@@ -302,10 +312,18 @@ function desenharLista() {
     : [h("p", { class: "muted", style: "margin:4px" }, "Nenhuma ainda. Crie uma a partir da base ou da ativa.")]));
 }
 
+// a aba Comparar acompanha a versao escolhida: B = ela; A fica, salvo se for a mesma
+function acompanharComparacao(id) {
+  if (id === "base") { est.cmpA = "base"; est.cmpB = "specs"; }
+  else { est.cmpB = id; if (est.cmpA === id) est.cmpA = "base"; }
+  est.cmpRel = null;
+}
+
 function selecionar(id) {
   if (id === est.atual) return;
   if (!podeSair()) return;
-  est.atual = id; est.editor = null; est.cmpRel = null;
+  est.atual = id; est.editor = null;
+  acompanharComparacao(id);
   desenharLista(); desenhar();
 }
 
@@ -445,7 +463,7 @@ async function salvarArquivo(area, salvar, descartar) {
 // ---------- aba Comparar ----------
 function seletorVersao(valor, aoMudar, rotuloTxt) {
   const s = h("select", { "aria-label": rotuloTxt, onchange: () => aoMudar(s.value) },
-    est.versoes.map((v) => h("option", { value: v.id, selected: v.id === valor }, rotulo(v.id))));
+    est.versoes.map((v) => opcaoVersao(v, v.id === valor)));
   return s;
 }
 
@@ -638,7 +656,7 @@ async function painelExperimentos(v) {
 // ---------- nova iteracao ----------
 function abrirNova() {
   const s = $("nova-origem");
-  s.replaceChildren(...est.versoes.map((v) => h("option", { value: v.id, selected: v.id === est.atual }, rotulo(v.id))));
+  s.replaceChildren(...est.versoes.map((v) => opcaoVersao(v, v.id === est.atual)));
   $("nova-nome").value = ""; $("nova-notas").value = "";
   $("dlg-nova").showModal();
   $("nova-nome").focus();
@@ -653,6 +671,7 @@ $("form-nova").addEventListener("submit", async (e) => {
     $("dlg-nova").close();
     toast(`Iteração ${r.id} criada.`);
     est.editor = null; est.atual = r.id; est.aba = "arquivos";
+    acompanharComparacao(r.id);
     await carregarVersoes(); desenhar();
   } catch (err) { toast(err.message, "erro"); }
   finally { bt.disabled = false; }

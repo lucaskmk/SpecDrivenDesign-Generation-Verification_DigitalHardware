@@ -121,6 +121,40 @@ class TestEscritaECaminhos(BaseRepo):
                 with self.assertRaises(ErroIteracoes):
                     self.repo.salvar_arquivo(it, rel, "x")
 
+    def test_caractere_invalido_nao_apaga_nada(self):
+        it = self.repo.criar_iteracao("base", "original", "notas")
+        for versao in (it, "specs"):
+            with self.subTest(versao=versao):
+                antes = self.ler(versao, "cpu.md")
+                with self.assertRaises(ErroIteracoes):
+                    self.repo.salvar_arquivo(versao, "cpu.md", "novo \ud800 fim")
+                self.assertEqual(self.ler(versao, "cpu.md"), antes)
+        # nem backup da ativa: nada foi gravado
+        self.assertEqual([v["id"] for v in self.repo.listar()["versoes"]][2:], [it])
+        for campos in ({"nome": "x\udc00"}, {"notas": "y\ud800"}):
+            with self.subTest(campos=campos), self.assertRaises(ErroIteracoes):
+                self.repo.atualizar_iteracao(it, **campos)
+        meta = self.repo.ler_meta(it)
+        self.assertEqual((meta["nome"], meta["notas"]), ("original", "notas"))
+        with self.assertRaises(ErroIteracoes):
+            self.repo.criar_iteracao("base", "z\ud800")
+        self.assertEqual(list(self.raiz.rglob("*.tmp")), [])
+
+    def test_gravacao_atomica_mantem_o_antigo_se_falhar(self):
+        from unittest import mock
+        it = self.repo.criar_iteracao("base", "original")
+        antes = self.ler(it, "cpu.md")
+        with mock.patch("iteracoes.nucleo.os.replace", side_effect=OSError("disco cheio")):
+            with self.assertRaises(OSError):
+                self.repo.salvar_arquivo(it, "cpu.md", "novo texto")
+            with self.assertRaises(OSError):
+                self.repo.atualizar_iteracao(it, nome="outro")
+        self.assertEqual(self.ler(it, "cpu.md"), antes)
+        self.assertEqual(self.repo.ler_meta(it)["nome"], "original")
+        self.assertEqual(list(self.raiz.rglob("*.tmp")), [])
+        self.repo.salvar_arquivo(it, "cpu.md", "novo texto")
+        self.assertEqual(self.ler(it, "cpu.md"), "novo texto")
+
     def test_arquivo_inexistente(self):
         with self.assertRaises(ErroNaoEncontrado):
             self.repo.ler_arquivo("specs", "nao_existe.md")
@@ -448,6 +482,25 @@ class TestServidor(BaseRepo):
             self.assertEqual(con.getresponse().status, 413)
         finally:
             con.close()
+
+    def test_corpo_malformado_e_400(self):
+        it = self.repo.criar_iteracao("base")
+        antes = self.ler(it, "cpu.md")
+        corpos = [b"[" * 200000 + b"]" * 200000, b"1" * 5000, b"\xff\xfe", b"{",
+                  ('{"versao": "%s", "rel": "cpu.md", "texto": "a\\ud800"}' % it).encode()]
+        for corpo in corpos:
+            with self.subTest(corpo=corpo[:20]):
+                con = http.client.HTTPConnection("127.0.0.1", self.srv.porta, timeout=10)
+                try:
+                    con.request("POST", "/api/arquivo", corpo,
+                                {"Content-Type": "application/json", "X-Token": "token-de-teste"})
+                    r = con.getresponse()
+                    resposta = json.loads(r.read())
+                finally:
+                    con.close()
+                self.assertEqual(r.status, 400, resposta)
+                self.assertNotIn("erro interno", resposta["erro"])
+        self.assertEqual(self.ler(it, "cpu.md"), antes)
 
     def test_api_de_leitura(self):
         for caminho in ("/api/arquivos?versao=base", "/api/arquivo?versao=base&rel=cpu.md",
