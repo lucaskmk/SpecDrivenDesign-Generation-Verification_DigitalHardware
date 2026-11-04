@@ -535,6 +535,24 @@ AssertionError: expected 1, observed 0
         self.assertIn("  spec-riscv-test suite: suite oficial RV32IM ...", self.linhas)
         self.assertTrue(any("CPU: RV32IM, microarquitetura monociclo" in l for l in self.linhas))
 
+    def test_redator_revisor_e_corretor_recebem_a_mesma_decomposicao_fixa(self):
+        # Rodada real com openai/gpt-6-luna (29/10/2026): o revisor tinha ordem de
+        # "nao exigir decomposicao" e recusava o contrato do `cpu` por instanciar
+        # os blocos, o que o `_requisito_integracao_top` exige. Nao convergia.
+        modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
+        componentes = [{"compilacao": {"ok": True}, "passed": True, "detail": "ok"}] * 6
+        self.agente(modelo, ExecutorFalso([ok(1), ok(1), ok(24), ok(35)], componentes),
+                    testes_componentes=True, gates_componentes=True).gerar()
+        revisao_cpu = [p for f, a, p in modelo.pedidos
+                       if f == "revisao_semantica_especificacao" and "cpu" in a]
+        redacao_cpu = [p for f, a, p in modelo.pedidos
+                       if f == "especificacao_componente" and "cpu" in a]
+        for pedido in revisao_cpu + redacao_cpu:
+            self.assertIn("Fixed decomposition", pedido)
+            self.assertIn("`alu`, `regs`", pedido)
+            self.assertNotIn("Do NOT require a particular internal decomposition", pedido)
+        self.assertTrue(revisao_cpu and redacao_cpu)
+
     def test_contratos_de_todos_os_blocos_precedem_a_primeira_escrita_vhdl(self):
         modelo = ModeloFalso({"decomposicao": [PLANO_VALIDO]})
         componentes = [{"compilacao": {"ok": True}, "passed": True, "detail": "ok"}] * 6
