@@ -183,6 +183,10 @@ class ExecutorLocal(Executor):
         # Os testes auxiliares precisam do mesmo cocotb_tools instalado pelo
         # wrapper oficial, não necessariamente do Python que iniciou rvgen.
         python_testador = self.testador.parent / "python"
+        if not python_testador.exists():
+            # RVGEN_SPEC_RISCV_TEST pode apontar um executavel fora de um venv
+            # (ex.: um script em /usr/local/bin); usa o Python que roda o rvgen.
+            python_testador = Path(sys.executable)
         cmd = [str(python_testador), "-m", "rvgen.component_runner", "--cpu",
                 str(pasta), "--component", componente,
                "--test", str(teste), "--json", str(json_saida),
