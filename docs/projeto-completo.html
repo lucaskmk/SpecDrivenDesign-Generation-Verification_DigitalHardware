@@ -157,7 +157,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <path class="ar" d="M540 65H570" marker-end="url(#m)"/>
   <foreignObject x="570" y="20" width="140" height="90"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>spec-riscv-test/</b><small>riscv-tests oficiais no GHDL. Juiz do <code>rvgen</code></small></div></foreignObject>
   <path class="ar" d="M275 110V170" marker-end="url(#m)"/><path class="ar" d="M285 170V110" marker-end="url(#m)"/>
-  <foreignObject x="200" y="170" width="150" height="80"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>OpenRouter</b><small>gpt-5.6-luna (sem Ollama)</small></div></foreignObject>
+  <foreignObject x="200" y="170" width="150" height="80"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>OpenRouter</b><small>gpt-6-luna (sem Ollama)</small></div></foreignObject>
   <path class="ar" stroke-dasharray="5 4" d="M465 110V170" marker-end="url(#m)"/>
   <foreignObject x="390" y="170" width="150" height="80"><div class="n tool dash" xmlns="http://www.w3.org/1999/xhtml"><b>rvverify/</b><small>autoridade pelas specs; fora do laço do <code>rvgen</code></small></div></foreignObject>
   <path class="ar" stroke-dasharray="5 4" d="M520 110V140H640V170" marker-end="url(#m)"/>
@@ -390,7 +390,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 
 <tr><td>Padrão<br><span class="st pa">média</span></td>
 <td>O código e o README ainda dizem que o provedor padrão é o Ollama local.</td><td>→</td>
-<td>Padrão <code>openrouter</code> com <code>openai/gpt-5.6-luna</code>, ou o README dizendo claramente o que usar.</td>
+<td>Padrão <code>openrouter</code> com <code>openai/gpt-6-luna</code>, ou o README dizendo claramente o que usar.</td>
 <td>Você disse que agora é OpenRouter. <b>Confirmar o modelo</b> com o professor; “luna 6” é o que eu presumi.</td></tr>
 
 <tr><td>M8<br><span class="st pa">média</span></td>
@@ -442,7 +442,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 <tr><td>M7 <span class="st ok">feito</span></td><td><code>[project]</code> com Python ≥ 3.11 e extras <code>sim</code>/<code>dev</code> (cocotb 2, pytest). <code>testpaths</code> sem <code>cpus</code> (legado), com Quartus e <code>spec-riscv-test</code>.</td><td><code>pyproject.toml</code></td><td>Validado pelo leitor do setuptools. O <code>pip install -e</code> não rodou (sem venv/rede na imagem).</td></tr>
 <tr><td>M5 <span class="st ok">feito</span></td><td>429, 408, 425, 5xx e conexão interrompida são repetidos até 3 vezes (2 s, 4 s ou o <code>Retry-After</code>, até 30 s). Timeout e erro 4xx não, porque o pedido pode já ter sido cobrado.</td><td><code>rvgen/llm.py</code></td><td>3 testes novos com servidor HTTP falso.</td></tr>
 <tr><td>M6 <span class="st ok">feito</span></td><td><code>--max-chamadas</code> e <code>--max-tokens</code> em <code>gerar</code> e <code>retomar</code>: param com a sessão preservada (<code>ErroLimite</code>, que os laços de tentativa não engolem). O uso acumulado aparece a cada fase.</td><td><code>rvgen/agente.py</code>, <code>rvgen/__main__.py</code></td><td>3 testes novos.</td></tr>
-<tr><td>Provedor <span class="st ok">feito</span></td><td>Com <code>OPENROUTER_API_KEY</code>, o padrão é o <code>openrouter</code> (modelo <code>openai/gpt-5.6-luna</code>); sem a chave, continua o Ollama.</td><td><code>rvgen/config.py</code></td><td>Teste novo.</td></tr>
+<tr><td>Provedor <span class="st ok">feito</span></td><td>Com <code>OPENROUTER_API_KEY</code>, o padrão é o <code>openrouter</code> (modelo <code>openai/gpt-6-luna</code>); sem a chave, continua o Ollama.</td><td><code>rvgen/config.py</code></td><td>Teste novo.</td></tr>
 <tr><td>A5 <span class="st pa">em parte</span></td><td>Saiu a regra 8 (<code>-- REQ:</code> obrigatório) do <code>vhdl.md</code> e as referências mortas do <code>.gitignore</code>. As citações <code>FR-RV-xx</code> em comentários de ~90 arquivos ficaram.</td><td><code>specs/vhdl.md</code>, <code>.gitignore</code></td><td>Teste novo: o prompt não contém <code>-- REQ:</code>.</td></tr>
 <tr><td>M4 <span class="st di">não feito</span></td><td>Dividir o <code>agente.py</code>. O Corsi é quem mais mexe nele; dividir agora geraria conflito com o trabalho dele sem mudar comportamento. Combinar antes.</td><td>—</td><td>—</td></tr>
 <tr><td>M8 <span class="st di">não feito</span></td><td>Modelo diferente por papel. Depende da resposta do professor.</td><td>—</td><td>—</td></tr>

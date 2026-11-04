@@ -16,6 +16,26 @@ Ela serve para três coisas:
 
 ## Resultado
 
+| Juiz | Resultado |
+|---|---|
+| `spec-riscv-test` (juiz do `rvgen`) | 40/40 programas `rv32ui`, `"status": "passed"` |
+| `rvverify --etapa rv32i` | 24/24 casos RV32I (veredito `parcial`, ver abaixo) |
+
+O `spec-riscv-test` roda na imagem [`docker/veredito`](../../docker/veredito/README.md)
+(GHDL 2.0.0, cocotb 2.0.0, `gcc-riscv64-unknown-elf` 12.2.0, `riscv-tests` no
+commit `3df703c`), da raiz do repositório:
+
+```bash
+docker build -t rvgen-veredito docker/veredito
+docker run --rm -v "$PWD:/repo" rvgen-veredito   spec-riscv-test --cpu cpus/rv32i_gabarito --riscv-tests /opt/riscv-tests --isa rv32i --out out/gabarito
+```
+
+O relatório fica em `out/gabarito/report.json` (no Git Bash do Windows, ver
+as variantes de `-v` no README da imagem). O commit `644cba9` registra o
+mesmo 40/40.
+
+O `rvverify`:
+
 ```bash
 python -m rvverify cpus/rv32i_gabarito --etapa rv32i
 ```
@@ -25,20 +45,12 @@ python -m rvverify cpus/rv32i_gabarito --etapa rv32i
 `rvverify/tests/test_virtual.py` refaz essa prova e também confere que uma
 cópia com defeito é reprovada com diagnóstico.
 
-Mesmo com 24/24 o veredito não sai `aprovado`: com `--etapa rv32i` ele é
-`parcial` (só uma etapa foi pedida) e sem a opção é `incompleto` (a etapa
-RV32M exige um generic, e o contrato atual não tem generic). Ver
-`entregas/README.md`.
+Mesmo com 24/24 o veredito do `rvverify` não sai `aprovado`: com
+`--etapa rv32i` ele é `parcial` (só uma etapa foi pedida) e sem a opção é
+`incompleto` (a etapa RV32M exige um generic, e o contrato atual não tem
+generic). Ver `entregas/README.md`.
 
 ## O que ainda não foi verificado
-
-- A suíte oficial (`spec-riscv-test`, 40 programas `rv32ui`) não rodou nesta
-  CPU: exige um compilador RISC-V e o clone do `riscv-tests`, que não estavam
-  disponíveis. Comando, em Linux/WSL2:
-
-  ```bash
-  spec-riscv-test --cpu cpus/rv32i_gabarito --riscv-tests riscv-tests --isa rv32i --out out
-  ```
 
 - Síntese no Quartus.
 

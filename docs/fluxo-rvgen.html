@@ -111,7 +111,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <ul>
     <li><b>Contrato antes de código:</b> cada bloco ganha um contrato em markdown, e um revisor confere se os contratos fazem sentido juntos.</li>
     <li><b>Pilha:</b> um bloco por vez; se não passar no teste, o próximo não começa. Quem escreve o teste não vê o VHDL.</li>
-    <li><b>Modelo:</b> não é mais Ollama local. A chamada vai para o <b>OpenRouter</b>, modelo <code>openai/gpt-5.6-luna</code> (o que está no seu <code>.env</code>). Cada chamada é isolada, sem histórico.</li>
+    <li><b>Modelo:</b> não é mais Ollama local. A chamada vai para o <b>OpenRouter</b>, modelo <code>openai/gpt-6-luna</code> (o que está no seu <code>.env</code>). Cada chamada é isolada, sem histórico.</li>
     <li><b>Certificação:</b> o juiz do <code>rvgen</code> é o <code>spec-riscv-test</code> (programas oficiais <code>riscv-tests</code>). Desde 29/10 as specs dizem isso também; o <code>rvverify</code> valida entregas por <code>cpu.toml</code>. Ver <a href="#certificacao">seção 6</a>.</li>
   </ul>
   O que ainda depende do professor está na <a href="#duvidas">última seção</a>. O que foi corrigido em 29/10 está em <code>docs/projeto-completo.html</code>, seção 7.
@@ -137,7 +137,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 <tr><td>Se validou, segue para VHDL; senão volta</td><td><span class="st ok">existe</span></td>
   <td><code>REVISE</code> reescreve o contrato e revisa de novo, até 3 vezes (<code>--tentativas-revisao-semantica</code>). Se o revisor cita uma dependência, ela é corrigida antes. Esgotou: a geração para com erro.</td></tr>
 <tr><td>Uma IA faz o VHDL, outra os testes, sem viés</td><td><span class="st pa">parcial</span></td>
-  <td>Contextos separados: o testbench é escrito vendo só o <b>contrato + interface pública</b> (“a implementação não é fornecida”); o VHDL é escrito sem ver o testbench. Mas é <b>o mesmo modelo</b> nos dois papéis (um único <code>--modelo</code>, hoje <code>gpt-5.6-luna</code>). Ver <a href="#papeis">Papéis de IA</a> e <a href="#duvidas">A confirmar</a>.</td></tr>
+  <td>Contextos separados: o testbench é escrito vendo só o <b>contrato + interface pública</b> (“a implementação não é fornecida”); o VHDL é escrito sem ver o testbench. Mas é <b>o mesmo modelo</b> nos dois papéis (um único <code>--modelo</code>, hoje <code>gpt-6-luna</code>). Ver <a href="#papeis">Papéis de IA</a> e <a href="#duvidas">A confirmar</a>.</td></tr>
 <tr><td>Pilha, parte por parte; se uma falha, termina antes do próximo</td><td><span class="st fl">flag</span></td>
   <td><code>--gates-componentes</code>: cada bloco é escrito, testado só com suas dependências já aprovadas e “congelado” (hash do VHDL). Orçamento de correções esgotado levanta <code>ErroGeracao</code> e a sessão para; dá para continuar com <code>retomar</code>. <code>_gerar_com_portoes</code></td></tr>
 <tr><td>Junta tudo e outra IA testa de novo</td><td><span class="st ok">existe</span></td>
@@ -375,7 +375,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 </ul>
 
 <h2 id="modelo">7 · Modelo e provedor: OpenRouter, sem Ollama</h2>
-<p>Seu <code>.env</code> tem <code>SPECHDL_LLM_MODEL=openai/gpt-5.6-luna</code> e uma chave do OpenRouter preenchida (só conferi se existe; não li o valor). Esse é o modelo externo padrão do <code>rvgen</code> (<code>config.MODELO_EXTERNO_PADRAO</code>). Presumo que “luna 6” seja esse <code>gpt-5.6-luna</code>.</p>
+<p>Seu <code>.env</code> tem <code>SPECHDL_LLM_MODEL=openai/gpt-6-luna</code> e uma chave do OpenRouter preenchida (só conferi se existe; não li o valor). Esse é o modelo externo padrão do <code>rvgen</code> (<code>config.MODELO_EXTERNO_PADRAO</code>). Presumo que “luna 6” seja esse <code>gpt-6-luna</code>.</p>
 <div class="note"><b>Desde 29/10:</b> com <code>OPENROUTER_API_KEY</code> no <code>.env</code>, o provedor padrão é o <code>openrouter</code> (antes era sempre <code>ollama</code>). <code>--provedor</code> ou <code>RVGEN_PROVEDOR</code> ainda vencem. Falhas transitórias da API (429, 5xx, conexão) são repetidas até 3 vezes, e <code>--max-chamadas</code> / <code>--max-tokens</code> param a geração com a sessão preservada.</div>
 <figure>
 <svg viewBox="0 0 720 300" role="img" aria-label="Caminho de uma chamada ao modelo">
@@ -386,7 +386,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <path class="ar" d="M345 75H380" marker-end="url(#m5)"/>
   <foreignObject x="380" y="20" width="150" height="110"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>OpenRouter</b><small><code>/chat/completions</code> com sua chave; roteia para o modelo</small></div></foreignObject>
   <path class="ar" d="M530 75H565" marker-end="url(#m5)"/>
-  <foreignObject x="565" y="20" width="145" height="110"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>gpt-5.6-luna</b><small>responde só com o que veio nessa lista de mensagens</small></div></foreignObject>
+  <foreignObject x="565" y="20" width="145" height="110"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>gpt-6-luna</b><small>responde só com o que veio nessa lista de mensagens</small></div></foreignObject>
   <path class="ar" d="M637 130V160H85V135" marker-end="url(#m5)"/>
   <text class="lb" x="360" y="153" text-anchor="middle">texto + tokens (entrada/saída) + motivo de término</text>
   <foreignObject x="10" y="185" width="330" height="95"><div class="n dec" xmlns="http://www.w3.org/1999/xhtml"><b>Schema JSON não vai para a API</b><small>no OpenRouter o schema só fica no prompt (<code>del schema</code> em <code>llm.py</code>). <code>extrair_json</code> valida e o agente reenvia até 2 vezes</small></div></foreignObject>
@@ -497,7 +497,7 @@ python -m rvgen comparar                 # várias rodadas lado a lado: veredito
 <div class="cols">
   <div class="card">
     <h3>① Mesma IA nos dois papéis</h3>
-    <p>VHDL e testbench usam o <b>mesmo modelo</b> (<code>gpt-5.6-luna</code>); o que muda é o contexto (o teste não vê o VHDL). Isso reduz o viés, não o elimina. Se ele quer modelos diferentes (ex.: um para VHDL, outro para teste), hoje não há opção para isso; seria uma mudança no <code>rvgen</code>.</p>
+    <p>VHDL e testbench usam o <b>mesmo modelo</b> (<code>gpt-6-luna</code>); o que muda é o contexto (o teste não vê o VHDL). Isso reduz o viés, não o elimina. Se ele quer modelos diferentes (ex.: um para VHDL, outro para teste), hoje não há opção para isso; seria uma mudança no <code>rvgen</code>.</p>
   </div>
   <div class="card">
     <h3>② “Outra IA testa a CPU de novo”</h3>
@@ -505,7 +505,7 @@ python -m rvgen comparar                 # várias rodadas lado a lado: veredito
   </div>
   <div class="card">
     <h3>③ “luna 6”</h3>
-    <p>Presumi <code>openai/gpt-5.6-luna</code>, que é o que está no <code>.env</code> e no README. Se o professor falou de outro modelo, é só <code>--modelo</code> ou <code>SPECHDL_LLM_MODEL</code>.</p>
+    <p>“Luna 6” é o <code>openai/gpt-6-luna</code> no OpenRouter (US$ 0,10 / 0,50 por 1M tokens). Antes o <code>.env</code> usava o <code>openai/gpt-5.6-luna</code>, que custa o dobro. Outro modelo: <code>--modelo</code> ou <code>SPECHDL_LLM_MODEL</code>.</p>
   </div>
   <div class="card">
     <h3>④ Docs antigos</h3>

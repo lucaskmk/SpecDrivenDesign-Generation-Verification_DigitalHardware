@@ -28,7 +28,7 @@ de linha envelhecem: procure pelo nome da função.
 6. **Separação VHDL × teste.** Prompt do VHDL: contrato + interfaces. Prompt do
    testbench (`_escrever_testbench`, 1796): só contrato + portas, "a
    implementação não é fornecida". **Mesmo modelo** nos dois papéis (um só
-   `--modelo`, hoje `gpt-5.6-luna`); a separação é de contexto.
+   `--modelo`, hoje `gpt-6-luna`); a separação é de contexto.
 7. **Triagem** (`_triagem_componente`, 3578). Causa ∈ `vhdl` | `testbench` |
    `spec` | `ambigua`. Regras objetivas vencem o LLM (largura de porta,
    `int(x,2)` no cocotb 2, coroutine sem `dut` → testbench). `vhdl` por assertion
@@ -99,13 +99,14 @@ Nome simples grava em `experimentos/<nome>/`; caminho grava no caminho.
 
 ## Modelo: OpenRouter, sem Ollama, sem exemplos
 
-- `.env` tem `SPECHDL_LLM_MODEL=openai/gpt-5.6-luna` e chave do OpenRouter. Esse é
-  `config.MODELO_EXTERNO_PADRAO`. "luna 6" = `gpt-5.6-luna` (presumido).
+- `.env` tem `SPECHDL_LLM_MODEL=openai/gpt-6-luna` e chave do OpenRouter; o mesmo
+  modelo é `config.MODELO_EXTERNO_PADRAO` e o do `.env.example`. Até o experimento
+  `luna6_prof_3` o `.env` usava `openai/gpt-5.6-luna` (ver `docs/artigo.md`, seção 3).
 - **Com a chave no `.env`, o padrão já é o OpenRouter** (`config.ler_config`, desde
   29/10). `RVGEN_PROVEDOR` ou `--provedor` ainda vencem.
 - `ClienteOpenAI` (`llm.py`): POST em `/chat/completions` com `model`, `messages`,
-  `temperature` 0,2. Falha transitória (429, 5xx, conexão) é repetida até 3 vezes
-  (2 s, 4 s, ou o `Retry-After`); estouro de timeout não, porque pode já ter sido
+  `temperature` 0,2. Falha transitória (429, 5xx, conexão) é tentada até 3 vezes no
+  total (esperas de 2 s e 4 s, ou o `Retry-After`); estouro de timeout não, porque pode já ter sido
   cobrado. O schema JSON **não** vai para a API (só no prompt); `extrair_json` valida
   e o agente reenvia até 2 vezes.
 - Sem `--exemplo`: o modelo não recebe nenhuma CPU de referência.
