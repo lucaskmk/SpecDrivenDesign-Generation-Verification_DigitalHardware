@@ -1,0 +1,45 @@
+# Manifesto gerado por rvgen (FR-RV-47): deterministico, a partir do
+# contrato fixo em rvgen/contrato.py. Nao foi escrito
+# pelo modelo de linguagem; so as fontes em src/ foram.
+#
+# REQ: FR-RV-05, FR-RV-06, FR-RV-09, FR-RV-15, FR-RV-16, FR-RV-21
+
+[design]
+name = "luna6_prof_3"
+top  = "cpu"
+std  = "08"
+sources = [
+    "src/immediate_generator.vhd",
+    "src/register_file.vhd",
+    "src/alu.vhd",
+    "src/decoder.vhd",
+    "src/cpu.vhd",
+]
+
+[clock]
+signal    = "clk"
+period_ns = 10
+
+[reset]
+signal = "rst"
+active = "high"
+cycles = 3
+
+[program]
+mode         = "virtual"
+size_words   = 1024
+
+[memory]
+ram_base  = 0x00fc8100
+ram_bytes = 512
+
+[observe]
+ram       = "virtual"
+
+[halt]
+mode = "fetch_pc"
+pc = "instr_addr"
+stationary = 2
+drain = 2
+
+[metrics]
