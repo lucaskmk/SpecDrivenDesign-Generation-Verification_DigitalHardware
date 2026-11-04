@@ -12,7 +12,11 @@
 - A IA gera ou corrige apenas VHDL e testbenches dentro da entrega.
 - GHDL e cocotb verificam componentes; erros do testbench não autorizam alterar
   o VHDL sem triagem.
-- `rvverify` é a única autoridade do veredito da CPU integrada.
+- O `spec-riscv-test` é a única autoridade do veredito da CPU integrada gerada
+  pelo `rvgen`: ele executa os programas oficiais do `riscv-tests`.
+- O `rvverify` valida entregas descritas por `cpu.toml` (CPUs de alunos e
+  gabaritos) com seus próprios casos e um modelo de referência. Ele não
+  decide o veredito do `rvgen`.
 - Nenhuma geração pode modificar o validador nem fontes fornecidas.
 
 ## Reprodutibilidade

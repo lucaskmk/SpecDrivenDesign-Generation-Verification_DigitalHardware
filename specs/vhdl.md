@@ -23,5 +23,4 @@ GHDL com VHDL-2008.
 7. Arrays observados pelo testbench devem ser arrays 1-D de palavras de 32
    bits. Mantenha a guarda de faixa e o índice de um array na mesma expressão
    condicional.
-8. Todo arquivo deve iniciar com comentário `-- REQ:` e os IDs de requisitos
-   atendidos; use identificadores e comentários em inglês.
+8. Use identificadores e comentários em inglês.

@@ -25,10 +25,13 @@ LLM.
    Python; asserção funcional corrige o VHDL; caso ambíguo não altera arquivos.
 7. `--regressoes-componentes` preserva casos que revelaram falhas já
    corrigidas.
-8. `rvverify` executa a validação integrada e produz o veredito final.
+8. O `spec-riscv-test` executa os programas oficiais do `riscv-tests` contra a
+   CPU integrada e produz o veredito final. O `rvverify` não participa deste
+   passo; ele valida entregas por `cpu.toml`, fora do `rvgen`.
 
 ## Artefatos
 
 Cada sessão registra em `.rvgen/sessao-*/` o contrato, arquitetura, respostas
 da LLM, testbenches, resultados, logs e relatórios JSON. A infraestrutura de
-memória é privada do `rvverify` e não aparece em `architecture.json`.
+memória (ROM e RAM virtuais) é privada do validador e não aparece em
+`architecture.json`.
