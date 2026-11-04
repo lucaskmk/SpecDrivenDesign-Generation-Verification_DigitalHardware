@@ -72,6 +72,19 @@ class TestComandos(unittest.TestCase):
             workdir=self.sessao / "sim", build_root=self.sessao / "build", vcd=vcd)
         self.assertEqual(capturado["cmd"][-2:], ["--vcd", str(vcd)])
 
+    def test_componente_sem_venv_usa_o_python_do_rvgen(self):
+        # RVGEN_SPEC_RISCV_TEST fora de um venv: nao ha `python` ao lado dele
+        # (visto numa rodada real com o testador em /usr/local/bin)
+        testador = self.raiz / "bin_solto" / "spec-riscv-test"
+        executor = ExecutorLocal(self.raiz, testador=testador)
+        capturado = {}
+        executor._rodar_comando = lambda cmd, *a, **k: capturado.setdefault("cmd", cmd)  # type: ignore[method-assign]
+        executor.rodar_componente(
+            self.pasta, componente="alu", teste=self.sessao / "test_alu.py",
+            json_saida=self.sessao / "r.json", workdir=self.sessao / "sim",
+            build_root=self.sessao / "build")
+        self.assertEqual(capturado["cmd"][0], sys.executable)
+
     def test_rodar_le_o_json_e_apaga_o_relatorio_antigo(self):
         relatorio = {"design": "gerada", "veredito": "reprovado", "casos": []}
 
