@@ -1027,15 +1027,21 @@ class Agente:
             if isinstance(plano_json, dict):
                 if plano_json.get("decision") == "complete":
                     return None
-                campos = ("behavior", "prerequisites", "new_factor", "stimulus",
+                # `prerequisites` pode ser lista vazia: o caso mais simples nao
+                # depende de nenhum outro (numa rodada real com gpt-6-luna, `[]`
+                # era recusado duas vezes e a geracao parava).
+                campos = ("behavior", "new_factor", "stimulus",
                            "public_observations", "forbidden")
                 restantes = plano_json.get("remaining")
                 if plano_json.get("decision") == "add" and isinstance(restantes, int) \
                         and 0 < restantes <= saldo_de_casos \
+                        and "prerequisites" in plano_json \
                         and all(plano_json.get(campo) for campo in campos):
                     def texto(campo: str) -> str:
                         valor = plano_json.get(campo, "")
-                        return "; ".join(map(str, valor)) if isinstance(valor, list) else str(valor)
+                        dito = ("; ".join(map(str, valor)) if isinstance(valor, list)
+                                else str(valor))
+                        return dito or ("none" if campo == "prerequisites" else "")
                     plano = (f"Behavior: {texto('behavior')}\n"
                               f"Coverage gap: {texto('coverage_gap') or texto('behavior')}\n"
                               f"Prerequisites: {texto('prerequisites')}\n"
@@ -5454,6 +5460,8 @@ async def inventory_visible_hierarchy(dut):
                      "modelo": self.cliente.modelo, "executor": self.executor.nome,
                      "iteracoes": self.iteracoes,
                      "tentativas_revisao_semantica": self.tentativas_revisao_semantica,
+                     "max_casos_teste": self.max_casos_teste,
+                     "max_casos_internos": self.max_casos_internos,
                       "microarquitetura": self.microarquitetura,
                       "testes_componentes": self.testes_componentes,
                      "testes_internos": self.testes_internos,

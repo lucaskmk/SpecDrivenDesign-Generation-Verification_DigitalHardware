@@ -402,6 +402,11 @@ def cmd_gerar(args: argparse.Namespace) -> int:
         print(f"ERRO: {texto}", file=sys.stderr)
         return 2
 
+    # no `retomar`, limites nao informados vem da sessao original (abaixo)
+    herdar = {nome: getattr(args, nome, None) is None
+              for nome in ("max_casos_teste", "max_casos_internos")}
+    args.max_casos_teste = 32 if args.max_casos_teste is None else args.max_casos_teste
+    args.max_casos_internos = 8 if args.max_casos_internos is None else args.max_casos_internos
     if args.max_casos_teste < 1:
         return erro("--max-casos-teste deve ser maior que zero")
     if args.max_casos_internos < 1:
@@ -438,6 +443,9 @@ def cmd_gerar(args: argparse.Namespace) -> int:
         args.gates_componentes = bool(inicio_sessao.get("gates_componentes"))
         args.exemplo = inicio_sessao.get("exemplo")
         args.forcar = True
+        for nome, herdado in herdar.items():
+            if herdado and isinstance(inicio_sessao.get(nome), int):
+                setattr(args, nome, inicio_sessao[nome])
     if args.regressoes_componentes and not args.testes_componentes:
         return erro("--regressoes-componentes exige --testes-componentes.")
     if args.gates_componentes and not args.testes_componentes:
@@ -706,10 +714,12 @@ def main(argv: list[str] | None = None) -> int:
                    help="para quando entrada+saida desta execucao somarem N tokens")
     r.add_argument("--testes-internos", action="store_true",
                    help="executa camada interna para blocos com dependencias")
-    r.add_argument("--max-casos-teste", type=int, default=32,
-                    help="maximo de casos Cocotb incrementais por componente (padrao: 32)")
-    r.add_argument("--max-casos-internos", type=int, default=8,
-                   help="maximo de diagnósticos Cocotb internos por componente (padrao: 8)")
+    r.add_argument("--max-casos-teste", type=int, default=None,
+                   help="maximo de casos Cocotb incrementais por componente "
+                        "(padrao: o da sessao original, ou 32)")
+    r.add_argument("--max-casos-internos", type=int, default=None,
+                   help="maximo de diagnosticos Cocotb internos por componente "
+                        "(padrao: o da sessao original, ou 8)")
     r.add_argument("--parallel-testes", type=int, default=1,
                    help="candidatos incrementais independentes por lote (padrao: 1)")
     r.add_argument("--executor", choices=["auto", "local", "docker"], default=None)
