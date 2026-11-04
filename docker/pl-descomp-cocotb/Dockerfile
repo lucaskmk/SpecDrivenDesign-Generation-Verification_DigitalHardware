@@ -3,7 +3,7 @@
 # cocotb 2.0.0), no mesmo digest em que docker/spechdl-toolchain/ a pina.
 # Publicada como gabrielgalazzi/imagens_projeto_descomp:cocotb-latest para que
 # a base continue disponível mesmo se a original sumir ou mudar de digest
-# (princípio 6 — reprodutibilidade). Ver docker/README.md e ADR-017.
+# (princípio 6 — reprodutibilidade). Ver docker/README.md.
 #
 # Só FROM, de propósito: o build devolve a própria imagem base, com o mesmo
 # ID. Qualquer coisa acrescentada aqui deixaria de ser um espelho.

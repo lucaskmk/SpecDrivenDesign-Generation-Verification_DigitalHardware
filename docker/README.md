@@ -9,6 +9,7 @@ mesmo nome e corresponde a uma tag publicada no Docker Hub, em
 | [`pl-descomp-cocotb/`](pl-descomp-cocotb/Dockerfile) | `pl-descomp-cocotb` | `cocotb-latest` | Espelho, sem modificação, da imagem de referência da disciplina (GHDL + cocotb). É a base da `spechdl-toolchain`. |
 | [`spechdl-toolchain/`](spechdl-toolchain/Dockerfile) | `spechdl-toolchain` | `spechdl-latest` | Oráculo opcional do montador (NFR-RV-05): a base acima + binutils RISC-V + Yosys. Sem ela, `rvverify` roda igual. |
 | [`quartus-lite/`](quartus-lite/Dockerfile) | `quartus-lite:25.1` | `25.1` | Quartus Prime Lite para análise de FPGA, separada das outras imagens. |
+| [`veredito/`](veredito/README.md) | `rvgen-veredito` | (não publicada) | Veredito reprodutível do `rvgen`: imagem das aulas fixa por digest + `gcc`/`binutils` RISC-V com versão fixa + riscv-tests fixo no commit `3df703c`; o repositório entra montado em `/repo`. Uso em [`veredito/README.md`](veredito/README.md). |
 
 Digests publicados (conferidos no Docker Hub em 2026-09-28; mudam a cada
 `push` novo):
@@ -27,6 +28,7 @@ Da raiz do repositório, sempre `docker build -t <imagem local> docker/<pasta>`:
 docker build -t pl-descomp-cocotb docker/pl-descomp-cocotb
 docker build -t spechdl-toolchain docker/spechdl-toolchain
 docker build -t quartus-lite:25.1 docker/quartus-lite
+docker build -t rvgen-veredito docker/veredito
 ```
 
 A do Quartus só builda com o instalador baixado à mão em
