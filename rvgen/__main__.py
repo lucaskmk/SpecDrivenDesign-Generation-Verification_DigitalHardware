@@ -410,6 +410,10 @@ def cmd_gerar(args: argparse.Namespace) -> int:
         return erro("--parallel-testes deve ser maior que zero")
     if args.tentativas_revisao_semantica < 1:
         return erro("--tentativas-revisao-semantica deve ser maior que zero")
+    for flag, valor in (("--max-chamadas", getattr(args, "max_chamadas", None)),
+                        ("--max-tokens", getattr(args, "max_tokens", None))):
+        if valor is not None and valor < 1:
+            return erro(f"{flag} deve ser maior que zero")
 
     try:
         cfg = ler_config()
@@ -498,11 +502,22 @@ def cmd_gerar(args: argparse.Namespace) -> int:
 
     rel_pasta = pasta.relative_to(REPO_ROOT).as_posix()
     acao = "retomar" if sessao_existente else "gerar"
-    print(f"rvgen {acao} -> {rel_pasta}  ({cpu['microarquitetura']}, {cpu['isa']}, de specs/cpu.md)")
+    origem_cpu = (f"{ct.descrever_pasta_specs()}/cpu.md" if ct.pasta_specs_alterada()
+                  else "specs/cpu.md")
+    print(f"rvgen {acao} -> {rel_pasta}  ({cpu['microarquitetura']}, {cpu['isa']}, de {origem_cpu})")
+    if ct.pasta_specs_alterada():
+        print(f"  specs   : {ct.descrever_pasta_specs()}  ({ct.VAR_SPECS})")
     print(f"  modelo  : {onde}")
     print(f"  executor: {executor.nome}; ate {args.iteracoes} iteracoes de correcao"
           + (f"; exemplo: {args.exemplo}" if args.exemplo else ""))
     print(f"  revisao : ate {args.tentativas_revisao_semantica} tentativas semanticas por componente")
+    max_chamadas = getattr(args, "max_chamadas", None)
+    max_tokens = getattr(args, "max_tokens", None)
+    if max_chamadas or max_tokens:
+        tetos = [f"{max_chamadas} chamadas" if max_chamadas else "",
+                 f"{max_tokens} tokens" if max_tokens else ""]
+        print(f"  teto    : para depois de {' ou '.join(t for t in tetos if t)}"
+              " (a sessao fica no disco e pode ser retomada)")
     if args.testes_componentes:
         print(f"  expansao: ate {args.max_casos_teste} casos incrementais por componente")
         if args.parallel_testes > 1:
@@ -546,6 +561,7 @@ def cmd_gerar(args: argparse.Namespace) -> int:
                       regressoes_componentes=args.regressoes_componentes,
                        gates_componentes=args.gates_componentes,
                        sessao_existente=sessao_existente,
+                       max_chamadas=max_chamadas, max_tokens=max_tokens,
                        relatar=relator.linha)
     try:
         r = agente.retomar() if sessao_existente else agente.gerar()
@@ -615,7 +631,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--perfil", choices=["auto", *ol.PERFIS], default=None,
                    help="perfil de modelo local (padrao: auto)")
     p.add_argument("--executor", choices=["auto", "local", "docker"], default=None,
-                    help="onde rodar o spec-riscv-test (padrao: auto)")
+                    help="onde rodar o spec-riscv-test (padrao: auto). O veredito exige "
+                         "'local' (Linux/WSL2)")
     p.add_argument("--sem-cor", action="store_true", help="saida sem cor ANSI")
     p.set_defaults(func=cmd_preparar)
 
@@ -633,6 +650,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="maximo de correcoes antes do veredito (padrao: 12)")
     g.add_argument("--tentativas-revisao-semantica", type=int, default=3,
                    help="maximo de revisoes semanticas por componente (padrao: 3)")
+    g.add_argument("--max-chamadas", type=int, default=None, metavar="N",
+                   help="para depois de N chamadas ao modelo (padrao: sem teto); a sessao "
+                        "fica no disco e pode ser retomada com `rvgen retomar`")
+    g.add_argument("--max-tokens", type=int, default=None, metavar="N",
+                   help="para quando entrada+saida somarem N tokens (padrao: sem teto); "
+                        "pode passar do teto por uma chamada")
     g.add_argument("--max-casos-teste", type=int, default=32,
                     help="maximo de casos Cocotb incrementais por componente (padrao: 32)")
     g.add_argument("--max-casos-internos", type=int, default=8,
@@ -650,7 +673,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="gera, compila e testa cada bloco antes do proximo "
                         "(exige --testes-componentes)")
     g.add_argument("--executor", choices=["auto", "local", "docker"], default=None,
-                    help="onde rodar o spec-riscv-test (padrao: auto)")
+                    help="onde rodar o spec-riscv-test (padrao: auto). O veredito exige "
+                         "'local' (Linux/WSL2); 'docker' so roda testes de componente")
     g.add_argument("--exemplo", metavar="DIR",
                    help="CPU de referencia cujo src/*.vhd entra no prompt "
                         "(ex.: cpus/rv32i_monociclo); fica registrado na sessao")
@@ -676,6 +700,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="maximo de correcoes restantes (padrao: 12)")
     r.add_argument("--tentativas-revisao-semantica", type=int, default=3,
                    help="maximo de revisoes semanticas por componente (padrao: 3)")
+    r.add_argument("--max-chamadas", type=int, default=None, metavar="N",
+                   help="para depois de N chamadas desta execucao (padrao: sem teto)")
+    r.add_argument("--max-tokens", type=int, default=None, metavar="N",
+                   help="para quando entrada+saida desta execucao somarem N tokens")
     r.add_argument("--testes-internos", action="store_true",
                    help="executa camada interna para blocos com dependencias")
     r.add_argument("--max-casos-teste", type=int, default=32,

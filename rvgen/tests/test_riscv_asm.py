@@ -5,11 +5,25 @@ from __future__ import annotations
 
 import unittest
 
-from rvgen.riscv_asm import (ErroAssemblyRV32I, assemble_rv32i, assemble_rv32im,
+from rvgen.riscv_asm import (ErroAssemblyRV32I, _ferramenta, assemble_rv32i, assemble_rv32im,
                              validar_assembly_rv32i, validar_assembly_rv32im)
 
 
+def _binutils_ausente() -> bool:
+    try:
+        _ferramenta("as"), _ferramenta("objcopy")
+    except ErroAssemblyRV32I:
+        return True
+    return False
+
+
+# montar de verdade exige o GNU assembler RISC-V; a validacao do texto nao
+SEM_BINUTILS = unittest.skipIf(_binutils_ausente(),
+                               "binutils RISC-V ausente (riscv64-unknown-elf-as/objcopy)")
+
+
 class TestAssemblyRV32I(unittest.TestCase):
+    @SEM_BINUTILS
     def test_monta_instrucoes_e_resolve_label(self):
         programa = assemble_rv32i("""
             lui x1, 1
@@ -42,6 +56,7 @@ class TestAssemblyRV32I(unittest.TestCase):
         validar_assembly_rv32i("jal x1, alvo\nalvo: jal x0, alvo",
                                exigir_labels_controle=True)
 
+    @SEM_BINUTILS
     def test_rv32im_adiciona_mas_nao_altera_perfil_rv32i(self):
         with self.assertRaisesRegex(ErroAssemblyRV32I, "RV32I permitida"):
             validar_assembly_rv32i("mul x1, x2, x3")

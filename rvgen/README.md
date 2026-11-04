@@ -16,6 +16,13 @@ Também são aceitos `RV32IM`, `multicycle` e `pipeline`; use somente uma ISA e
 uma microarquitetura. O top-level é sempre `cpu`, pois essa é a interface
 esperada pelo validador.
 
+Para gerar com outra versão das specs (por exemplo uma iteração do app
+[`python -m iteracoes`](../iteracoes/README.md)), defina `RVGEN_SPECS_DIR`
+com a pasta, absoluta ou relativa à raiz:
+`RVGEN_SPECS_DIR=iteracoes/it-002/specs python -m rvgen gerar it002_teste`.
+O `rvgen gerar` mostra a pasta (`specs   : ...`) e a registra no evento
+`inicio` da sessão.
+
 ## Gerar
 
 ```bash

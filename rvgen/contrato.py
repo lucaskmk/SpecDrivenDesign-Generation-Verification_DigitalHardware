@@ -20,6 +20,8 @@ import os
 import re
 from pathlib import Path, PurePosixPath
 
+from rvverify.memmap import RAM_BASE, RAM_BYTES
+
 from .config import REPO_ROOT
 
 __all__ = [
@@ -29,6 +31,10 @@ __all__ = [
     "FORNECIDOS",
     "FORNECIDOS_DIR",
     "ENTIDADES_RESERVADAS",
+    "VAR_SPECS",
+    "pasta_specs",
+    "pasta_specs_alterada",
+    "descrever_pasta_specs",
     "validar_isa",
     "declaracoes_de_entidade",
     "verificar_contrato",
@@ -44,10 +50,14 @@ TOP = "cpu"
 ISAS = ("rv32i", "rv32im")
 
 FORNECIDOS_DIR = REPO_ROOT / "cpus" / "rv32i_pipeline" / "src"
-VHDL_SPEC = REPO_ROOT / "specs" / "vhdl.md"
-CPU_SPEC = REPO_ROOT / "specs" / "cpu.md"
-RV32I_SPEC = REPO_ROOT / "specs" / "riscv-rv32i.md"
-TESTES_SPEC = REPO_ROOT / "specs" / "testes.md"
+# Caminhos padrao (specs/ da raiz). O que o rvgen le de fato vem de
+# pasta_specs(), que respeita RVGEN_SPECS_DIR.
+SPECS_DIR = REPO_ROOT / "specs"
+VHDL_SPEC = SPECS_DIR / "vhdl.md"
+CPU_SPEC = SPECS_DIR / "cpu.md"
+RV32I_SPEC = SPECS_DIR / "riscv-rv32i.md"
+TESTES_SPEC = SPECS_DIR / "testes.md"
+VAR_SPECS = "RVGEN_SPECS_DIR"
 _ISA_CPU_RE = re.compile(r"\bRV32I(?:M)?\b", re.IGNORECASE)
 _MICROARQUITETURAS_CPU_RE = {
     "monociclo": re.compile(r"\bsingle[- ]cycle\b", re.IGNORECASE),
@@ -84,8 +94,47 @@ def validar_isa(isa: str) -> None:
         )
 
 
-def ler_configuracao_cpu(caminho: Path = CPU_SPEC) -> dict:
-    """Infere ISA e microarquitetura do texto em ``specs/cpu.md``."""
+def pasta_specs() -> Path:
+    """A pasta dos .md que o rvgen le, resolvida a cada chamada.
+
+    ``RVGEN_SPECS_DIR`` (absoluta ou relativa a raiz do repositorio) troca
+    ``specs/`` por outra pasta, por exemplo uma iteracao em
+    ``iteracoes/it-002/specs``. Sem a variavel, vale ``specs/``.
+    """
+    valor = os.environ.get(VAR_SPECS, "").strip()
+    if not valor:
+        return SPECS_DIR
+    pasta = Path(valor)
+    if not pasta.is_absolute():
+        pasta = REPO_ROOT / pasta
+    return pasta.resolve()
+
+
+def pasta_specs_alterada() -> bool:
+    """True quando ``RVGEN_SPECS_DIR`` esta definida (nao vazia)."""
+    return bool(os.environ.get(VAR_SPECS, "").strip())
+
+
+def descrever_pasta_specs() -> str:
+    """``pasta_specs()`` relativa a raiz (POSIX) quando estiver dentro dela."""
+    pasta = pasta_specs()
+    try:
+        return pasta.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(pasta)
+
+
+def _arquivo_spec(nome: str, pasta: Path | None) -> Path:
+    return Path(pasta if pasta is not None else pasta_specs()) / nome
+
+
+def ler_configuracao_cpu(caminho: Path | None = None, *, pasta: Path | None = None) -> dict:
+    """Infere ISA e microarquitetura do texto em ``specs/cpu.md``.
+
+    Sem ``caminho``, le o ``cpu.md`` de ``pasta`` (ou de ``pasta_specs()``).
+    """
+    if caminho is None:
+        caminho = _arquivo_spec("cpu.md", pasta)
     try:
         texto = caminho.read_text(encoding="utf-8")
     except OSError as e:
@@ -155,33 +204,37 @@ def instrucoes_da_isa(isa: str) -> tuple[str, ...]:
     return tuple(_RV32I.split()) + (tuple(_RV32M.split()) if isa == "rv32im" else ())
 
 
-def texto_do_contrato(microarquitetura: str, isa: str) -> str:
-    """O prompt de sistema: o contrato inteiro, em ingles."""
+def texto_do_contrato(microarquitetura: str, isa: str, pasta: Path | None = None) -> str:
+    """O prompt de sistema: o contrato inteiro, em ingles.
+
+    Le cpu.md, vhdl.md e riscv-rv32i.md de ``pasta`` (ou de ``pasta_specs()``).
+    """
+    vhdl_spec = _arquivo_spec("vhdl.md", pasta)
+    rv32i_spec = _arquivo_spec("riscv-rv32i.md", pasta)
+    cpu_spec_arq = _arquivo_spec("cpu.md", pasta)
     if isa == "rv32im":
         extensao = (
-            f"RV32M ({_RV32M}) when the generic RV32M_ENABLE is true: decode "
-            f"opcode 0110011 with funct7 = 0000001 into ALU_OP_TYPE_MUL .. "
-            f"ALU_OP_TYPE_REMU. Implement these operations in generated VHDL, "
+            f"RV32M ({_RV32M}) is required: decode opcode 0110011 with "
+            f"funct7 = 0000001. Implement these operations in generated VHDL, "
             f"including RISC-V division-by-zero and signed-overflow semantics. "
-            f"When RV32M_ENABLE is false the M instructions need not execute. "
-            f"The test bench runs the same CPU twice: first with RV32M_ENABLE "
-            f"= false, then true."
+            f"The entity `cpu` has no generics: the ISA is fixed by "
+            f"specs/cpu.md, so the CPU always implements the M instructions."
         )
     else:
-        extensao = ("RV32M is NOT required: keep the generic RV32M_ENABLE "
-                     "declared, but you may ignore M instructions.")
+        extensao = ("RV32M is NOT required, and the entity `cpu` has no "
+                     "generics: do not add one.")
     try:
-        regras_vhdl = VHDL_SPEC.read_text(encoding="utf-8").strip()
+        regras_vhdl = vhdl_spec.read_text(encoding="utf-8").strip()
     except OSError as e:
-        raise ErroContrato(f"nao foi possivel ler a especificacao VHDL {VHDL_SPEC}: {e}") from e
+        raise ErroContrato(f"nao foi possivel ler a especificacao VHDL {vhdl_spec}: {e}") from e
     try:
-        referencia_rv32i = RV32I_SPEC.read_text(encoding="utf-8").strip()
+        referencia_rv32i = rv32i_spec.read_text(encoding="utf-8").strip()
     except OSError as e:
-        raise ErroContrato(f"nao foi possivel ler a referencia RV32I {RV32I_SPEC}: {e}") from e
+        raise ErroContrato(f"nao foi possivel ler a referencia RV32I {rv32i_spec}: {e}") from e
     try:
-        cpu_spec = CPU_SPEC.read_text(encoding="utf-8").strip()
+        cpu_spec = cpu_spec_arq.read_text(encoding="utf-8").strip()
     except OSError as e:
-        raise ErroContrato(f"nao foi possivel ler a especificacao da CPU {CPU_SPEC}: {e}") from e
+        raise ErroContrato(f"nao foi possivel ler a especificacao da CPU {cpu_spec_arq}: {e}") from e
     valores = {
         "{{PROVIDED_FILES}}": ", ".join(FORNECIDOS),
         "{{TOP}}": TOP,
@@ -213,12 +266,13 @@ You MUST follow this specification.
 """
 
 
-def texto_de_testes() -> str:
+def texto_de_testes(pasta: Path | None = None) -> str:
     """Regras versionadas para as chamadas que escrevem Cocotb, somente."""
+    testes_spec = _arquivo_spec("testes.md", pasta)
     try:
-        return TESTES_SPEC.read_text(encoding="utf-8").strip()
+        return testes_spec.read_text(encoding="utf-8").strip()
     except OSError as e:
-        raise ErroContrato(f"nao foi possivel ler as regras de teste {TESTES_SPEC}: {e}") from e
+        raise ErroContrato(f"nao foi possivel ler as regras de teste {testes_spec}: {e}") from e
 
 
 _PORTAS_CPU = ("clk", "rst", "instr_addr", "instr_data", "data_addr", "data_write",
@@ -319,8 +373,8 @@ def renderizar_cpu_toml(nome: str, pasta: Path, isa: str,
         "size_words   = 1024",
         "",
         "[memory]",
-        "ram_base  = 0x00FC8100",
-        "ram_bytes = 512",
+        f"ram_base  = {RAM_BASE:#010x}",
+        f"ram_bytes = {RAM_BYTES}",
         "",
         "[observe]",
         'ram       = "virtual"',

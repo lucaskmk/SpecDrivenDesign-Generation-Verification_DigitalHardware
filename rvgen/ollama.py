@@ -320,7 +320,7 @@ def perfil_para_vram(vram: float | None) -> Perfil:
 
 def resolver_modelo(explicito: str | None, perfil: str | None,
                     configurado: str | None,
-                    medir_vram: Callable[[], float | None] = vram_gb) -> tuple[str, str]:
+                    medir_vram: Callable[[], float | None] | None = None) -> tuple[str, str]:
     """(modelo, de onde veio a escolha) -- a origem sempre aparece na tela."""
     if explicito:
         return explicito, "--modelo"
@@ -331,7 +331,9 @@ def resolver_modelo(explicito: str | None, perfil: str | None,
         return PERFIS[perfil].modelo, f"perfil {perfil}"
     if configurado:
         return configurado, "RVGEN_MODELO"
-    vram = medir_vram()
+    # `vram_gb` e resolvida aqui, e nao como valor padrao do parametro, para que
+    # um teste (ou um chamador) possa substitui-la no modulo.
+    vram = (medir_vram or vram_gb)()
     p = perfil_para_vram(vram)
     medida = f"GPU de {vram} GB" if vram is not None else "sem GPU NVIDIA detectada"
     return p.modelo, f"perfil {p.nome} escolhido pela VRAM ({medida})"
