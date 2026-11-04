@@ -1,1 +1,4 @@
-Escreva os arquivos VHDL do seu nucleo aqui, e liste-os em sources no cpu.toml.
+Escreva aqui src/cpu.vhd com a entidade `cpu` exata de specs/cpu.md (9 portas,
+sem generic, sem ROM nem RAM dentro). Outros arquivos VHDL do seu núcleo também
+ficam aqui; liste todos em sources no cpu.toml, com cpu.vhd por último.
+Exemplo aprovado: cpus/rv32i_gabarito/src/cpu.vhd.

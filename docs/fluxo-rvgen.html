@@ -112,9 +112,9 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
     <li><b>Contrato antes de código:</b> cada bloco ganha um contrato em markdown, e um revisor confere se os contratos fazem sentido juntos.</li>
     <li><b>Pilha:</b> um bloco por vez; se não passar no teste, o próximo não começa. Quem escreve o teste não vê o VHDL.</li>
     <li><b>Modelo:</b> não é mais Ollama local. A chamada vai para o <b>OpenRouter</b>, modelo <code>openai/gpt-5.6-luna</code> (o que está no seu <code>.env</code>). Cada chamada é isolada, sem histórico.</li>
-    <li><b>Certificação:</b> pelas specs, o <code>rvverify</code> é a única autoridade do veredito. <b>Mas o código do <code>rvgen</code> hoje não chama o <code>rvverify</code></b>: julga com o <code>spec-riscv-test</code> (programas oficiais <code>riscv-tests</code>). Ver <a href="#certificacao">seção 6</a>.</li>
+    <li><b>Certificação:</b> o juiz do <code>rvgen</code> é o <code>spec-riscv-test</code> (programas oficiais <code>riscv-tests</code>). Desde 29/10 as specs dizem isso também; o <code>rvverify</code> valida entregas por <code>cpu.toml</code>. Ver <a href="#certificacao">seção 6</a>.</li>
   </ul>
-  Três pontos precisam de decisão; estão na <a href="#certificacao">seção 6</a> e na <a href="#duvidas">última seção</a>.
+  O que ainda depende do professor está na <a href="#duvidas">última seção</a>. O que foi corrigido em 29/10 está em <code>docs/projeto-completo.html</code>, seção 7.
 </div>
 
 <div class="legend">
@@ -144,8 +144,8 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <td>O último bloco da pilha é o próprio <code>cpu</code> (topo), que depende de todos; ele tem seu testbench de IA, com programas RV32I montados pelo GNU assembler (<code>riscv_asm.py</code>: a IA descreve o assembly, nunca calcula os bits). Depois entra a suíte oficial.</td></tr>
 <tr><td>Problema → volta ao componente, a IA ajusta e testa a CPU de novo</td><td><span class="st ok">existe</span></td>
   <td><code>_corrigir</code>: localiza <b>um</b> arquivo, reescreve, roda as provas do componente e mede de novo; se o placar piorou, desfaz. Ver <a href="#integrada">CPU integrada</a>.</td></tr>
-<tr><td>Teste do RISC-V certificado real</td><td><span class="st di">diverge</span></td>
-  <td>Specs: o <code>rvverify</code> certifica. Código: o <code>rvgen</code> roda o <code>spec-riscv-test</code> (programas oficiais <code>riscv-tests</code>, 40 no RV32I) e nunca chama o <code>rvverify</code>. Ver <a href="#certificacao">Certificação</a>.</td></tr>
+<tr><td>Teste do RISC-V certificado real</td><td><span class="st ok">existe</span></td>
+  <td>O <code>rvgen</code> roda o <code>spec-riscv-test</code> (programas oficiais <code>riscv-tests</code>, 40 no RV32I). As specs foram alinhadas a isso em 29/10. Ver <a href="#certificacao">Certificação</a>.</td></tr>
 <tr><td>Por enquanto só RV32I; IM depois</td><td><span class="st ok">existe</span></td>
   <td><code>specs/cpu.md</code> está com “RV32I single cycle”. O código já aceita <code>RV32IM</code>. Ver <a href="#im">RV32I → IM</a>.</td></tr>
 </table>
@@ -175,7 +175,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
   <foreignObject x="190" y="374" width="340" height="70"><div class="n ai sub" xmlns="http://www.w3.org/1999/xhtml"><b>3 · Pilha de componentes</b><small>cada bloco: VHDL (IA) + testbench (IA) → GHDL/cocotb → congela. Falhou? o próximo não começa. <i>Diagrama 2</i></small></div></foreignObject>
   <path class="ar" d="M360 444V474" marker-end="url(#m)"/>
 
-  <foreignObject x="190" y="474" width="340" height="62"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>4 · CPU integrada</b><small>código hoje: spec-riscv-test (riscv-tests). Pelas specs: rvverify</small></div></foreignObject>
+  <foreignObject x="190" y="474" width="340" height="62"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>4 · CPU integrada</b><small>spec-riscv-test roda os programas oficiais riscv-tests. Sem IA</small></div></foreignObject>
   <path class="ar" d="M360 536V566" marker-end="url(#m)"/>
 
   <foreignObject x="190" y="566" width="340" height="56"><div class="n dec" xmlns="http://www.w3.org/1999/xhtml"><b>Passou tudo?</b></div></foreignObject>
@@ -187,11 +187,11 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 
   <path class="ar" d="M360 622V652" marker-end="url(#m)"/>
   <text class="lb" x="368" y="643">sim</text>
-  <foreignObject x="190" y="652" width="340" height="60"><div class="n ok" xmlns="http://www.w3.org/1999/xhtml"><b>5 · Veredito</b><small>suíte completa, sem filtro. Quem certifica: ver seção 6</small></div></foreignObject>
+  <foreignObject x="190" y="652" width="340" height="60"><div class="n ok" xmlns="http://www.w3.org/1999/xhtml"><b>5 · Veredito</b><small>spec-riscv-test, suíte completa, sem filtro. Sem IA</small></div></foreignObject>
   <path class="ar" d="M360 712V742" marker-end="url(#m)" stroke-dasharray="5 4"/>
   <foreignObject x="190" y="742" width="340" height="56"><div class="n tool dash" xmlns="http://www.w3.org/1999/xhtml"><b>Opcional · Quartus</b><small>Fmax, área, potência na FPGA. Não muda o veredito</small></div></foreignObject>
 </svg>
-<figcaption>Diagrama 1 — fluxo ponta a ponta. Fonte: <code>Agente.gerar()</code>, <code>agente.py:5377</code>.</figcaption>
+<figcaption>Diagrama 1 — fluxo ponta a ponta. Caixas roxas: a IA escreve algo. Amarelas: decisões (o revisor de contratos é uma IA; “Passou tudo?” é o resultado do juiz). Azuis e verdes: ferramenta sem IA (GHDL, cocotb, <code>spec-riscv-test</code>), que é quem dá o veredito. O <code>rvverify</code> não aparece porque não entra neste fluxo. Fonte: <code>Agente.gerar()</code>, <code>agente.py</code>.</figcaption>
 </figure>
 
 <h2 id="pilha">3 · A pilha, componente por componente</h2>
@@ -266,7 +266,7 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 </figure>
 
 <h2 id="integrada">5 · CPU integrada, correção e veredito</h2>
-<p>Quando a pilha termina, o <code>cpu</code> já passou no próprio testbench de IA. Agora entra o juiz externo. Aqui <b>nenhuma IA decide se passou</b>; a IA só ajuda a achar e corrigir o erro. O juiz que o código roda neste laço é o <code>spec-riscv-test</code>; a certificação pelas specs é o <code>rvverify</code> (<a href="#certificacao">seção 6</a>).</p>
+<p>Quando a pilha termina, o <code>cpu</code> já passou no próprio testbench de IA. Agora entra o juiz externo. Aqui <b>nenhuma IA decide se passou</b>; a IA só ajuda a achar e corrigir o erro. O juiz deste laço e do veredito é o <code>spec-riscv-test</code> (<a href="#certificacao">seção 6</a>).</p>
 <figure>
 <svg viewBox="0 0 720 690" role="img" aria-label="Laço de correção da CPU integrada">
   <defs><marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arh"/></marker></defs>
@@ -300,15 +300,15 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 <p>No código atual, o veredito final (<code>Agente.gerar</code>, fim) roda a suíte completa <b>sem filtro de casos</b> e confere, antes, que nenhum arquivo do validador mudou durante a geração (<code>arquivos_protegidos</code> + <code>hash_de</code>). Se mudou, o veredito é recusado: a IA não pode alterar o juiz.</p>
 
 <h2 id="certificacao">6 · Certificação: rvverify × spec-riscv-test</h2>
-<p>O repositório tem <b>dois validadores</b> e as specs e o código não concordam sobre qual é o final.</p>
+<p>O repositório tem <b>dois validadores</b>. Até 29/10 as specs diziam um e o código usava o outro; agora estão alinhados.</p>
 <div class="cols">
-  <div class="card">
-    <h3>O que as specs dizem: <code>rvverify</code></h3>
-    <p><code>specs/constitution.md</code>: “<code>rvverify</code> é a única autoridade do veredito da CPU integrada”. <code>specs/plan.md</code> e o passo 8 de <code>specs/spec.md</code> também. É o que você disse.</p>
+  <div class="card act">
+    <h3>Juiz do <code>rvgen</code>: <code>spec-riscv-test</code></h3>
+    <p><code>rvgen/executor.py</code>: “o veredito vem sempre do spec-riscv-test real”. Desde 29/10 <code>specs/constitution.md</code>, <code>plan.md</code>, <code>spec.md</code> (passo 8) e <code>testes.md</code> dizem o mesmo. Veio do commit <code>bd302b6</code> do Corsi; falta ele confirmar.</p>
   </div>
   <div class="card">
-    <h3>O que o código faz: <code>spec-riscv-test</code></h3>
-    <p><code>rvgen/executor.py</code>: “o veredito vem sempre do spec-riscv-test real”. O <code>rvgen</code> nunca importa nem chama o <code>rvverify</code> (só o menciona em comentários).</p>
+    <h3>Validador de entregas: <code>rvverify</code></h3>
+    <p>Roda à mão sobre um <code>cpu.toml</code>. Corrigido para o barramento virtual e testado com <code>cpus/rv32i_gabarito</code>: 24/24 casos RV32I.</p>
   </div>
 </div>
 <div class="tblwrap">
@@ -323,17 +323,60 @@ footer{margin-top:60px;color:var(--muted);font-size:.85rem;border-top:1px solid 
 <tr><td><b>Métricas</b></td><td>ciclos, CPI e área só se observados; senão “não observável”</td><td>não mede</td></tr>
 </table>
 </div>
+<h3>As três camadas de teste</h3>
+<p>Só a primeira usa IA. As outras duas rodam sempre os mesmos programas, fixos, e comparam com um resultado que não vem de IA.</p>
+<figure>
+<svg viewBox="0 0 720 520" role="img" aria-label="As três camadas de teste: testes de bloco com IA, spec-riscv-test e rvverify">
+  <defs><marker id="m6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arh"/></marker></defs>
+
+  <rect x="6" y="6" width="708" height="172" rx="12" style="fill:none;stroke:var(--ai);stroke-width:1.5"/>
+  <text class="lb" x="18" y="28" style="fill:var(--ai)">1 · TESTES DE BLOCO — dentro do rvgen, COM IA</text>
+  <foreignObject x="16" y="40" width="200" height="54"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>IA escreve o VHDL</b><small>de um bloco (ALU, registradores...)</small></div></foreignObject>
+  <foreignObject x="16" y="104" width="200" height="60"><div class="n ai" xmlns="http://www.w3.org/1999/xhtml"><b>Outra chamada escreve o teste</b><small>sem ver o VHDL, só o contrato</small></div></foreignObject>
+  <path class="ar" d="M216 67H238V96H258" marker-end="url(#m6)"/>
+  <path class="ar" d="M216 134H238V110H258" marker-end="url(#m6)"/>
+  <foreignObject x="258" y="74" width="180" height="58"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>GHDL + cocotb</b><small>rodam o teste do bloco</small></div></foreignObject>
+  <path class="ar" d="M438 103H490" marker-end="url(#m6)"/>
+  <text class="lb" x="443" y="122">falhou</text>
+  <foreignObject x="490" y="62" width="214" height="82"><div class="n dec" xmlns="http://www.w3.org/1999/xhtml"><b>IA de triagem decide quem errou</b><small>o VHDL, o teste ou o contrato. Corrige e roda de novo</small></div></foreignObject>
+  <text class="lb" x="470" y="162">resultado: diagnóstico, não veredito</text>
+
+  <path class="ar" d="M348 132V214" marker-end="url(#m6)"/>
+  <text class="lb" x="356" y="200">blocos aprovados → CPU montada</text>
+
+  <rect x="6" y="214" width="708" height="152" rx="12" style="fill:none;stroke:var(--tool);stroke-width:1.5"/>
+  <text class="lb" x="18" y="236" style="fill:var(--tool)">2 · spec-riscv-test (Corsi) — juiz do rvgen, SEM IA</text>
+  <foreignObject x="16" y="250" width="200" height="74"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>40 programas oficiais</b><small><code>riscv-tests</code>, fixos, da comunidade RISC-V (48 com M)</small></div></foreignObject>
+  <path class="ar" d="M216 287H258" marker-end="url(#m6)"/>
+  <foreignObject x="258" y="258" width="180" height="58"><div class="n tool" xmlns="http://www.w3.org/1999/xhtml"><b>GHDL + cocotb</b><small>rodam a CPU inteira</small></div></foreignObject>
+  <path class="ar" d="M438 287H478" marker-end="url(#m6)"/>
+  <foreignObject x="478" y="250" width="226" height="74"><div class="n ok" xmlns="http://www.w3.org/1999/xhtml"><b>VEREDITO</b><small>cada programa escreve 1 em <code>tohost</code> se passou</small></div></foreignObject>
+  <path class="ar" d="M698 250V146" marker-end="url(#m6)" stroke-dasharray="5 4"/>
+  <text class="lb" x="556" y="194">reprovou → IA corrige</text>
+  <text class="lb" x="556" y="207">1 arquivo e repete</text>
+  <text class="lb" x="18" y="352">Precisa de compilador RISC-V e do clone do riscv-tests; só Linux/WSL2.</text>
+
+  <rect x="6" y="392" width="708" height="122" rx="12" style="fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:6 5"/>
+  <text class="lb" x="18" y="414">3 · rvverify (LKenji, Gabriel) — FORA do rvgen, SEM IA, opcional</text>
+  <foreignObject x="16" y="426" width="200" height="76"><div class="n tool dash" xmlns="http://www.w3.org/1999/xhtml"><b>CPU de aluno</b><small>em <code>entregas/</code>, com <code>cpu.toml</code></small></div></foreignObject>
+  <path class="ar" d="M216 464H258" marker-end="url(#m6)"/>
+  <foreignObject x="258" y="426" width="180" height="76"><div class="n tool dash" xmlns="http://www.w3.org/1999/xhtml"><b>35 programas do projeto</b><small>fixos; um modelo em Python calcula o esperado</small></div></foreignObject>
+  <path class="ar" d="M438 464H478" marker-end="url(#m6)"/>
+  <foreignObject x="478" y="426" width="226" height="76"><div class="n tool dash" xmlns="http://www.w3.org/1999/xhtml"><b>Compara a RAM</b><small>aprovado ou reprovado, com diagnóstico para o aluno</small></div></foreignObject>
+</svg>
+<figcaption>Diagrama 6 — quem testa o quê. As IAs só “brigam” na camada 1. O veredito do <code>rvgen</code> é da camada 2. A camada 3 não roda durante a geração.</figcaption>
+</figure>
+
 <h3>O que isso significa para você</h3>
 <ul>
-  <li><b>O <code>rvgen</code> hoje não gera <code>cpu.toml</code>.</b> A função <code>renderizar_cpu_toml</code> existe em <code>contrato.py</code>, mas só os testes a usam. Para rodar o <code>rvverify</code> numa CPU saída do <code>rvgen</code> seria preciso escrever o manifesto à mão. Não testei se o modo <code>virtual</code> do <code>rvverify</code> casa com a interface de barramento do <code>cpu.md</code>.</li>
-  <li><b>“Certificado real” pode ser qualquer um dos dois.</b> Os programas oficiais do <code>riscv-tests</code> são o que a comunidade RISC-V usa como teste de conformidade; o <code>rvverify</code> é a suíte própria do projeto, com modelo de referência. Vale perguntar ao professor qual ele quer chamar de certificação.</li>
-  <li><b>Regra do seu <code>CLAUDE.md</code>:</b> se spec e código divergem, atualize a spec antes de mexer no código. Opções, sem eu escolher por você: <b>(A)</b> o <code>rvgen</code> passa a chamar o <code>rvverify</code> no veredito; <b>(B)</b> o <code>spec-riscv-test</code> segue como juiz do laço e o <code>rvverify</code> vira a certificação final, rodada depois; <b>(C)</b> a constituição e o plano são corrigidos para dizer <code>spec-riscv-test</code>.</li>
-  <li><b>Hoje, na prática:</b> o resultado do <code>rvgen</code> é o do <code>spec-riscv-test</code>. O <code>rvverify</code> só entra se você rodar por fora.</li>
+  <li><b>O resultado do <code>rvgen</code> é o do <code>spec-riscv-test</code>.</b> O <code>rvverify</code> só entra se você rodar por fora, com um <code>cpu.toml</code> (copie o de <code>cpus/rv32i_gabarito</code>; o <code>rvgen</code> não gera um).</li>
+  <li><b>O modo <code>virtual</code> do <code>rvverify</code> tinha dois defeitos</b>, achados rodando o gabarito: lia <code>data_addr</code> antes de a instrução assentar (os stores iam para o endereço da instrução anterior e a RAM terminava zerada, mesmo numa CPU correta) e o relatório de falha derrubava o <code>feedback</code> com <code>AttributeError</code>. Os dois foram corrigidos; <code>rvverify/tests/test_virtual.py</code> falha com o código antigo e passa com o novo.</li>
+  <li><b>“Oficial” tem um limite:</b> <code>riscv-tests</code> (organização <code>riscv-software-src</code>) são testes unitários. A suíte que se descreve como certificação é a <code>riscv-arch-test</code> (organização <code>riscv</code>), que o projeto não usa. E o <code>spec-riscv-test</code> roda os programas oficiais com um ambiente próprio, sem CSR/ECALL e relinkado em 0.</li>
 </ul>
 
 <h2 id="modelo">7 · Modelo e provedor: OpenRouter, sem Ollama</h2>
 <p>Seu <code>.env</code> tem <code>SPECHDL_LLM_MODEL=openai/gpt-5.6-luna</code> e uma chave do OpenRouter preenchida (só conferi se existe; não li o valor). Esse é o modelo externo padrão do <code>rvgen</code> (<code>config.MODELO_EXTERNO_PADRAO</code>). Presumo que “luna 6” seja esse <code>gpt-5.6-luna</code>.</p>
-<div class="note"><b>Cuidado:</b> o provedor padrão do código <b>ainda é <code>ollama</code></b>. Sem <code>--provedor openrouter</code> (ou <code>RVGEN_PROVEDOR=openrouter</code> no <code>.env</code>), o <code>rvgen</code> procura um servidor Ollama e para com erro. O comando <code>preparar</code> também é pensado para Ollama; com OpenRouter ele só informa se a chave existe.</div>
+<div class="note"><b>Desde 29/10:</b> com <code>OPENROUTER_API_KEY</code> no <code>.env</code>, o provedor padrão é o <code>openrouter</code> (antes era sempre <code>ollama</code>). <code>--provedor</code> ou <code>RVGEN_PROVEDOR</code> ainda vencem. Falhas transitórias da API (429, 5xx, conexão) são repetidas até 3 vezes, e <code>--max-chamadas</code> / <code>--max-tokens</code> param a geração com a sessão preservada.</div>
 <figure>
 <svg viewBox="0 0 720 300" role="img" aria-label="Caminho de uma chamada ao modelo">
   <defs><marker id="m5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="arh"/></marker></defs>
@@ -437,16 +480,17 @@ python -m rvgen comparar                 # várias rodadas lado a lado: veredito
   <div class="card"><h3><code>--gates-componentes</code></h3><p>A pilha de verdade: contratos globais revisados primeiro; depois VHDL → teste → congela, bloco a bloco.</p></div>
   <div class="card"><h3><code>--regressoes-componentes</code></h3><p>Falha corrigida vira teste permanente, rodado nas correções seguintes.</p></div>
   <div class="card"><h3><code>--iteracoes N</code></h3><p>Orçamento de correções (12). Também limita as correções de componente.</p></div>
-  <div class="card"><h3><code>--provedor</code> / <code>--modelo</code></h3><p>Padrão do código: <code>ollama</code>. O seu caso: <code>openrouter</code>. Também há <code>vllm</code> e <code>google</code>; chaves no <code>.env</code>.</p></div>
+  <div class="card"><h3><code>--provedor</code> / <code>--modelo</code></h3><p>Padrão: <code>openrouter</code> quando há <code>OPENROUTER_API_KEY</code>; senão <code>ollama</code>. Também há <code>vllm</code> e <code>google</code>; chaves no <code>.env</code>.</p></div>
+  <div class="card"><h3><code>--max-chamadas</code> / <code>--max-tokens</code></h3><p>Teto de gasto da execução. Ao bater, para com a sessão no disco; retome com <code>rvgen retomar</code>. O de tokens pode passar por uma chamada.</p></div>
 </div>
-<p>Certificação pelas specs, por fora do <code>rvgen</code> (exige um <code>cpu.toml</code> na pasta): <code>python -m rvverify experimentos/cpu_luna --keep --workdir relatorio</code>. Para reproduzir o fluxo descrito pelo professor, use as <b>três</b> flags de componente juntas. Verificação independente do resultado: <code>spec-riscv-test --cpu experimentos/cpu_luna --riscv-tests riscv-tests --out out</code>.</p>
+<p>Validação extra por fora do <code>rvgen</code> (exige um <code>cpu.toml</code> na pasta, como o de <code>cpus/rv32i_gabarito</code>): <code>python -m rvverify experimentos/cpu_luna --keep --workdir relatorio</code>. Para reproduzir o fluxo descrito pelo professor, use as <b>três</b> flags de componente juntas. Verificação independente do resultado: <code>spec-riscv-test --cpu experimentos/cpu_luna --riscv-tests riscv-tests --out out</code>.</p>
 
 <h2 id="im">12 · RV32I agora, IM depois</h2>
 <ul>
   <li><b>Hoje:</b> <code>specs/cpu.md</code> declara <code>RV32I single cycle</code>. O juiz roda 40 programas <code>rv32ui</code>.</li>
-  <li><b>Para ligar o M:</b> o código já aceita (<code>ISAS = ("rv32i","rv32im")</code>); o juiz passa a rodar 48 programas (40 + 8 de <code>rv32um</code>: mul, mulh, mulhsu, mulhu, div, divu, rem, remu). O prompt de IM pede o generic <code>RV32M_ENABLE</code> e que o testbench rode a CPU duas vezes (desligado e ligado).</li>
-  <li><b>Cuidado:</b> <code>cpu.md</code> exige “esta entidade exata” sem generic, enquanto o prompt de IM fala em generic. Parece inconsistente; não testei. Resolva antes de trocar a ISA. Também não há tabela de referência do M em <code>specs/</code> (só uma frase no prompt), ao contrário do RV32I.</li>
-  <li><b>Regra do seu CLAUDE.md:</b> a mudança de ISA é mudança de spec; atualize <code>specs/</code> antes de rodar.</li>
+  <li><b>Para ligar o M:</b> o código já aceita (<code>ISAS = ("rv32i","rv32im")</code>); o juiz passa a rodar 48 programas (40 + 8 de <code>rv32um</code>: mul, mulh, mulhsu, mulhu, div, divu, rem, remu). Desde 29/10 o prompt diz que a entidade <code>cpu</code> não tem generic; antes mandava declarar <code>RV32M_ENABLE</code>, o que o <code>spec-riscv-test</code> recusa (reproduzido).</li>
+  <li><b>Pendências para o IM:</b> o <code>rvverify</code> só roda a etapa RV32M quando o manifesto declara um generic, e não há tabela de referência do M em <code>specs/</code> (só uma frase no prompt), ao contrário do RV32I.</li>
+  <li><b>Regra:</b> a mudança de ISA é mudança de spec; atualize <code>specs/</code> antes de rodar.</li>
 </ul>
 
 <h2 id="duvidas">13 · A confirmar com o professor</h2>
@@ -469,12 +513,12 @@ python -m rvgen comparar                 # várias rodadas lado a lado: veredito
   </div>
   <div class="card">
     <h3>⑤ Quem certifica</h3>
-    <p>Specs: <code>rvverify</code>. Código: <code>spec-riscv-test</code>. É a divergência mais importante; ver <a href="#certificacao">seção 6</a> para as opções A, B e C.</p>
+    <p>Alinhado em 29/10 para <code>spec-riscv-test</code>, que é o que o código e os READMEs do commit dele já faziam. Confirmar com o Corsi, e perguntar se “certificado real” precisa ser o <code>riscv-arch-test</code>.</p>
   </div>
 </div>
 
 <footer>
-  Escrito lendo o código; <b>nada foi executado</b> (nem GHDL, nem Ollama, nem a suíte). Onde digo “pelo que li”, é inferência do código, não de uma rodada.
+  Escrito lendo o código; a parte de certificação foi atualizada em 29/10 com rodadas reais do <code>rvverify</code> (GHDL 2.0 e cocotb 2.0, imagem <code>rafaelcorsi/pl-descomp-cocotb</code>). O <code>rvgen</code> e a suíte oficial não rodaram. Onde digo “pelo que li”, é inferência do código.
   Versão curta para colar numa IA: <code>docs/fluxo-rvgen.md</code>.
 </footer>
 </div>

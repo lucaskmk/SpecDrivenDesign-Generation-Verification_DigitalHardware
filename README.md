@@ -36,12 +36,18 @@ e os demais artefatos de cada caso, para inspeção depois da execução.
 
 O `rvgen` escreve uma CPU com um agente de IA e a submete ao
 **`spec-riscv-test`**, que executa programas oficiais `riscv-tests` RV32I,
-corrigindo a partir do diagnóstico até o veredito. Por padrão
-usa um modelo local no Ollama, escolhido pela memória da GPU; com
-`OPENROUTER_API_KEY` no `.env`, `--provedor openrouter` usa um modelo
-externo; `GEMINI_API_KEY`, `--provedor google`, usa diretamente a Gemini API.
-Só biblioteca padrão do Python. Cada geração é um experimento em
-`experimentos/<nome>/`, separado das entregas de alunos.
+corrigindo a partir do diagnóstico até o veredito. O `spec-riscv-test` é o
+juiz do `rvgen` (`specs/constitution.md`); o `rvverify` valida entregas por
+`cpu.toml`. Com `OPENROUTER_API_KEY` no `.env`, o provedor padrão é o
+OpenRouter com o modelo de `SPECHDL_LLM_MODEL` (`openai/gpt-5.6-luna`); sem a
+chave, é um modelo local no Ollama, escolhido pela memória da GPU.
+`--provedor` escolhe outro (`ollama`, `openrouter`, `vllm`, `google`). Cada
+geração é um experimento em `experimentos/<nome>/`, separado das entregas de
+alunos.
+
+O veredito só roda em **Linux/WSL2**: `--executor docker` é recusado nessa
+etapa, porque a imagem `spechdl-toolchain` só tem binutils. No Windows, rode
+tudo de dentro do WSL2.
 
 ```bash
 python -m rvgen preparar     # confere Ollama, modelo e onde o GHDL roda; oferece instalar/baixar
@@ -49,8 +55,13 @@ python -m rvgen tipos        # monociclo, multiciclo, pipeline; rv32i ou rv32im
 python -m rvgen gerar ia_mono_qwen14b
 python -m rvgen gerar ia_mono_testada --testes-componentes
 python -m rvgen gerar ia_mono_luna --provedor openrouter --modelo openai/gpt-5.6-luna
+python -m rvgen gerar ia_mono_luna --max-chamadas 60 --max-tokens 2000000   # para com teto de gasto
 python -m rvgen comparar     # experimentos lado a lado: veredito, casos, iteracoes, tokens, custo
 ```
+
+`--max-chamadas` e `--max-tokens` param a geração com a sessão preservada
+(retome com `python -m rvgen retomar`). Falhas transitórias da API (429, 5xx,
+conexão interrompida) são repetidas até 3 vezes antes de desistir.
 
 Nada é instalado nem baixado sem confirmação (`--verificar` só confere).
 O veredito final requer GHDL, um compilador RISC-V, o ambiente
@@ -71,6 +82,16 @@ um testbench separado para o caso observado e casos similares; ele é preservado
 na sessão e executado nas correções seguintes.
 Com `--gates-componentes`, cada bloco é gerado, compilado e testado com apenas
 suas dependências já aprovadas antes de a IA receber a tarefa do próximo bloco.
+
+## Iterar nas specs
+
+`python -m iteracoes` (ou dois cliques em `abrir-iteracoes.bat`) abre um app
+local no navegador para ver, analisar, editar e comparar versões de
+`specs/*.md`. A base fica congelada em `iteracoes/base/specs/`; cada iteração é
+uma cópia em `iteracoes/it-NNN/`, com notas, diff contra a base, checagens do
+contrato, o prompt que a IA recebe e o comando pronto para gerar com aquelas
+specs (`RVGEN_SPECS_DIR=iteracoes/it-002/specs python -m rvgen gerar ...`).
+O app nunca chama a IA. Detalhes em [`iteracoes/README.md`](iteracoes/README.md).
 
 ## Inventário de instruções gerado
 
@@ -99,18 +120,22 @@ sendo validada.
 ## Estrutura curta
 
 ```text
-rvverify/                  validador, harness, modelo e suíte
 rvgen/                     gerador de CPUs por agente (IA local ou externa)
-cpus/rv32i_pipeline/       CPU de referência em pipeline
-cpus/rv32i_monociclo/      CPU de referência monociclo
+spec-riscv-test/           juiz do rvgen: programas oficiais riscv-tests
+rvverify/                  validador de entregas por cpu.toml, modelo e suíte
+cpus/rv32i_gabarito/       CPU de referência do contrato atual (barramento virtual)
+cpus/rv32i_monociclo/      CPU de referência do contrato antigo (legado)
+cpus/rv32i_pipeline/       CPU de referência do contrato antigo (legado)
 entregas/_modelo/          manifesto inicial para copiar
 entregas/<nome>/           CPU avaliada
 experimentos/<nome>/       CPU gerada por IA, com as sessoes do gerador
-specs/                     requisitos, decisões, plano e backlog
+quartus_testing/           análise no Quartus (Fmax, área, potência), opcional
+specs/                     constituição, contrato da CPU, regras de VHDL e de teste
+iteracoes/                 app de iterações das specs (base congelada + it-NNN)
 ```
 
-Os arquivos de referência em `cpus/` não são a entrega do aluno. A suíte usa
-o mesmo contrato para uma CPU modificada e para uma CPU escrita do zero.
+Os arquivos de referência em `cpus/` não são a entrega do aluno; ver
+[`cpus/README.md`](cpus/README.md).
 
 ## O que é verificado
 
@@ -125,9 +150,15 @@ o mesmo contrato para uma CPU modificada e para uma CPU escrita do zero.
 
 ## Ferramentas
 
-O ambiente de execução é Linux/WSL2 com Python 3.11+, GHDL e cocotb. Yosys é
-necessário para a etapa opcional de síntese. Sem GHDL, `rvverify` termina com
-exit code diferente de zero e não aprova por inferência.
+O ambiente de execução é Linux/WSL2 com Python 3.11+, GHDL e cocotb 2
+(`pip install -e ".[dev]"` declara as dependências Python). O veredito do
+`rvgen` também exige um compilador RISC-V (`riscv64-unknown-elf-gcc`), o
+`spec-riscv-test/.venv` e o clone `riscv-tests`. Sem GHDL, `rvverify` termina
+com exit code diferente de zero e não aprova por inferência.
+
+Os testes: `python -m pytest` na raiz. Na imagem das aulas
+(`rafaelcorsi/pl-descomp-cocotb`, com GHDL e cocotb) eles rodam inteiros; o
+mesmo comando roda no CI (`.github/workflows/tests.yml`).
 
 Leia a documentação nesta ordem:
 

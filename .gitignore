@@ -6,7 +6,7 @@ venv/
 .pytest_cache/
 *.egg-info/
 
-# Artefatos gerados pelo pipeline (ver specs/plan.md)
+# Saida antiga do pipeline da trilha A (removida); fica ignorada para nao versionar sobras locais
 outputs/
 
 # GHDL / cocotb
@@ -17,7 +17,7 @@ sim_build/
 *.cf
 results.xml
 
-# Segredos (OPENROUTER_API_KEY etc — ver specs/tasks.md, T0.4)
+# Segredos (OPENROUTER_API_KEY etc.)
 .env
 .env.*
 !.env.example
@@ -30,19 +30,19 @@ results.xml
 # Relatorios do validador
 /entregas/*/report/
 
-# Sessoes do gerador (rvgen, ADR-018): simulacao e build do GHDL sao
+# Sessoes do gerador (rvgen): simulacao e build do GHDL sao
 # descartaveis; sessao.jsonl, relatorios e resultado.json ficam versionaveis
 **/.rvgen/*/sim/
 **/.rvgen/*/build/
 
-# Instaladores Quartus baixados manualmente (ADR-015, ver
+# Instaladores Quartus baixados manualmente (ver
 # docker/quartus-lite/quartus_installers/README.md) — binarios de GB sob licenca Altera,
 # nunca versionados
 /docker/quartus-lite/quartus_installers/*.run
 /docker/quartus-lite/quartus_installers/*.qdz
 /docker/quartus-lite/quartus_installers/SHA256SUMS
 
-# Saida da analise Quartus/FPGA (RV-8, ver specs/plan.md secao 8)
+# Saida da analise Quartus/FPGA (quartus_testing/)
 /quartus_output/
 /docker/quartus-lite/quartus_smoketest/quartus_output/
 /docker/quartus-lite/quartus_smoketest/output_files/

@@ -1,7 +1,7 @@
 # Entregas — onde a CPU do aluno entra
 
 Cada entrega é **uma pasta** dentro deste diretório, com um `cpu.toml` na raiz.
-O validador descobre sozinho toda pasta que tenha um `cpu.toml` e roda a suíte
+O `rvverify` descobre sozinho toda pasta que tenha um `cpu.toml` e roda a suíte
 de conformidade em cada uma.
 
 ```
@@ -9,70 +9,64 @@ entregas/
 ├── _modelo/              ← copie esta pasta para começar
 ├── joao_silva/
 │   ├── cpu.toml
-│   └── src/*.vhd
+│   └── src/cpu.vhd (+ os blocos que você quiser)
 └── maria_souza/
     ├── cpu.toml
     └── src/*.vhd
 ```
 
+## O contrato
+
+A CPU é a entidade `cpu` de [`specs/cpu.md`](../specs/cpu.md): 9 portas
+(`clk`, `rst`, `instr_addr`, `instr_data`, `data_addr`, `data_write`,
+`data_width`, `data_write_data`, `data_read_data`), **sem generic e sem
+memória dentro**. O validador faz o papel da ROM e da RAM:
+
+- lê `instr_addr` e responde com a instrução em `instr_data`;
+- lê `data_addr` e responde com a palavra da RAM em `data_read_data`;
+- quando `data_write = '1'`, grava na borda de subida o byte, a meia palavra
+  ou a palavra indicada por `data_width`.
+
+A RAM virtual fica em `0x00FC8100` e tem 512 bytes
+([`rvverify/memmap.py`](../rvverify/memmap.py)); stores fora dela são
+ignorados e aparecem como aviso no relatório.
+
 ## Como entregar
 
 ```bash
 cp -r entregas/_modelo entregas/seu_nome
-# escreva o VHDL em entregas/seu_nome/src/ e preencha o cpu.toml
+# escreva entregas/seu_nome/src/cpu.vhd e troque o TODO do cpu.toml
 ```
+
+Comece de [`cpus/rv32i_gabarito`](../cpus/rv32i_gabarito/): uma CPU RV32I
+monociclo em um arquivo, que já passa nos 24 casos RV32I.
 
 ## Como rodar
 
 ```bash
-# valida uma entrega
-python -m rvverify entregas/seu_nome
-
-# valida todas as entregas de uma vez
-python -m rvverify entregas/
+python -m rvverify entregas/seu_nome                       # uma entrega
+python -m rvverify entregas/                               # todas
+python -m rvverify entregas/seu_nome --keep --workdir rel  # guarda os logs
 ```
 
-Sem argumento nenhum, o validador varre `entregas/` inteiro.
+Precisa de Linux/WSL2 com GHDL e cocotb 2 (`pip install -e ".[sim]"`), ou da
+imagem Docker das aulas, `rafaelcorsi/pl-descomp-cocotb`.
 
-## O que você escreve e o que já vem pronto
+## O que o veredito quer dizer hoje
 
-Esta é a divisão que importa entender antes de começar.
+- **RV32I**: 24 casos, com valores esperados vindos do modelo de referência
+  em Python (`rvverify/reference.py`).
+- **RV32M**: a etapa só roda quando o manifesto declara `rv32m_generic`. No
+  contrato atual a entidade não tem generic, então uma CPU RV32I sai como
+  `incompleto` mesmo com 24/24 na base. É um limite conhecido, a resolver
+  quando o RV32IM entrar.
+- O veredito oficial de uma CPU gerada pelo `rvgen` é do `spec-riscv-test`
+  (programas oficiais do `riscv-tests`), não deste validador.
 
-### Já vem pronto — não reescreva
+## Uma restrição do GHDL que vale lembrar
 
-| O quê | Onde | Por quê já vem pronto |
-|---|---|---|
-| ROM de instruções | `instruction_memory.vhd` | carrega o programa de um arquivo `.ram` na elaboração; o cocotb **não consegue** escrever em ROM no GHDL, então isso não é opcional |
-| RAM e ROM de dados | `data_ram.vhd`, `data_rom.vhd`, `data_memory.vhd` | já são arrays 1-D, que é o único formato que o cocotb consegue ler (ver restrição 1 abaixo) |
-| Mapa de memória | `memory_package.vhd` | instruções em `0x00000000`, DATA_ROM em `0x00FC8000`, DATA_RAM em `0x00FC8100` |
-| Multiplicador e divisor | `mul_div_unit.vhd` | as 8 instruções RV32M, já verificadas contra a especificação |
-| Montador RV32I/RV32IM | `rvverify/asm.py` | `.asm` → `.ram`; não existe compilador RISC-V neste ambiente |
-| Modelo de referência | `rvverify/reference.py` | os valores esperados de toda instrução, inclusive os casos especiais |
-| A suíte de conformidade | `rvverify/` | é o que julga a sua CPU |
-
-### Você escreve
-
-O **núcleo**: busca, decodificação, banco de registradores, ALU, controle,
-e o top-level que amarra o seu núcleo às memórias fornecidas.
-
-E o `cpu.toml`, que diz ao validador onde as coisas estão.
-
-## As três restrições que o manifesto não resolve
-
-Não são burocracia — são limites reais do GHDL descobertos por execução, e
-cada uma já causou um bug neste projeto.
-
-**1. Arrays observáveis têm de ser 1-D.** O VPI do GHDL não expõe arrays 2-D
-ao cocotb. Se o seu banco de registradores ou a sua RAM forem
-`array (0 to N, 3 downto 0) of std_logic_vector(7 downto 0)`, o validador não
-consegue ler resultado nenhum — e nenhum campo do `cpu.toml` conserta isso.
-Use `array (0 to N) of std_logic_vector(31 downto 0)`.
-
-**2. O programa entra na elaboração, não em runtime.** Escrever na ROM pelo
-cocotb é silenciosamente ignorado pelo GHDL. Por isso a `instruction_memory.vhd`
-fornecida tem o generic `ROM_INIT_FILE`, e por isso usá-la é requisito.
-
-**3. Guarda de faixa e índice de array na mesma expressão.** Se você escrever
+Mantenha a guarda de faixa e o índice de um array na mesma expressão
+condicional. Com
 
 ```vhdl
 signal in_range : boolean;
@@ -82,36 +76,7 @@ data_out <= memory(word_index) when in_range else ...;
 
 o sinal `in_range` atrasa um delta em relação a `word_index`, e um endereço
 fora de faixa indexa o array antes de a guarda alcançar:
-`ghdl:error: index (...) out of bounds`. Mantenha os dois na mesma expressão
-condicional.
-
-## Os dois caminhos
-
-**Modifico uma CPU que já existe.** Comece de
-[`cpus/rv32i_pipeline`](../cpus/rv32i_pipeline/) — pipeline de 5 estágios, RV32I
-completo, já verificada. O `cpu.toml` dela serve de referência.
-
-**Faço do zero.** Comece de
-[`cpus/rv32i_monociclo`](../cpus/rv32i_monociclo/) — monociclo, bem
-mais simples de entender, usando as mesmas memórias fornecidas.
-
-Os dois já estão no repositório e os dois passam na mesma suíte de
-conformidade. Essa é a prova de que o validador julga o comportamento da sua
-CPU, e não o formato dela.
-
-## O que o validador reporta
-
-Ele reporta o que consegue observar e diz o que não conseguiu — nunca inventa
-métrica que não mediu.
-
-| você declarou no `cpu.toml` | você recebe |
-|---|---|
-| só `[observe].ram` | correção funcional: as instruções, os casos de borda, divisão por zero |
-| `+ [observe].registers` | verificação de registradores também |
-| `+ [metrics]` | instruções, CPI, stalls, flushes, instruções RV32M |
-
-Sem `[metrics]`, o CPI sai como `null` com o motivo — e não como um número
-chutado.
+`ghdl:error: index (...) out of bounds`.
 
 ## Versionamento
 
