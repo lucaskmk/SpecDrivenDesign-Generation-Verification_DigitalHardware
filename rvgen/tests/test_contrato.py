@@ -218,7 +218,8 @@ class TestPastaDeSpecs(unittest.TestCase):
 
     def test_pasta_inexistente_vira_erro_de_contrato(self):
         os.environ[ct.VAR_SPECS] = "pasta/que/nao/existe"
-        with self.assertRaises(ct.ErroContrato):
+        with self.assertRaisesRegex(ct.ErroContrato,
+                                    r"RVGEN_SPECS_DIR='pasta/que/nao/existe'.*nao existe"):
             ct.ler_configuracao_cpu()
         with self.assertRaises(ct.ErroContrato):
             ct.texto_de_testes()

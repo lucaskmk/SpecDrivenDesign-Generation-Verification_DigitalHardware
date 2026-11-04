@@ -99,7 +99,8 @@ def pasta_specs() -> Path:
 
     ``RVGEN_SPECS_DIR`` (absoluta ou relativa a raiz do repositorio) troca
     ``specs/`` por outra pasta, por exemplo uma iteracao em
-    ``iteracoes/it-002/specs``. Sem a variavel, vale ``specs/``.
+    ``iteracoes/it-002/specs``. Sem a variavel, vale ``specs/``. Com a
+    variavel apontando para uma pasta que nao existe, levanta ErroContrato.
     """
     valor = os.environ.get(VAR_SPECS, "").strip()
     if not valor:
@@ -107,7 +108,11 @@ def pasta_specs() -> Path:
     pasta = Path(valor)
     if not pasta.is_absolute():
         pasta = REPO_ROOT / pasta
-    return pasta.resolve()
+    pasta = pasta.resolve()
+    if not pasta.is_dir():
+        raise ErroContrato(f"{VAR_SPECS}={valor!r}: a pasta {pasta} nao existe "
+                           f"(corrija ou remova a variavel para usar specs/)")
+    return pasta
 
 
 def pasta_specs_alterada() -> bool:

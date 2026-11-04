@@ -5412,7 +5412,8 @@ async def inventory_visible_hierarchy(dut):
                 continue
         pendentes = [b for b in arq["blocks"] if b["name"] not in aprovados]
         self._log({"evento": "retomada", "blocos_aprovados": sorted(aprovados),
-                   "bloco_inicial": pendentes[0]["name"] if pendentes else None})
+                   "bloco_inicial": pendentes[0]["name"] if pendentes else None,
+                   "specs": ct.descrever_pasta_specs()})
         self.relatar(f"retomando sessao: {len(aprovados)} bloco(s) aprovados; "
                       f"inicio em {pendentes[0]['name'] if pendentes else 'spec-riscv-test'}")
         usados = 0
