@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Falha de compilacao vira `BuildFailed` com as linhas do GHDL -- com GHDL real.
 
-REQ: FR-RV-28 (para erro de compilacao, as linhas de erro do GHDL com
-arquivo, linha e coluna), NFR-RV-02.
+Para erro de compilacao, o diagnostico traz as linhas de erro do GHDL com
+arquivo, linha e coluna.
 
-Regressao do defeito achado na primeira execucao real do gerador (TRV-9.8):
+Regressao do defeito achado na primeira execucao real do gerador:
 com o cocotb 2.0.0 da imagem `spechdl-toolchain`, a falha do `ghdl -m` chega
 como `subprocess.CalledProcessError`, que `build_design` nao tratava. A falha
 escapava como erro generico, o relatorio a chamava de "manifesto" e as linhas

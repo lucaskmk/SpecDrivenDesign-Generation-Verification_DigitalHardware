@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Diagnóstico de falha e orientação para quem entregou a CPU.
 
-REQ: FR-RV-28 (diagnóstico estruturado de cada caso reprovado), FR-RV-27
-(títulos dos requisitos no resumo), NFR-RV-02 (nada aqui muda o veredito).
+Diagnóstico estruturado de cada caso reprovado e títulos dos requisitos no
+resumo. Nada aqui muda o veredito.
 
 O veredito vem sempre da simulação. Este módulo só **descreve** uma falha que
 o GHDL já produziu, a partir do `report.json` gravado pelo testbench
@@ -263,7 +263,7 @@ def diagnosticar(*, nome: str, relatorio: dict | None,
                  tipo_forcado: str | None = None,
                  mensagem_forcada: str = "",
                  limite: int = 16) -> dict[str, Any]:
-    """Monta o diagnóstico de um caso reprovado (FR-RV-28)."""
+    """Monta o diagnóstico estruturado de um caso reprovado."""
     rotulos = rotulos or {}
     rel = relatorio or {}
     erro = rel.get("erro") or {}

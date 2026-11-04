@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """O validador precisa REPROVAR o que esta errado -- e isso e testado.
 
-REQ: NFR-RV-02 (nada declarado como aprovado sem a ferramenta dizer),
-FR-RV-21 (exit code != 0 em caso de erro).
+Nada e declarado como aprovado sem a ferramenta dizer, e o exit code e != 0
+em caso de erro.
 
 ## Por que este arquivo existe
 
@@ -35,7 +35,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-EXAMPLE = REPO_ROOT / "cpus" / "rv32i_pipeline"     # era examples/RISCV32I (ADR-013)
+EXAMPLE = REPO_ROOT / "cpus" / "rv32i_pipeline"     # era examples/RISCV32I
 for _p in (REPO_ROOT, EXAMPLE / "tools"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))

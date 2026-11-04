@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Modelo de referência RV32I/RV32M em Python.
 
-REQ: FR-RV-23 (comparar contra modelo de referência, não contra valores
-escritos à mão), FR-RV-14 (semântica exata dos casos especiais da extensão M).
+Os testes comparam contra este modelo, não contra valores escritos à mão, e
+ele fixa a semântica exata dos casos especiais da extensão M.
 
 Toda a aritmética respeita palavra de 32 bits, complemento de dois e
 wraparound modular 2^32. As regras de divisão seguem a especificação RISC-V
@@ -34,7 +34,7 @@ def to_unsigned32(value: int) -> int:
 
 
 # --------------------------------------------------------------------------
-# Extensão M — as oito instruções (FR-RV-13)
+# Extensão M — as oito instruções
 # --------------------------------------------------------------------------
 
 def mul(rs1: int, rs2: int) -> int:
@@ -185,7 +185,7 @@ def apply_i(op: str, rs1: int, rs2: int) -> int:
 
 
 # --------------------------------------------------------------------------
-# Valores de borda usados pelos testes (FR-RV-22)
+# Valores de borda usados pelos testes
 # --------------------------------------------------------------------------
 
 EDGE_VALUES = [

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# REQ: NFR-RV-05
 """Oraculo do montador: `rvverify.asm` conferido contra o binutils real.
 
-REQ: NFR-RV-05 (imagem de container com assemblador RISC-V cruzado usada como
-oraculo independente), FR-RV-19 (montador do projeto), ADR-004 (Revisao).
+Usa uma imagem de container com assemblador RISC-V cruzado como oraculo
+independente do montador do projeto.
 
-Por que existe: a ADR-004 escolheu escrever um montador em Python porque nao
+Por que existe: o projeto escolheu escrever um montador em Python porque nao
 havia toolchain RISC-V no ambiente, e registrou o risco disso -- um bug no
 montador apareceria como falha de hardware. Os testes de encoding em
 `cpus/rv32i_pipeline/test/test_toolchain.py` conferem o montador contra a
@@ -28,7 +27,7 @@ Rodar sem `--relax` faz os quatro programas com `call` divergirem por
 construcao, e a divergencia seria sobre estrategia de expansao, nao sobre
 encoding.
 
-NFR-RV-05 exige que a ausencia da imagem apenas PULE a conferencia: sem Docker,
+A ausencia da imagem apenas PULA a conferencia: sem Docker,
 ou sem a imagem construida, todo teste daqui e pulado e a suite principal nao e
 afetada. O montador Python continua sendo o caminho autocontido -- o binutils e
 cross-check, nao substituto.
@@ -68,8 +67,8 @@ for f in *.asm; do
 done
 """
 
-# Um programa minimo por categoria de instrucao suportada, para cumprir o "pelo
-# menos um programa de cada categoria" de NFR-RV-05: os benchmarks versionados
+# Um programa minimo por categoria de instrucao suportada, para garantir pelo
+# menos um programa de cada categoria: os benchmarks versionados
 # exercitam combinacoes reais, mas nao cobrem toda instrucao individualmente.
 CATEGORY_PROGRAMS: dict[str, str] = {
     "op_r_type": """
@@ -271,7 +270,7 @@ class TestProgramasVersionados:
 
 
 class TestCategoriasDeInstrucao:
-    """Uma categoria de instrucao por programa, como NFR-RV-05 pede."""
+    """Uma categoria de instrucao por programa."""
 
     @pytest.mark.parametrize("name", sorted(CATEGORY_PROGRAMS))
     def test_palavra_a_palavra(self, name, category_oracle):

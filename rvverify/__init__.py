@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """rvverify -- validador de CPUs RISC-V dirigido por manifesto.
 
-REQ: FR-RV-21, FR-RV-22, FR-RV-24, NFR-RV-01, NFR-RV-02.
-
 A ideia inteira do pacote cabe em uma frase: o testbench nao conhece a CPU,
 conhece o `cpu.toml`. Um design entrega o manifesto dizendo como compilar,
 como aplicar clock e reset, como carregar o programa, onde estao RAM e

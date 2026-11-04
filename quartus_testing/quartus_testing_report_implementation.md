@@ -43,7 +43,7 @@ python quartus_testing/quartus_cpu_check.py <pasta> --device 5CEFA9F23C7 --rotea
 | opção | default | para quê |
 |---|---|---|
 | `--saida DIR` | `quartus_testing/resultados/<nome>/` | onde ficam projeto, logs e relatórios (a default está no `.gitignore`) |
-| `--device` / `--familia` | `5CEBA4F23C7` / deduzida | alvo do Fitter (FR-RV-37); a família sai do prefixo (`5C` = Cyclone V) |
+| `--device` / `--familia` | `5CEBA4F23C7` / deduzida | alvo do Fitter; a família sai do prefixo (`5C` = Cyclone V) |
 | `--periodo-ns` | `[clock].period_ns` | clock alvo do `.sdc` gerado |
 | `--isa padrao\|rv32i\|rv32im\|ambas` | `padrao` | `padrao` usa os generics do `cpu.toml`; as outras alternam o `rv32m_generic`, e `ambas` compila a baseline RV32I antes da RV32IM (princípio 9) |
 | `--roteamento-agressivo` | desligado | liga `FITTER_AGGRESSIVE_ROUTABILITY_OPTIMIZATION`, que é o que o próprio Quartus recomenda quando o roteamento falha |
@@ -80,7 +80,7 @@ parado, imagem ou device ausente).
    `.sdc`). Cada `.qsf` de revisão só declara os seus generics, no mesmo
    desenho de `implemetation_tests/opus_5_RISCVIM/fpga/`. O `.sdc` faz
    `create_clock` no sinal e no período do `[clock]`.
-4. **Roda o `analyze` da própria imagem** (TRV-8.7, FR-RV-41): compilação
+4. **Roda o `analyze` da própria imagem**: compilação
    completa, fit, Fmax, potência e `.sof`.
 5. **Roda as checagens que o `analyze` não faz.** O caminho crítico vem de
    `report_timing` em `quartus_sta` e a netlist RTL de `::quartus::rtl` em
@@ -90,7 +90,7 @@ parado, imagem ou device ausente).
    `fmax.log`, `*.pow.summary`, `critical_path.log`) e monta o relatório.
    Os parsers de `fit/sta/pow.summary` e do Fmax são **os do `analyze.py`**,
    importados de `docker/quartus-lite/quartus_analyzer/analyze.py` e não
-   reescritos: já foram conferidos contra saída real (TRV-8.7). Os novos
+   reescritos: já foram conferidos contra saída real. Os novos
    (log de compilação, tabela de recursos, caminho crítico, restrição de
    clock) foram escritos contra saída real também, e os testes usam essa
    mesma saída.
@@ -104,26 +104,26 @@ As duas primeiras rodam uma vez por execução; as outras, uma vez por revisão.
 Cada uma reporta `ok`, `falhou`, `aviso` ou `pulado`. `pulado` significa que
 a etapa anterior não deixou nada para checar, por exemplo timing sem fit.
 
-| id | checagem | de onde veio | req |
-|---|---|---|---|
-| `imagem` | a imagem responde a `quartus_sh --version` | smoke test da imagem | TRV-8.2, ADR-015 |
-| `device` | o device alvo está instalado | `quartus_smoketest/list_parts.tcl` | ADR-016, FR-RV-42 |
-| `compilacao` | `--flow compile` completo | `quartus_smoketest` (TRV-8.3) e `analyze` | TRV-8.3, FR-RV-41 |
-| `fit` | coube e quanto usou | `analyze` (`fit.summary`) + tabela do `fit.rpt` | FR-RV-37 |
-| `logica` | a síntese não reduziu a CPU a um design vazio | **nova**, ver abaixo | NFR-RV-02 |
-| `restricao` | o `.sdc` foi aplicado de verdade | `counter4.sdc` (TRV-8.4) | FR-RV-38 |
-| `slack` | slack de setup/hold no pior corner | `analyze` (`sta.summary`) | FR-RV-38 |
-| `fmax` | Fmax via `report_clock_fmax_summary` | `quartus_smoketest/report_fmax.tcl` | FR-RV-38 |
-| `caminho_critico` | pior caminho de setup | `opus_5_RISCVIM/fpga/report_critical_path.tcl` | FR-RV-38 |
-| `potencia` | potência estimada | `quartus_pow` (TRV-8.5) via `analyze` | FR-RV-39 |
-| `netlist` | netlist RTL acessível sem GUI | `quartus_smoketest/report_netlist.tcl` | FR-RV-40, TRV-8.6 |
-| `bitstream` | `.sof` preservado | `analyze` | FR-RV-41 |
+| id | checagem | de onde veio |
+|---|---|---|
+| `imagem` | a imagem responde a `quartus_sh --version` | smoke test da imagem |
+| `device` | o device alvo está instalado | `quartus_smoketest/list_parts.tcl` |
+| `compilacao` | `--flow compile` completo | `quartus_smoketest` e `analyze` |
+| `fit` | coube e quanto usou | `analyze` (`fit.summary`) + tabela do `fit.rpt` |
+| `logica` | a síntese não reduziu a CPU a um design vazio | **nova**, ver abaixo |
+| `restricao` | o `.sdc` foi aplicado de verdade | `quartus_smoketest/counter4.sdc` |
+| `slack` | slack de setup/hold no pior corner | `analyze` (`sta.summary`) |
+| `fmax` | Fmax via `report_clock_fmax_summary` | `quartus_smoketest/report_fmax.tcl` |
+| `caminho_critico` | pior caminho de setup | `opus_5_RISCVIM/fpga/report_critical_path.tcl` |
+| `potencia` | potência estimada | `quartus_pow` via `analyze` |
+| `netlist` | netlist RTL acessível sem GUI | `quartus_smoketest/report_netlist.tcl` |
+| `bitstream` | `.sof` preservado | `analyze` |
 
 A checagem `restricao` pega um caso que antes passava em silêncio. Se o
 `[clock].signal` do `cpu.toml` não for o nome de uma porta, o Quartus ignora o
 `create_clock` (Warnings 332174 e 332049), inventa um clock de 1 ns e reporta
-um Fmax qualquer. A ferramenta marca esse Fmax como **não confiável**, como a
-FR-RV-38 exige. O mesmo vale para clock sem restrição (Warning 332060).
+um Fmax qualquer. A ferramenta marca esse Fmax como **não confiável**, porque
+sem a restrição aplicada nenhum Fmax significa nada. O mesmo vale para clock sem restrição (Warning 332060).
 
 ## Decisões e achados
 
@@ -163,7 +163,7 @@ Além disso, a checagem `logica` reprova **qualquer** revisão que termine a
 síntese com 0 registradores, inclusive com `--preservar-logica nao` ou quando
 a entidade do topo não é achada. Nesses casos o relatório põe um aviso no
 topo da revisão dizendo que os números descrevem um design vazio, e não a
-CPU (NFR-RV-02).
+CPU.
 
 ### Outras decisões
 
@@ -245,11 +245,9 @@ Leitura rápida: no pipeline, a extensão M custa +59 % de ALMs, 9 DSPs e
 derruba o Fmax de 61 para 5 MHz. O caminho crítico passa a ter 317 células
 num ciclo só, o retrato de uma divisão combinacional. Nenhuma das três usa
 M10K: banco de registradores e RAM viraram flip-flops, o mesmo achado da fase
-5b da `opus_5_RISCVIM`. A execução do pipeline é exatamente o que a
-**TRV-8.8** pede (o fluxo contra `cpus/rv32i_pipeline` com fit, timing e
-potência reais). `specs/tasks.md` não foi editado, para manter o merge
-isolado. Fica a cargo de quem integrar fechar a tarefa apontando para esta
-seção e rodando de novo o comando, já que `resultados/` não é versionado.
+5b da `opus_5_RISCVIM`. A execução do pipeline cobre o fluxo completo contra
+`cpus/rv32i_pipeline`, com fit, timing e potência reais. Como `resultados/`
+não é versionado, para conferir estes números basta rodar de novo o comando.
 
 ## Limitações conhecidas
 
@@ -267,7 +265,7 @@ seção e rodando de novo o comando, já que `resultados/` não é versionado.
   há opção para trocar o programa.
 - **`netlist`** confirma que a netlist RTL é acessível sem GUI e conta as
   células do nível de topo (`get_rtl_cells *`, como no smoke test). Não exporta
-  imagem; a FR-RV-40 continua no ramo "não é viável" da TRV-8.6.
+  imagem, porque exportar o RTL Viewer sem GUI não é viável nesta instalação.
 
 ## Arquivos
 

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Testes do leitor de `cpu.toml`. pytest puro -- sem GHDL, sem cocotb.
 
-REQ: FR-RV-21, FR-RV-24, NFR-RV-02.
-
 Estes testes cobrem o contrato do manifesto, que e a unica coisa que um aluno
 escreve a mao para submeter uma CPU ao validador: manifesto valido, campo
 obrigatorio ausente, modo de parada que exige sinal nao declarado e caminho de
@@ -91,7 +89,7 @@ class TestManifestoValido:
         assert m.observe.ram == "data_memory.data_ram.memory"
         assert m.observe.registers == "register_file.registers"
 
-        # pipeline especulativo -> commit_pc, nunca fetch_pc (ADR-008)
+        # pipeline especulativo -> commit_pc, nunca fetch_pc
         assert m.halt.mode == "commit_pc"
         assert m.halt.pc == "pc_e" and m.halt.taken == "jump_e"
 
@@ -289,7 +287,7 @@ class TestModoDeParada:
             build(raw)
         msg = str(e.value)
         assert "fetch_pc" in msg and "`pc`" in msg
-        assert "especulativa" in msg          # o aviso do ADR-008 esta na msg
+        assert "especulativa" in msg          # o aviso sobre busca especulativa esta na msg
 
     def test_fixed_cycles_sem_cycles(self):
         raw = minimal()
@@ -377,7 +375,7 @@ class TestCaminhoDeObservacao:
 
 
 # --------------------------------------------------------------------------
-# degradacao graciosa (NFR-RV-02)
+# degradacao graciosa
 # --------------------------------------------------------------------------
 
 class TestDegradacaoGraciosa:

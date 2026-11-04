@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Compilacao e execucao do design descrito por um `cpu.toml`.
 
-REQ: FR-RV-21 (execucao real com exit code), NFR-RV-01 (GHDL + cocotb),
-NFR-RV-02 (nada e declarado sem rodar a ferramenta).
+Execucao real com exit code, sobre GHDL + cocotb: nada e declarado sem rodar
+a ferramenta.
 
 Duas responsabilidades, e so duas:
 
@@ -111,7 +111,7 @@ class BuildFailed(RuntimeError):
     """O GHDL nao conseguiu analisar ou elaborar as fontes do manifesto.
 
     `errors` traz as mensagens do GHDL com arquivo, linha e coluna quando a
-    saida da compilacao foi gravada em `log_file` (FR-RV-28).
+    saida da compilacao foi gravada em `log_file`.
     """
 
     def __init__(self, message: str, errors: list[dict] | None = None,
@@ -193,8 +193,8 @@ def build_design(manifest: CpuManifest, *, src_dir: Path | None = None,
         # O cocotb 2.0.0 (imagem spechdl-toolchain) sinaliza a falha do
         # `ghdl -m` com CalledProcessError, que nao e RuntimeError: sem esta
         # linha a falha de compilacao escapava como erro generico, reportada
-        # como "manifesto" e sem as linhas do GHDL (FR-RV-28; achado na
-        # primeira execucao real do rvgen, TRV-9.8).
+        # como "manifesto" e sem as linhas do GHDL (achado na primeira
+        # execucao real do rvgen).
         text = ""
         if log_file is not None and Path(log_file).exists():
             text = Path(log_file).read_text(encoding="utf-8", errors="replace")
@@ -241,7 +241,7 @@ def run_simulation(built: BuiltDesign, *, test_module: str,
     [design.generics] (uma suite alterna configuracao caso a caso).
 
     `log_file` grava a saida do GHDL e do cocotb num arquivo em vez de
-    herdar a saida do processo (ADR-011); `plusargs` sao opcoes de execucao
+    herdar a saida do processo; `plusargs` sao opcoes de execucao
     do GHDL, como `QUIET_IEEE_AT_ZERO`. Sem os dois, o comportamento e o de
     sempre -- e o que as suites pytest usam.
 
@@ -255,7 +255,8 @@ def run_simulation(built: BuiltDesign, *, test_module: str,
 
     Sem a checagem explicita abaixo, o validador aprovaria qualquer CPU cujo
     GHDL apenas nao travasse. Isso foi encontrado por teste de mutacao: SRA
-    trocado por deslocamento logico passava com 15/15. Ver NFR-RV-02.
+    trocado por deslocamento logico passava com 15/15. Nada e aprovado sem o
+    resultado real da simulacao.
     """
     manifest = built.manifest
     env = dict(os.environ)

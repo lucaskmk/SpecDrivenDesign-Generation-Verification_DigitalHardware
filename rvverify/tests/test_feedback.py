@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Diagnóstico de falha, sem simulador: as regras de `rvverify.feedback`.
 
-REQ: FR-RV-28 (diagnóstico estruturado), FR-RV-23 (o esperado e a detecção de
-instrução trocada vêm do modelo de referência), NFR-RV-02.
+O diagnóstico é estruturado, e o esperado e a detecção de instrução trocada
+vêm do modelo de referência.
 
 A parte que depende do GHDL — um defeito real produzindo o diagnóstico — está
 em `test_diagnostico.py`. Aqui ficam as regras, exercitadas com relatórios

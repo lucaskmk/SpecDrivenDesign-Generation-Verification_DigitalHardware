@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Suite de conformidade: o que uma CPU precisa passar para valer como RV32I(M).
 
-REQ: FR-RV-03 (ISA estritamente RISC-V), FR-RV-04, FR-RV-11 (baseline antes da
-extensao), FR-RV-13 (as oito instrucoes M), FR-RV-14 (casos especiais),
-FR-RV-16 (RV32I e RV32IM da mesma base), FR-RV-21, FR-RV-22, FR-RV-23
-(modelo de referencia), FR-RV-26 (validacao por manifesto), FR-RV-27
-(veredito), FR-RV-28 (diagnostico), FR-RV-29 (eventos e log por caso),
-NFR-RV-02 (nada declarado sem medir).
+Cobre a ISA estritamente RISC-V, a baseline RV32I antes da extensao, as oito
+instrucoes M e seus casos especiais, RV32I e RV32IM a partir da mesma base, o
+esperado vindo do modelo de referencia, a validacao por manifesto, o
+veredito, o diagnostico e os eventos e log por caso. Nada e declarado sem
+medir.
 
 Esta suite nao conhece CPU nenhuma. Tudo o que ela sabe sobre o design vem do
 `cpu.toml`. Roda igual na CPU pipeline de 5 estagios e na monociclo escrita do
@@ -17,7 +16,7 @@ CPU, e nao o formato dela.
 
 1. **RV32I** -- com a extensao M DESLIGADA. Se esta etapa falhar, a etapa 2 nem
    roda: nao faz sentido cobrar a extensao de uma CPU cuja base esta quebrada, e
-   um erro na base apareceria como se fosse da extensao (FR-RV-11).
+   um erro na base apareceria como se fosse da extensao.
 2. **RV32IM** -- ligando o generic declarado em `[design].rv32m_generic`.
    Ausente esse campo, a etapa e PULADA e reportada como pulada -- nunca como
    aprovada.
@@ -28,7 +27,7 @@ Sempre do modelo de referencia em Python (`rvverify/reference.py`), nunca de
 constante escrita a mao. Se o modelo e o hardware discordarem, o relatorio
 mostra os dois valores lado a lado.
 
-## Veredito (FR-RV-27)
+## Veredito
 
 `aprovado` so quando a suite INTEIRA rodou e passou; `reprovado` com qualquer
 caso falho; `incompleto` com etapa pulada; `parcial` quando o usuario pediu so
@@ -102,7 +101,7 @@ class Case:
         return f"{self.stage}/{self.name}"
 
     def plan_entry(self) -> dict:
-        """O caso como aparece no plano de execucao (FR-RV-29)."""
+        """O caso como aparece no plano de execucao."""
         return {
             "id": self.id,
             "grupo": "conformidade",
@@ -579,7 +578,7 @@ def resolve_selection(names: list[str] | None) -> set[str] | None:
 # --------------------------------------------------------------------------
 
 def veredito(results: list, skipped: list[str], *, complete: bool) -> str:
-    """Os quatro estados de FR-RV-27, na ordem de precedencia.
+    """Os quatro estados do veredito, na ordem de precedencia.
 
     `complete` diz se a suite inteira foi pedida (as duas etapas, sem filtro
     de casos). Sem nenhum caso executado nao ha aprovacao possivel.
@@ -595,7 +594,7 @@ def veredito(results: list, skipped: list[str], *, complete: bool) -> str:
 
 
 def exit_code_for(verdict: str) -> int:
-    """FR-RV-27: exit code != 0 com caso reprovado ou etapa pulada."""
+    """Exit code != 0 com caso reprovado ou etapa pulada."""
     return 0 if verdict in ("aprovado", "parcial") else 1
 
 
@@ -787,12 +786,12 @@ def run_conformance(manifest_path: str | Path, workdir: Path,
                     on_event: EventSink | None = None) -> dict:
     """Roda a suite contra um `cpu.toml` e devolve o relatorio.
 
-    `stop_on_base_failure` implementa FR-RV-11: se o RV32I reprovar, a etapa da
-    extensao nem roda, porque um defeito na base apareceria como se fosse da
-    extensao.
+    `stop_on_base_failure` cobra a base antes da extensao: se o RV32I
+    reprovar, a etapa da extensao nem roda, porque um defeito na base
+    apareceria como se fosse da extensao.
 
     `only` restringe a execucao a um conjunto de ids de caso
-    (`resolve_selection`); `on_event` recebe os eventos de FR-RV-29.
+    (`resolve_selection`); `on_event` recebe os eventos de cada caso.
     """
     manifest = load_manifest(manifest_path)
     workdir = Path(workdir)
@@ -845,8 +844,8 @@ def run_conformance(manifest_path: str | Path, workdir: Path,
                              "resultado": vars(result)})
 
     # Agregacao por REQUISITO -- e o que transforma "3 casos falharam" em
-    # "FR-RV-14 nao atendido". Um requisito so conta como atendido quando TODOS
-    # os casos que o exercitam passam; um unico caso reprovado derruba o
+    # "este requisito nao foi atendido". Um requisito so conta como atendido
+    # quando TODOS os casos que o exercitam passam; um unico caso reprovado derruba o
     # requisito inteiro, porque cobertura parcial de um requisito nao e
     # atendimento dele.
     por_requisito: dict[str, dict] = {}
