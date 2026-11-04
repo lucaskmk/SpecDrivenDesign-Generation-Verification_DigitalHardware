@@ -107,17 +107,17 @@ class Manipulador(BaseHTTPRequestHandler):
     def _checar_host(self) -> None:
         host = (self.headers.get("Host") or "").strip().lower()
         if host not in self.server.hosts_aceitos():
-            raise ErroHttp(403, "Host nao permitido: abra o app pelo endereco local.")
+            raise ErroHttp(403, "Host não permitido: abra o app pelo endereço local.")
 
     def _checar_post(self) -> None:
         origem = self.headers.get("Origin")
         if origem is not None:
             o = urlsplit(origem.strip().lower())
             if o.scheme != "http" or o.netloc not in self.server.hosts_aceitos():
-                raise ErroHttp(403, "Origin nao permitida.")
+                raise ErroHttp(403, "Origin não permitida.")
         token = self.headers.get("X-Token") or ""
         if not hmac.compare_digest(token.encode("utf-8"), self.server.token.encode("utf-8")):
-            raise ErroHttp(403, "token ausente ou invalido: recarregue a pagina do app.")
+            raise ErroHttp(403, "token ausente ou inválido: recarregue a página do app.")
         tipo = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
         if tipo != "application/json":
             raise ErroHttp(415, "envie JSON (Content-Type: application/json).")
@@ -127,20 +127,22 @@ class Manipulador(BaseHTTPRequestHandler):
         try:
             tamanho = int(self.headers.get("Content-Length") or "0")
         except ValueError:
-            raise ErroHttp(400, "Content-Length invalido.")
+            raise ErroHttp(400, "Content-Length inválido.")
         if tamanho < 0:
-            raise ErroHttp(400, "Content-Length invalido.")
+            raise ErroHttp(400, "Content-Length inválido.")
         if tamanho > LIMITE_CORPO:
             self.close_connection = True
-            raise ErroHttp(413, f"corpo grande demais (max {LIMITE_CORPO} bytes).")
+            raise ErroHttp(413, f"corpo grande demais (máx. {LIMITE_CORPO} bytes).")
         return self.rfile.read(tamanho) if tamanho else b"{}"
 
     @staticmethod
     def _decodificar(bruto: bytes) -> dict:
         try:
             dados = json.loads(bruto.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            raise ErroHttp(400, "JSON invalido.")
+        except (ValueError, RecursionError):
+            # ValueError cobre UnicodeDecodeError, JSONDecodeError e inteiro
+            # com digitos demais; RecursionError, aninhamento profundo
+            raise ErroHttp(400, "JSON inválido.")
         if not isinstance(dados, dict):
             raise ErroHttp(400, "o corpo deve ser um objeto JSON.")
         return dados
