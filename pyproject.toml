@@ -1,7 +1,35 @@
-# Configuração mínima do validador terminal. O pacote vive na raiz para que
-# `python -m rvverify` e os testes usem exatamente o mesmo código.
+# Configuração do repositório. O código vive na raiz e roda com `python -m`
+# (`python -m rvgen`, `python -m rvverify`); nada é instalado como pacote. O
+# `[project]` existe para declarar o que cada uso precisa:
+#
+#     pip install -e ".[sim]"    # simular (rvverify, testes de componente do rvgen)
+#     pip install -e ".[dev]"    # simular e rodar os testes
+#
+# O veredito do rvgen também exige GHDL, um compilador RISC-V e o clone do
+# riscv-tests, só em Linux/WSL2; veja README.md.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spechdl-riscv"
+version = "0.0.0"
+description = "Bancada de CPUs RISC-V: geração com IA (rvgen) e validação (spec-riscv-test, rvverify)"
+requires-python = ">=3.11"
+dependencies = []          # rvgen e rvverify usam só a biblioteca padrão
+
+[project.optional-dependencies]
+sim = ["cocotb>=2.0,<3"]
+dev = ["cocotb>=2.0,<3", "pytest>=8"]
+
+[tool.setuptools]
+packages = []
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
-testpaths = ["rvverify/tests", "cpus", "rvgen/tests"]
+pythonpath = [".", "spec-riscv-test"]
+# `cpus/` fica de fora: guarda as CPUs de referência do contrato antigo
+# (legado), cujos testes exigem cocotb e rodam à parte com `pytest cpus`.
+testpaths = ["rvverify/tests", "rvgen/tests", "quartus_testing/tests", "spec-riscv-test/tests",
+             "iteracoes/tests"]
 addopts = "-q"

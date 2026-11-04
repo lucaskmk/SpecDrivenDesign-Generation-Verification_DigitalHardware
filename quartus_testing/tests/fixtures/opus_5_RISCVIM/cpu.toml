@@ -1,0 +1,116 @@
+# =====================================================================
+# Manifesto de conformidade -- CPU rv32im_sc (opus_5_RISCVIM)
+#
+# REQ (desta CPU): FR-10, FR-13, FR-15, FR-16, NFR-04  -- ver specs/spec.md
+# REQ (repositorio): FR-RV-16, FR-RV-26, FR-RV-27, NFR-RV-02
+#
+#     python -m rvverify implemetation_tests/opus_5_RISCVIM
+#
+# Esta CPU foi GERADA pelo pipeline SpecHDL (fases 1 a 3) a partir da rubrica
+# em specs/rubrica.md; este manifesto e o que a submete ao mesmo juiz que
+# julga as CPUs de referencia de cpus/. A divergencia de contrato que tornou
+# este arquivo necessario esta registrada em specs/spec.md, secao
+# "Reconciliacao com a spec vigente do repositorio".
+# =====================================================================
+
+[design]
+name = "opus_5_RISCVIM"
+top  = "cpu"
+std  = "08"
+
+# REQ: FR-15 -- o generic que liga a extensao M. A suite verifica a MESMA
+# base duas vezes: primeiro como RV32I puro (baseline, principio 9), depois
+# como RV32IM. Com RV32M_ENABLE = false o decodificador trata as 8 encodings
+# de M como ilegais (nop) e a unidade mul/div nao e nem instanciada.
+rv32m_generic = "RV32M_ENABLE"
+
+# ORDEM DE ANALISE, nao alfabetica: em VHDL um pacote precisa ser analisado
+# antes de quem o usa.
+#   cpu_pkg        -- tipos e mapa de memoria, usado por todos os blocos
+#   rom_image_pkg  -- imagem default da ROM (FR-13). Nas execucoes do
+#                     validador ROM_INIT_FILE sempre aponta para um .ram, mas
+#                     o pacote ainda precisa existir para o design compilar;
+#                     e o mesmo pacote que a fase 5 sintetiza.
+sources = [
+  "src/cpu_pkg.vhd",
+  "software/riscv_base_test/rom_image_pkg.vhd",
+  "src/program_counter.vhd",
+  "src/instruction_rom.vhd",
+  "src/data_ram.vhd",
+  "src/register_file.vhd",
+  "src/immediate_generator.vhd",
+  "src/alu.vhd",
+  "src/mul_div_unit.vhd",
+  "src/branch_unit.vhd",
+  "src/load_store_unit.vhd",
+  "src/control_unit.vhd",
+  "src/cpu.vhd",
+]
+
+# Sem [design.generics]: RV32M_ENABLE e justamente o parametro que o validador
+# alterna entre as duas etapas, e fixa-lo aqui impediria a segunda.
+
+# ---------------------------------------------------------------------
+[clock]
+signal    = "clk"
+period_ns = 20        # NFR-02: alvo de 50 MHz
+
+[reset]
+signal = "rst"
+active = "high"       # FR-09: reset SINCRONO, ativo em nivel alto
+cycles = 3
+
+# ---------------------------------------------------------------------
+# REQ: FR-13 -- o programa entra na ELABORACAO, por generic. O cocotb nao
+# consegue escrever em ROM no GHDL (ADR-003).
+#
+# size_generic NAO e declarado de proposito: a profundidade da ROM e a
+# constante ROM_SIZE_WORDS de cpu_pkg, e um generic com esse mesmo nome
+# sombrearia a constante -- VHDL e insensivel a caixa, e esse exato tipo de
+# sombreamento ja produziu um bug silencioso neste design (immediate_generator,
+# fase 3). size_words continua declarado, entao a checagem de "o programa cabe
+# na ROM" continua valendo.
+[program]
+mode       = "rom_init_file"
+generic    = "ROM_INIT_FILE"
+size_words = 1024
+
+# ---------------------------------------------------------------------
+# REQ: FR-06 -- RAM de dados: 4 KB / 1024 palavras em 0x00FC8000
+[memory]
+ram_base  = 0x00FC8000
+ram_bytes = 4096
+
+# ---------------------------------------------------------------------
+# REQ: FR-10 -- tudo aqui e array 1-D: o VPI do GHDL nao expoe arrays 2-D ao
+# cocotb (ADR-002).
+[observe]
+ram         = "data_ram_inst.memory"   # signal memory, filha direta do topo
+registers   = "regfile_inst.regs"      # array (0 to 31) of word_t
+pc_fetch    = "pc"                     # monociclo: busca e commit sao o mesmo
+instr_fetch = "instr"                  # palavra buscada (diagnostico)
+
+# ---------------------------------------------------------------------
+# REQ: FR-05, FR-16 -- fetch_pc, e nao commit_pc: sendo monociclo, esta CPU
+# resolve salto e branch no MESMO ciclo da busca, entao nao ha busca
+# especulativa que passe pelo endereco de parada antes da hora (ADR-008). No
+# auto-laco `halt: j halt` o PC de busca fica estacionario.
+[halt]
+mode       = "fetch_pc"
+pc         = "pc"
+drain      = 2        # o store anterior ao auto-laco ja comitou na borda
+stationary = 2        # ciclos parados no mesmo endereco para confirmar
+
+# ---------------------------------------------------------------------
+# REQ: NFR-RV-02 -- so existe o que existe.
+#
+# Um monociclo nao tem stall nem flush: `stall`, `flush_d` e `flush_f` estao
+# AUSENTES de proposito, e o validador deve reportar instrucoes e CPI como
+# nao observaveis em vez de estimados. O CPI desta CPU e 1 por construcao
+# (FR-05), mas afirmar isso a partir do manifesto seria declarar como medido
+# um numero que nenhum sinal produziu.
+#
+# m_dispatch e real: use_mul_div vale '1' exatamente no ciclo em que uma
+# instrucao RV32M executa, e vale '0' constante quando RV32M_ENABLE = false.
+[metrics]
+m_dispatch = "use_mul_div"
