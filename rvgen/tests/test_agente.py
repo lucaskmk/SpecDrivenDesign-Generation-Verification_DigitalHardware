@@ -535,6 +535,29 @@ AssertionError: expected 1, observed 0
         self.assertIn("  spec-riscv-test suite: suite oficial RV32IM ...", self.linhas)
         self.assertTrue(any("CPU: RV32IM, microarquitetura monociclo" in l for l in self.linhas))
 
+    def test_orquestrador_aceita_caso_sem_prerequisitos(self):
+        # Rodada real com gpt-6-luna: o primeiro caso de um bloco nao tem
+        # prerequisitos, e `"prerequisites": []` era recusado (lista vazia e falsa).
+        plano = json.dumps({"decision": "add", "coverage_gap": "U-type low bits",
+                            "behavior": "imm_u[11:0] is zero", "prerequisites": [],
+                            "new_factor": "U-type low-bit zeroing",
+                            "stimulus": "a legal LUI", "support_witness_path": "none",
+                            "public_observations": "imm_u", "forbidden": "internals",
+                            "remaining": 1})
+        agente = self.agente(ModeloFalso({"orquestracao_expansao_testbench": [plano]}),
+                             ExecutorFalso([]), testes_componentes=True)
+        bloco = {"name": "alu", "file": "src/alu.vhd", "ports": ["a : in std_logic"]}
+        (agente.sessao / "component_specs").mkdir(parents=True)
+        agente._caminho_especificacao(bloco).write_text("## Test strategy\n- x\n", encoding="utf-8")
+        teste = agente.sessao / "testes" / "test_alu.py"
+        teste.parent.mkdir(parents=True)
+        teste.write_text(testbench().strip("`").removeprefix("python\n"), encoding="utf-8")
+        decisao = agente._decidir_expansao_testbench(bloco, teste)
+        self.assertIsNotNone(decisao)
+        texto, restantes = decisao
+        self.assertEqual(restantes, 1)
+        self.assertIn("Prerequisites: none", texto)
+
     def test_redator_revisor_e_corretor_recebem_a_mesma_decomposicao_fixa(self):
         # Rodada real com openai/gpt-6-luna (29/10/2026): o revisor tinha ordem de
         # "nao exigir decomposicao" e recusava o contrato do `cpu` por instanciar
