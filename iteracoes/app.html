@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="token" content="__TOKEN_ITERACOES__">
+<title>Iterações de specs</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --fg: #1d2330; --muted: #5d6677; --border: #d9dde5;
+  --accent: #2f5fd0; --accent-fg: #ffffff; --hover: #eef2fb; --sel: #e2e9fa;
+  --err: #b42318; --err-bg: #fdecea; --warn: #9a5b00; --warn-bg: #fff4e0;
+  --info: #24589c; --info-bg: #e8f0fb; --ok: #1f7a3d; --ok-bg: #e6f4ea;
+  --add-bg: #e6f6ea; --add-fg: #14532d; --del-bg: #fdecec; --del-fg: #7f1d1d; --hunk: #6b4fbb;
+  --code-bg: #f1f3f6;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --panel: #1b1f26; --fg: #e3e7ee; --muted: #9aa3b2; --border: #2e3440;
+    --accent: #6f95ff; --accent-fg: #0d1220; --hover: #232a35; --sel: #263452;
+    --err: #ff8a80; --err-bg: #3a1d1d; --warn: #f2b45a; --warn-bg: #362a14;
+    --info: #8db7ff; --info-bg: #1b2a44; --ok: #7fd49a; --ok-bg: #173323;
+    --add-bg: #17331f; --add-fg: #a6e3b5; --del-bg: #3a1c1c; --del-fg: #f3a5a5; --hunk: #b79cff;
+    --code-bg: #12151a;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 1px solid var(--border); background: var(--panel); border-radius: 6px; padding: 6px 12px; }
+button:hover:not(:disabled) { background: var(--hover); }
+button:disabled { opacity: .5; cursor: default; }
+button.primario { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.primario:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+button.perigo { border-color: var(--err); color: var(--err); }
+input[type=text], input[type=number], select, textarea { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+textarea { width: 100%; resize: vertical; }
+code, pre, .mono { font-family: var(--mono); font-size: 13px; }
+a { color: var(--accent); }
+
+header.topo { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel); flex-wrap: wrap; }
+header.topo h1 { font-size: 17px; margin: 0; }
+header.topo span { color: var(--muted); font-size: 13px; }
+
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100% - 46px); }
+aside { border-right: 1px solid var(--border); background: var(--panel); padding: 12px; overflow-y: auto; }
+aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 16px 4px 6px; }
+.versao { display: block; width: 100%; text-align: left; border: 1px solid transparent; background: none; padding: 7px 8px; border-radius: 6px; margin-bottom: 2px; }
+.versao:hover { background: var(--hover); }
+.versao.sel { background: var(--sel); border-color: var(--accent); }
+.versao .id { font-weight: 600; font-family: var(--mono); font-size: 12.5px; }
+.versao .nome { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.versao .sub { display: block; color: var(--muted); font-size: 12px; }
+.selo { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); margin-left: 4px; vertical-align: 1px; }
+.selo.ok { color: var(--ok); border-color: var(--ok); }
+.selo.ro { color: var(--warn); border-color: var(--warn); }
+
+main { padding: 16px 20px 40px; min-width: 0; }
+.cab h2 { margin: 0 0 2px; font-size: 20px; }
+.cab .meta { color: var(--muted); font-size: 13px; display: flex; gap: 14px; flex-wrap: wrap; }
+.notas { margin-top: 10px; }
+.notas summary { cursor: pointer; color: var(--muted); }
+.notas .linha { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.notas .linha input { flex: 1 1 220px; }
+
+nav.abas { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 14px 0 14px; overflow-x: auto; }
+nav.abas button { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 12px; white-space: nowrap; color: var(--muted); }
+nav.abas button.sel { border-bottom-color: var(--accent); color: var(--fg); font-weight: 600; }
+
+.painel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+.painel h3 { margin: 0 0 10px; font-size: 15px; }
+.faixa { padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; }
+.faixa.aviso { background: var(--warn-bg); color: var(--warn); }
+.faixa.info { background: var(--info-bg); color: var(--info); }
+.faixa.erro { background: var(--err-bg); color: var(--err); }
+.faixa.ok { background: var(--ok-bg); color: var(--ok); }
+.muted { color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.clicavel { cursor: pointer; }
+tr.clicavel:hover td { background: var(--hover); }
+tr.sel td { background: var(--sel); }
+.tabela { overflow-x: auto; }
+
+.papel { font-size: 12px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+.papel.sistema { background: var(--info-bg); color: var(--info); }
+.papel.testes { background: var(--ok-bg); color: var(--ok); }
+.papel.doc { background: var(--code-bg); color: var(--muted); }
+
+.editor-cab { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.editor-cab .rel { font-family: var(--mono); font-weight: 600; }
+.editor-cab .espaco { flex: 1; }
+textarea.editor { font-family: var(--mono); font-size: 13px; min-height: 55vh; line-height: 1.5; tab-size: 4; }
+textarea[readonly] { background: var(--code-bg); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.card .rot { font-size: 12px; color: var(--muted); }
+.card .val { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.card .det { font-size: 12px; color: var(--muted); }
+.card.erro .val { color: var(--err); }
+.card.aviso .val { color: var(--warn); }
+.card.info .val { color: var(--info); }
+.var-mais { color: var(--warn); }
+.var-menos { color: var(--ok); }
+
+.checagem { display: flex; gap: 10px; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; align-items: flex-start; }
+.checagem .nivel { font-size: 11px; font-weight: 700; text-transform: uppercase; min-width: 46px; padding-top: 2px; }
+.checagem.erro { background: var(--err-bg); } .checagem.erro .nivel { color: var(--err); }
+.checagem.aviso { background: var(--warn-bg); } .checagem.aviso .nivel { color: var(--warn); }
+.checagem.info { background: var(--info-bg); } .checagem.info .nivel { color: var(--info); }
+.checagem .arq { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+.comparar-sel { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.estado { font-size: 12px; white-space: nowrap; }
+.estado.alterado { color: var(--warn); } .estado.igual { color: var(--muted); }
+.estado.so-em-a { color: var(--err); } .estado.so-em-b { color: var(--ok); }
+.mais { color: var(--ok); } .menos { color: var(--err); }
+.diff { font-family: var(--mono); font-size: 12.5px; background: var(--code-bg); border-radius: 6px; padding: 8px 0; overflow-x: auto; max-height: 70vh; overflow-y: auto; }
+.diff div { white-space: pre; padding: 0 10px; min-height: 1.4em; }
+.diff .a { background: var(--add-bg); color: var(--add-fg); }
+.diff .r { background: var(--del-bg); color: var(--del-fg); }
+.diff .h { color: var(--hunk); }
+.diff .f { color: var(--muted); font-weight: 600; }
+
+pre.prompt { background: var(--code-bg); border-radius: 6px; padding: 12px; white-space: pre-wrap; word-break: break-word; max-height: 75vh; overflow: auto; margin: 0; }
+.botoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cmd { display: flex; gap: 8px; align-items: stretch; margin: 6px 0 12px; }
+.cmd pre { flex: 1; margin: 0; background: var(--code-bg); border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; word-break: break-all; }
+.campo { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.campo label { font-size: 12px; color: var(--muted); }
+.linha-campos { display: flex; gap: 12px; flex-wrap: wrap; }
+.linha-campos .campo { flex: 1 1 180px; }
+.exp { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.exp .tit { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.exp .tit strong { font-family: var(--mono); }
+.veredito { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
+.veredito.aprovado { background: var(--ok-bg); color: var(--ok); }
+.veredito.outro { background: var(--err-bg); color: var(--err); }
+.veredito.nada { background: var(--code-bg); color: var(--muted); }
+
+dialog { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg); padding: 18px; width: min(480px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog h3 { margin-top: 0; }
+
+#aviso-toast { position: fixed; bottom: 16px; right: 16px; max-width: min(460px, calc(100vw - 32px)); z-index: 10; }
+#aviso-toast div { margin-top: 8px; padding: 10px 14px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.18); font-size: 13px; }
+
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  aside { border-right: none; border-bottom: 1px solid var(--border); max-height: 38vh; }
+  main { padding: 12px 16px 32px; }
+  .cmd { flex-direction: column; }
+  .papel { white-space: normal; }
+  textarea.editor { min-height: 45vh; }
+}
+</style>
+</head>
+<body>
+<header class="topo">
+  <h1>Iterações de specs</h1>
+  <span>ver, analisar, editar e comparar versões de <code>specs/*.md</code>. A base nunca muda.</span>
+</header>
+<div class="layout">
+  <aside>
+    <button class="primario" id="bt-nova" style="width:100%">+ Nova iteração</button>
+    <h2>Referências</h2>
+    <div id="lista-fixas"></div>
+    <h2>Iterações</h2>
+    <div id="lista-its"></div>
+  </aside>
+  <main>
+    <div class="cab" id="cab"></div>
+    <nav class="abas" id="abas"></nav>
+    <section id="conteudo"></section>
+  </main>
+</div>
+
+<dialog id="dlg-nova">
+  <form method="dialog" id="form-nova">
+    <h3>Nova iteração</h3>
+    <div class="campo"><label for="nova-origem">Copiar de</label><select id="nova-origem"></select></div>
+    <div class="campo"><label for="nova-nome">Nome</label><input type="text" id="nova-nome" maxlength="120" placeholder="ex.: cpu.md mais curto"></div>
+    <div class="campo"><label for="nova-notas">Notas (hipótese, o que vai mudar)</label><textarea id="nova-notas" rows="4"></textarea></div>
+    <div class="botoes" style="justify-content:flex-end">
+      <button type="button" id="nova-cancelar">Cancelar</button>
+      <button type="submit" class="primario" id="nova-criar">Criar</button>
+    </div>
+  </form>
+</dialog>
+<div id="aviso-toast" aria-live="polite"></div>
+
+<script>
+"use strict";
+const TOKEN = document.querySelector('meta[name="token"]').content;
+const ABAS = [
+  ["arquivos", "Arquivos"], ["comparar", "Comparar"], ["analise", "Análise"],
+  ["prompt", "Prompt que a IA recebe"], ["usar", "Usar"],
+];
+const est = { versoes: [], atual: "specs", aba: "arquivos", editor: null,
+              cmpA: "base", cmpB: null, cmpRel: null, cmpIguais: false, promptTipo: "sistema",
+              maxChamadas: 60, nomeExp: {} };
+
+// ---------- utilitarios ----------
+function h(tag, attrs, ...filhos) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "value") el.value = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const f of filhos.flat()) {
+    if (f === null || f === undefined || f === false) continue;
+    el.append(f instanceof Node ? f : document.createTextNode(String(f)));
+  }
+  return el;
+}
+const $ = (id) => document.getElementById(id);
+// replaceChildren transformaria null em texto "null"
+function preencher(alvo, ...filhos) {
+  alvo.replaceChildren(...filhos.flat().filter((f) => f !== null && f !== undefined && f !== false));
+}
+const num = (n) => (n === null || n === undefined) ? "—" : Number(n).toLocaleString("pt-BR");
+
+function toast(msg, tipo) {
+  const el = h("div", { class: "faixa " + (tipo || "ok") }, msg);
+  $("aviso-toast").append(el);
+  setTimeout(() => el.remove(), tipo === "erro" ? 9000 : 5000);
+}
+
+async function api(caminho, corpo) {
+  const opcoes = corpo === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Token": TOKEN },
+    body: JSON.stringify(corpo),
+  };
+  const r = await fetch(caminho, opcoes);
+  let dados = null;
+  try { dados = await r.json(); } catch (e) { dados = null; }
+  if (!r.ok) throw new Error((dados && dados.erro) || ("HTTP " + r.status));
+  return dados;
+}
+const q = (obj) => new URLSearchParams(obj).toString();
+
+async function copiar(texto) {
+  try { await navigator.clipboard.writeText(texto); toast("Copiado."); return; } catch (e) { /* abaixo */ }
+  const t = h("textarea", { style: "position:fixed;left:-9999px" });
+  t.value = texto; document.body.append(t); t.select();
+  try { document.execCommand("copy"); toast("Copiado."); } catch (e) { toast("Não foi possível copiar.", "erro"); }
+  t.remove();
+}
+
+function classePapel(papel) {
+  if (papel.includes("sistema")) return "sistema";
+  if (papel.includes("teste")) return "testes";
+  return "doc";
+}
+const versao = (id) => est.versoes.find((v) => v.id === id);
+function rotulo(id) {
+  if (id === "base") return "Base";
+  if (id === "specs") return "Ativa (specs/)";
+  const v = versao(id);
+  return v ? `${id} — ${v.nome}` : id;
+}
+function editorSujo() { return est.editor && est.editor.sujo; }
+function podeSair() {
+  return !editorSujo() || confirm("Há alterações não salvas em " + est.editor.rel + ". Descartar?");
+}
+window.addEventListener("beforeunload", (e) => { if (editorSujo()) { e.preventDefault(); e.returnValue = ""; } });
+
+// ---------- barra lateral ----------
+async function carregarVersoes() {
+  const d = await api("/api/versoes");
+  est.versoes = d.versoes;
+  if (!versao(est.atual)) est.atual = "specs";
+  desenharLista();
+}
+
+function botaoVersao(v) {
+  const sub = v.id === "base" ? "somente leitura"
+    : v.id === "specs" ? "o que o rvgen lê por padrão"
+    : `de ${v.origem === "specs" ? "ativa" : (v.origem || "?")}` + (v.criada_em ? " · " + v.criada_em.replace("T", " ").slice(0, 16) : "");
+  return h("button", { class: "versao" + (v.id === est.atual ? " sel" : ""), onclick: () => selecionar(v.id) },
+    h("span", { class: "id" }, v.id),
+    v.somente_leitura ? h("span", { class: "selo ro" }, "leitura") : null,
+    v.igual_a_ativa ? h("span", { class: "selo ok", title: "conteúdo igual ao de specs/" }, "= ativa") : null,
+    h("span", { class: "nome" }, v.nome),
+    h("span", { class: "sub" }, sub));
+}
+
+function desenharLista() {
+  $("lista-fixas").replaceChildren(...est.versoes.filter((v) => !v.id.startsWith("it-")).map(botaoVersao));
+  const its = est.versoes.filter((v) => v.id.startsWith("it-")).reverse();
+  $("lista-its").replaceChildren(...(its.length ? its.map(botaoVersao)
+    : [h("p", { class: "muted", style: "margin:4px" }, "Nenhuma ainda. Crie uma a partir da base ou da ativa.")]));
+}
+
+function selecionar(id) {
+  if (id === est.atual) return;
+  if (!podeSair()) return;
+  est.atual = id; est.editor = null; est.cmpRel = null;
+  desenharLista(); desenhar();
+}
+
+// ---------- cabecalho ----------
+function desenharCabecalho() {
+  const v = versao(est.atual) || { id: est.atual, nome: est.atual };
+  const meta = [h("span", {}, "pasta: ", h("code", {}, v.pasta || "?"))];
+  if (v.origem) meta.push(h("span", {}, "origem: " + (v.origem === "specs" ? "ativa (specs/)" : v.origem)));
+  if (v.criada_em) meta.push(h("span", {}, "criada em " + v.criada_em.replace("T", " ")));
+  if (v.igual_a_ativa) meta.push(h("span", { class: "selo ok" }, "igual à ativa"));
+  const filhos = [h("h2", {}, v.id.startsWith("it-") ? `${v.id} · ${v.nome}` : v.nome), h("div", { class: "meta" }, meta)];
+  if (v.id.startsWith("it-")) {
+    const nome = h("input", { type: "text", value: v.nome, maxlength: "120", "aria-label": "Nome da iteração" });
+    const notas = h("textarea", { rows: "4", "aria-label": "Notas da iteração" });
+    notas.value = v.notas || "";
+    const salvar = h("button", { onclick: async () => {
+      try {
+        await api("/api/iteracao", { id: v.id, nome: nome.value, notas: notas.value });
+        toast("Notas salvas."); await carregarVersoes(); desenharCabecalho();
+      } catch (e) { toast(e.message, "erro"); }
+    } }, "Salvar nome e notas");
+    const det = h("details", { class: "notas" }, h("summary", {}, v.notas ? "Notas: " + v.notas.split("\n")[0].slice(0, 90) : "Notas (vazio)"),
+      h("div", { class: "linha" }, nome, salvar), h("div", { style: "margin-top:6px" }, notas));
+    filhos.push(det);
+  } else if (v.id === "base") {
+    filhos.push(h("div", { class: "faixa info", style: "margin-top:10px" }, "A base é somente leitura. Para mudar algo, crie uma iteração a partir dela."));
+  } else {
+    filhos.push(h("div", { class: "faixa aviso", style: "margin-top:10px" },
+      "Esta é a ativa: o rvgen lê daqui por padrão. Editar aqui grava em specs/ (com backup automático antes)."));
+  }
+  $("cab").replaceChildren(...filhos);
+}
+
+function desenharAbas() {
+  $("abas").replaceChildren(...ABAS.map(([id, nome]) => h("button", {
+    class: id === est.aba ? "sel" : "", onclick: () => { if (id !== est.aba && (est.aba !== "arquivos" || podeSair())) { est.aba = id; est.editor = null; desenhar(); } },
+  }, nome)));
+}
+
+function desenhar() {
+  desenharCabecalho(); desenharAbas();
+  const alvo = $("conteudo");
+  alvo.replaceChildren(h("p", { class: "muted" }, "Carregando…"));
+  const f = { arquivos: abaArquivos, comparar: abaComparar, analise: abaAnalise, prompt: abaPrompt, usar: abaUsar }[est.aba];
+  f(alvo).catch((e) => alvo.replaceChildren(h("div", { class: "faixa erro" }, e.message)));
+}
+
+// ---------- aba Arquivos ----------
+async function abaArquivos(alvo) {
+  const id = est.atual;
+  const d = await api("/api/arquivos?" + q({ versao: id }));
+  if (id !== est.atual || est.aba !== "arquivos") return;
+  const linhas = d.arquivos.map((a) => h("tr", {
+    class: "clicavel" + (est.editor && est.editor.rel === a.rel ? " sel" : ""),
+    onclick: () => abrirArquivo(a.rel),
+  }, h("td", { class: "mono" }, a.rel), h("td", {}, h("span", { class: "papel " + classePapel(a.papel) }, a.papel)),
+     h("td", { class: "num" }, num(a.chars)), h("td", { class: "num" }, "~" + num(a.tokens))));
+  // obrigatorios que sumiram: da para recriar (exceto na base)
+  for (const rel of d.ausentes || []) {
+    linhas.push(h("tr", { class: id === "base" ? "" : "clicavel", onclick: id === "base" ? null : () => abrirAusente(rel) },
+      h("td", { class: "mono" }, rel), h("td", {}, h("span", { class: "estado so-em-a" }, "ausente: o rvgen precisa dele")),
+      h("td", { class: "num" }, "—"), h("td", { class: "num" }, id === "base" ? "" : "criar")));
+  }
+  const tabela = h("div", { class: "painel" }, h("h3", {}, "Arquivos .md em ", h("code", {}, d.pasta)),
+    h("div", { class: "tabela" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "arquivo"), h("th", {}, "papel"), h("th", { class: "num" }, "caracteres"), h("th", { class: "num" }, "~tokens"))),
+      h("tbody", {}, linhas))));
+  const caixa = h("div", { id: "caixa-editor" });
+  alvo.replaceChildren(tabela, caixa);
+  if (est.editor) desenharEditor();
+}
+
+async function abrirArquivo(rel) {
+  if (est.editor && est.editor.rel === rel) return;
+  if (!podeSair()) return;
+  try {
+    const d = await api("/api/arquivo?" + q({ versao: est.atual, rel }));
+    est.editor = { versao: est.atual, rel, original: d.texto, sujo: false };
+    document.querySelectorAll("#conteudo tr.clicavel").forEach((tr) => tr.classList.toggle("sel", tr.firstChild.textContent === rel));
+    desenharEditor();
+  } catch (e) { toast(e.message, "erro"); }
+}
+
+function abrirAusente(rel) {
+  if (est.editor && est.editor.rel === rel) return;
+  if (!podeSair()) return;
+  est.editor = { versao: est.atual, rel, original: "", sujo: false, novo: true };
+  desenharEditor();
+}
+
+function desenharEditor() {
+  const ed = est.editor, caixa = $("caixa-editor");
+  if (!ed || !caixa) return;
+  const soLeitura = ed.versao === "base";
+  const area = h("textarea", { class: "editor", spellcheck: "false", readonly: soLeitura, "aria-label": "Conteúdo de " + ed.rel });
+  area.value = ed.original;
+  const info = h("span", { class: "muted" }, num(ed.original.length) + " caracteres");
+  const salvar = h("button", { class: "primario", disabled: true, onclick: () => salvarArquivo(area, salvar, descartar) }, "Salvar");
+  const descartar = h("button", { disabled: true, onclick: () => { area.value = ed.original; ed.sujo = false; atualizar(); } }, "Descartar");
+  function atualizar() {
+    ed.sujo = area.value !== ed.original;
+    salvar.disabled = descartar.disabled = !ed.sujo;
+    info.textContent = num(area.value.length) + " caracteres" + (ed.sujo ? " · não salvo" : "");
+  }
+  area.addEventListener("input", atualizar);
+  area.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (ed.sujo) salvar.click(); }
+  });
+  const faixas = [];
+  if (soLeitura) faixas.push(h("div", { class: "faixa info" }, "Base: somente leitura."));
+  if (ed.novo) faixas.push(h("div", { class: "faixa erro" }, `${ed.rel} não existe nesta versão. Escreva o conteúdo e salve para recriá-lo.`));
+  if (ed.versao === "specs") faixas.push(h("div", { class: "faixa aviso" },
+    "Você está editando a ativa (specs/). Antes de gravar, o app guarda uma cópia de specs/ como iteração “antes-de-editar-specs” (se ainda não houver uma igual)."));
+  caixa.replaceChildren(h("div", { class: "painel" },
+    h("div", { class: "editor-cab" }, h("span", { class: "rel" }, ed.rel), info, h("span", { class: "espaco" }),
+      soLeitura ? null : descartar, soLeitura ? null : salvar,
+      h("button", { onclick: () => { if (podeSair()) { est.editor = null; caixa.replaceChildren(); document.querySelectorAll("#conteudo tr.sel").forEach((t) => t.classList.remove("sel")); } } }, "Fechar")),
+    faixas, area));
+}
+
+async function salvarArquivo(area, salvar, descartar) {
+  const ed = est.editor;
+  salvar.disabled = true;
+  try {
+    const r = await api("/api/arquivo", { versao: ed.versao, rel: ed.rel, texto: area.value });
+    ed.original = area.value; ed.sujo = false;
+    descartar.disabled = true;
+    toast(r.backup ? `Salvo. Backup da ativa em ${r.backup}.` : (r.alterado ? "Salvo." : "Nada mudou."));
+    await carregarVersoes();
+    const aberto = ed.rel;
+    est.editor = null;
+    await abaArquivos($("conteudo"));
+    est.editor = { versao: ed.versao, rel: aberto, original: ed.original, sujo: false };
+    desenharEditor();
+  } catch (e) { salvar.disabled = false; toast(e.message, "erro"); }
+}
+
+// ---------- aba Comparar ----------
+function seletorVersao(valor, aoMudar, rotuloTxt) {
+  const s = h("select", { "aria-label": rotuloTxt, onchange: () => aoMudar(s.value) },
+    est.versoes.map((v) => h("option", { value: v.id, selected: v.id === valor }, rotulo(v.id))));
+  return s;
+}
+
+async function abaComparar(alvo) {
+  if (!est.cmpB || !versao(est.cmpB)) est.cmpB = est.atual === est.cmpA ? (est.cmpA === "base" ? "specs" : "base") : est.atual;
+  if (!versao(est.cmpA)) est.cmpA = "base";
+  const a = est.cmpA, b = est.cmpB;
+  const sel = h("div", { class: "comparar-sel" },
+    h("strong", {}, "A"), seletorVersao(a, (v) => { est.cmpA = v; est.cmpRel = null; desenhar(); }, "Versão A"),
+    h("button", { title: "Trocar A e B", onclick: () => { [est.cmpA, est.cmpB] = [est.cmpB, est.cmpA]; desenhar(); } }, "⇄"),
+    h("strong", {}, "B"), seletorVersao(b, (v) => { est.cmpB = v; est.cmpRel = null; desenhar(); }, "Versão B"),
+    h("label", { class: "muted" }, (() => { const c = h("input", { type: "checkbox", checked: est.cmpIguais, onchange: () => { est.cmpIguais = c.checked; desenhar(); } }); return c; })(), " mostrar iguais"));
+  const r = await api("/api/resumo?" + q({ a, b }));
+  if (est.aba !== "comparar") return;
+  const visiveis = r.arquivos.filter((x) => est.cmpIguais || x.estado !== "igual");
+  if (!est.cmpRel || !r.arquivos.some((x) => x.rel === est.cmpRel)) {
+    const primeiro = r.arquivos.find((x) => x.estado !== "igual");
+    est.cmpRel = primeiro ? primeiro.rel : null;
+  }
+  const lista = visiveis.length ? h("div", { class: "tabela" }, h("table", {}, h("tbody", {}, visiveis.map((x) => h("tr", {
+      class: "clicavel" + (x.rel === est.cmpRel ? " sel" : ""), onclick: () => { est.cmpRel = x.rel; desenhar(); },
+    }, h("td", { class: "mono" }, x.rel), h("td", {}, h("span", { class: "papel " + classePapel(x.papel) }, x.papel)),
+       h("td", { class: "estado " + x.estado.replaceAll(" ", "-") }, x.estado),
+       h("td", { class: "num" }, h("span", { class: "mais" }, "+" + x.mais), " ", h("span", { class: "menos" }, "−" + x.menos)))))))
+    : h("p", { class: "faixa ok" }, a === b ? "A e B são a mesma versão." : "Nenhum .md mudou entre A e B.");
+  const resumo = h("div", { class: "painel" },
+    h("h3", {}, `${r.mudados} arquivo(s) mudado(s) `, h("span", { class: "mais" }, "+" + r.mais), " ", h("span", { class: "menos" }, "−" + r.menos)),
+    lista);
+  const caixaDiff = h("div", {});
+  alvo.replaceChildren(sel, resumo, caixaDiff);
+  if (est.cmpRel) {
+    const d = await api("/api/diff?" + q({ a, b, rel: est.cmpRel }));
+    if (est.aba !== "comparar") return;
+    const linhas = d.texto ? d.texto.split("\n").map((ln) => {
+      const c = ln.startsWith("+++") || ln.startsWith("---") ? "f" : ln.startsWith("@@") ? "h" : ln.startsWith("+") ? "a" : ln.startsWith("-") ? "r" : "";
+      return h("div", { class: c }, ln || " ");
+    }) : [h("div", { class: "muted" }, "Sem diferenças.")];
+    caixaDiff.replaceChildren(h("div", { class: "painel" }, h("h3", {}, "Diff de ", h("code", {}, d.rel), " (A → B)"), h("div", { class: "diff" }, linhas)));
+  }
+}
+
+// ---------- aba Analise ----------
+function variacao(v) {
+  if (v === null || v === undefined) return h("span", { class: "muted" }, "—");
+  const s = (v > 0 ? "+" : "") + v.toLocaleString("pt-BR") + "% vs base";
+  return h("span", { class: v > 0 ? "var-mais" : v < 0 ? "var-menos" : "muted" }, s);
+}
+
+async function abaAnalise(alvo) {
+  const id = est.atual;
+  const d = await api("/api/analise?" + q({ versao: id }));
+  if (id !== est.atual || est.aba !== "analise") return;
+  const p = d.prompt, vb = d.variacao_vs_base || {};
+  const cards = h("div", { class: "cards" },
+    h("div", { class: "card erro" }, h("div", { class: "rot" }, "erros"), h("div", { class: "val" }, d.contagem.erro)),
+    h("div", { class: "card aviso" }, h("div", { class: "rot" }, "avisos"), h("div", { class: "val" }, d.contagem.aviso)),
+    h("div", { class: "card info" }, h("div", { class: "rot" }, "informações"), h("div", { class: "val" }, d.contagem.info)),
+    h("div", { class: "card" }, h("div", { class: "rot" }, "prompt de sistema"),
+      h("div", { class: "val" }, p.sistema ? "~" + num(p.sistema.tokens) : "—"),
+      h("div", { class: "det" }, p.sistema ? num(p.sistema.chars) + " caracteres · " : "", id === "base" ? "é a base" : variacao(vb.sistema))),
+    h("div", { class: "card" }, h("div", { class: "rot" }, "chamadas de teste (contrato + testes.md)"),
+      h("div", { class: "val" }, p.testes ? "~" + num(p.testes.tokens) : "—"),
+      h("div", { class: "det" }, p.testes ? num(p.testes.chars) + " caracteres · " : "", id === "base" ? "é a base" : variacao(vb.testes))),
+    h("div", { class: "card" }, h("div", { class: "rot" }, "CPU declarada"), h("div", { class: "val", style: "font-size:17px" }, `${p.isa} · ${p.microarquitetura}`),
+      h("div", { class: "det" }, "inferida do cpu.md")));
+  const checs = d.checagens.length ? d.checagens.map((c) => h("div", { class: "checagem " + c.nivel },
+      h("span", { class: "nivel" }, c.nivel), h("div", {}, c.arquivo ? h("div", { class: "arq" }, c.arquivo) : null, c.mensagem)))
+    : [h("div", { class: "faixa ok" }, "Nenhum problema encontrado.")];
+  const total = d.arquivos.reduce((s, a) => s + a.chars, 0);
+  const tabela = h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "arquivo"), h("th", {}, "papel"), h("th", { class: "num" }, "caracteres"), h("th", { class: "num" }, "~tokens"), h("th", { class: "num" }, "% do total"))),
+    h("tbody", {}, d.arquivos.map((a) => h("tr", {}, h("td", { class: "mono" }, a.rel), h("td", {}, h("span", { class: "papel " + classePapel(a.papel) }, a.papel)),
+      h("td", { class: "num" }, num(a.chars)), h("td", { class: "num" }, "~" + num(a.tokens)), h("td", { class: "num" }, total ? (100 * a.chars / total).toFixed(1) + "%" : "—")))));
+  preencher(alvo, cards,
+    p.ok ? null : h("div", { class: "faixa erro" }, "Não foi possível montar o prompt: " + p.erro),
+    h("div", { class: "painel" }, h("h3", {}, "Checagens"), checs),
+    h("div", { class: "painel" }, h("h3", {}, "Tamanhos"), h("div", { class: "tabela" }, tabela),
+      h("p", { class: "muted", style: "margin-bottom:0" }, "Tokens estimados como caracteres ÷ 4. O prompt montado também inclui as interfaces VHDL fornecidas e os requisitos derivados, por isso é maior que a soma dos .md. Análise determinística, sem IA.")));
+}
+
+// ---------- aba Prompt ----------
+async function abaPrompt(alvo) {
+  const id = est.atual;
+  const d = await api("/api/prompt?" + q({ versao: id }));
+  if (id !== est.atual || est.aba !== "prompt") return;
+  const texto = est.promptTipo === "sistema" ? d.sistema : d.testes;
+  const botao = (tipo, nome) => h("button", { class: est.promptTipo === tipo ? "primario" : "", onclick: () => { est.promptTipo = tipo; desenhar(); } }, nome);
+  preencher(alvo,
+    h("div", { class: "botoes", style: "margin-bottom:10px" }, botao("sistema", "Prompt de sistema"), botao("testes", "Chamadas de teste (contrato + testes.md)"),
+      h("span", { class: "muted" }, texto ? `${num(texto.length)} caracteres · ~${num(Math.round(texto.length / 4))} tokens · ${d.isa}, ${d.microarquitetura}` : ""),
+      texto ? h("button", { onclick: () => copiar(texto) }, "Copiar") : null),
+    d.aviso ? h("div", { class: "faixa aviso" }, d.aviso) : null,
+    d.ok ? null : h("div", { class: "faixa erro" }, d.erro),
+    h("p", { class: "muted" }, "Texto montado por rvgen.contrato com as specs desta versão (só leitura). As chamadas de teste recebem o mesmo contrato seguido de testes.md."),
+    texto ? h("pre", { class: "prompt" }, texto) : null);
+}
+
+// ---------- aba Usar ----------
+function nomePadrao(id) {
+  if (est.nomeExp[id]) return est.nomeExp[id];
+  if (id === "base") return "base_teste";
+  if (id === "specs") return "ativa_teste";
+  return id.replace("-", "") + "_teste";
+}
+
+function blocoCmd(rot, texto) {
+  return [h("div", { class: "muted", style: "font-size:12px" }, rot),
+    h("div", { class: "cmd" }, h("pre", {}, texto), h("button", { onclick: () => copiar(texto) }, "Copiar"))];
+}
+
+async function abaUsar(alvo) {
+  const id = est.atual, v = versao(id) || {};
+  const pasta = v.pasta || "specs";
+  const caixaCmds = h("div", {});
+  const nome = h("input", { type: "text", value: nomePadrao(id), "aria-label": "Nome do experimento" });
+  const maxc = h("input", { type: "number", min: "1", value: String(est.maxChamadas), "aria-label": "Máximo de chamadas", style: "width:110px" });
+  function cmds() {
+    const n = (nome.value.trim() || nomePadrao(id)).replace(/[^A-Za-z0-9_.-]/g, "_");
+    est.nomeExp[id] = n;
+    est.maxChamadas = Math.max(1, parseInt(maxc.value, 10) || 60);
+    const resto = `python -m rvgen gerar ${n} --max-chamadas ${est.maxChamadas}`;
+    const bash = id === "specs" ? resto : `RVGEN_SPECS_DIR=${pasta} ${resto}`;
+    const ps = id === "specs" ? `Remove-Item Env:RVGEN_SPECS_DIR -ErrorAction SilentlyContinue; ${resto}`
+      : `$env:RVGEN_SPECS_DIR='${pasta}'; ${resto}`;
+    caixaCmds.replaceChildren(...blocoCmd("bash / WSL (na raiz do repositório)", bash), ...blocoCmd("PowerShell (na raiz do repositório)", ps));
+  }
+  nome.addEventListener("input", cmds); maxc.addEventListener("input", cmds);
+  cmds();
+  const rodar = h("div", { class: "painel" }, h("h3", {}, "Rodar o rvgen com estas specs"),
+    h("div", { class: "faixa info" }, "O app não roda o rvgen nem chama a IA (isso gera custo). Copie o comando e rode no terminal. O veredito do rvgen exige Linux/WSL2; o experimento fica em experimentos/<nome>/."),
+    h("div", { class: "linha-campos" }, h("div", { class: "campo" }, h("label", {}, "nome do experimento"), nome),
+      h("div", { class: "campo", style: "flex:0 0 auto" }, h("label", {}, "--max-chamadas"), maxc)),
+    caixaCmds,
+    id === "specs" ? null : h("p", { class: "muted", style: "margin:0" }, "No PowerShell a variável fica valendo na janela até fechar; para voltar a specs/: Remove-Item Env:RVGEN_SPECS_DIR"));
+  const partes = [rodar];
+  if (id.startsWith("it-")) {
+    partes.push(h("div", { class: "painel" }, h("h3", {}, "Promover para specs/"),
+      h("p", {}, "Copia os arquivos desta iteração para specs/ (a ativa, que o rvgen lê por padrão). Antes, a specs/ atual é guardada numa nova iteração “antes-de-promover-" + id + "” (backup automático). Arquivos que só existem em specs/ são mantidos."),
+      h("button", { class: "perigo", onclick: () => promover(id) }, "Promover para specs/")));
+    partes.push(await painelExperimentos(v));
+  } else {
+    partes.push(h("div", { class: "painel" }, h("h3", {}, "Experimentos"), h("p", { class: "muted", style: "margin:0" },
+      "Vincular experimentos e promover só vale para iterações (it-NNN). Crie uma iteração para registrar os testes de uma mudança.")));
+  }
+  if (id !== est.atual || est.aba !== "usar") return;
+  alvo.replaceChildren(...partes);
+}
+
+async function promover(id) {
+  if (!confirm(`Promover ${id} para specs/?\n\nAntes de copiar, a specs/ atual será guardada como nova iteração "antes-de-promover-${id}" (backup automático). Depois disso, o rvgen passa a ler estas specs por padrão.`)) return;
+  try {
+    const r = await api("/api/promover", { id });
+    toast(`Promovida. ${r.copiados.length} arquivo(s) copiado(s); backup da ativa anterior em ${r.backup}.` + (r.mantidos.length ? ` Mantidos só na ativa: ${r.mantidos.join(", ")}.` : ""));
+    await carregarVersoes(); desenhar();
+  } catch (e) { toast(e.message, "erro"); }
+}
+
+async function painelExperimentos(v) {
+  const campo = h("input", { type: "text", placeholder: nomePadrao(v.id), "aria-label": "Experimento a vincular" });
+  const vincular = async () => {
+    const nome = campo.value.trim() || nomePadrao(v.id);
+    try { await api("/api/vincular", { id: v.id, nome }); toast("Experimento vinculado."); await carregarVersoes(); desenhar(); }
+    catch (e) { toast(e.message, "erro"); }
+  };
+  campo.addEventListener("keydown", (e) => { if (e.key === "Enter") vincular(); });
+  const itens = await Promise.all((v.experimentos || []).map(async (nome) => {
+    let r;
+    try { r = await api("/api/experimento?" + q({ nome })); } catch (e) { r = { nome, erro: e.message }; }
+    const res = r.resultado;
+    const ver = !r.existe ? h("span", { class: "veredito nada" }, "pasta não existe ainda")
+      : !res ? h("span", { class: "veredito nada" }, "sem resultado.json")
+      : h("span", { class: "veredito " + (res.veredito === "aprovado" ? "aprovado" : "outro") }, res.veredito || "?");
+    const detalhes = res ? h("div", { class: "muted", style: "font-size:13px;margin-top:4px" },
+      [res.placar ? "placar " + res.placar : null, res.chamadas !== undefined ? num(res.chamadas) + " chamadas" : null,
+       res.tokens_entrada !== undefined ? `tokens ${num(res.tokens_entrada)} entrada / ${num(res.tokens_saida)} saída` : null,
+       res.modelo ? res.modelo : null, res.segundos ? (res.segundos / 60).toFixed(1) + " min" : null].filter(Boolean).join(" · ")) : null;
+    const specsAviso = r.specs && r.specs !== v.pasta ? h("div", { class: "faixa aviso", style: "margin:6px 0 0" },
+      `A sessão mais recente usou specs de ${r.specs}, não desta iteração (${v.pasta}).`) : null;
+    return h("div", { class: "exp" }, h("div", { class: "tit" }, h("strong", {}, nome), ver,
+        r.sessao ? h("span", { class: "muted mono", style: "font-size:12px" }, r.sessao) : null,
+        h("span", { style: "flex:1" }),
+        h("button", { onclick: async () => { try { await api("/api/vincular", { id: v.id, nome, remover: true }); await carregarVersoes(); desenhar(); } catch (e) { toast(e.message, "erro"); } } }, "Desvincular")),
+      detalhes, specsAviso, r.erro ? h("div", { class: "faixa erro" }, r.erro) : null);
+  }));
+  return h("div", { class: "painel" }, h("h3", {}, "Experimentos vinculados"),
+    h("p", { class: "muted" }, "Depois de rodar o comando, vincule o experimento para ver aqui o veredito, as chamadas e os tokens da sessão mais recente (experimentos/<nome>/.rvgen/sessao-*/resultado.json)."),
+    h("div", { class: "botoes", style: "margin-bottom:10px" }, campo, h("button", { onclick: vincular }, "Vincular")),
+    itens.length ? itens : h("p", { class: "muted", style: "margin:0" }, "Nenhum experimento vinculado."));
+}
+
+// ---------- nova iteracao ----------
+function abrirNova() {
+  const s = $("nova-origem");
+  s.replaceChildren(...est.versoes.map((v) => h("option", { value: v.id, selected: v.id === est.atual }, rotulo(v.id))));
+  $("nova-nome").value = ""; $("nova-notas").value = "";
+  $("dlg-nova").showModal();
+  $("nova-nome").focus();
+}
+$("bt-nova").addEventListener("click", () => { if (podeSair()) abrirNova(); });
+$("nova-cancelar").addEventListener("click", () => $("dlg-nova").close());
+$("form-nova").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const bt = $("nova-criar"); bt.disabled = true;
+  try {
+    const r = await api("/api/iteracoes", { origem: $("nova-origem").value, nome: $("nova-nome").value, notas: $("nova-notas").value });
+    $("dlg-nova").close();
+    toast(`Iteração ${r.id} criada.`);
+    est.editor = null; est.atual = r.id; est.aba = "arquivos";
+    await carregarVersoes(); desenhar();
+  } catch (err) { toast(err.message, "erro"); }
+  finally { bt.disabled = false; }
+});
+
+// ---------- partida ----------
+(async () => {
+  try { await carregarVersoes(); desenhar(); }
+  catch (e) { $("conteudo").replaceChildren(h("div", { class: "faixa erro" }, "Não foi possível falar com o servidor: " + e.message)); }
+})();
+</script>
+</body>
+</html>
