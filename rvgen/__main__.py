@@ -524,6 +524,7 @@ def cmd_gerar(args: argparse.Namespace) -> int:
     origem_cpu = (f"{ct.descrever_pasta_specs()}/cpu.md" if ct.pasta_specs_alterada()
                   else "specs/cpu.md")
     print(f"rvgen {acao} -> {rel_pasta}  ({cpu['microarquitetura']}, {cpu['isa']}, de {origem_cpu})")
+    print(f"  ISA     : {ct.descrever_isa(cpu['isa'])}")
     if ct.pasta_specs_alterada():
         print(f"  specs   : {ct.descrever_pasta_specs()}  ({ct.VAR_SPECS})")
     print(f"  modelo  : {onde}")

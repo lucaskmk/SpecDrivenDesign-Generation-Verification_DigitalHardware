@@ -152,6 +152,79 @@ class TestPrompt(unittest.TestCase):
         self.assertIn("| SLTU | `0x3` | `0x00` |", com_m)
         self.assertIn("| AND | `0x7` | `0x00` |", com_m)
 
+    def test_referencia_do_m_so_entra_com_rv32im(self):
+        # I e M sao arquivos separados: RV32I le so riscv-rv32i.md; RV32IM le os dois
+        com_m = ct.texto_do_contrato("single cycle", "rv32im")
+        sem_m = ct.texto_do_contrato("single cycle", "rv32i")
+        self.assertIn("# RV32M Implementation Reference", com_m)
+        self.assertIn("| MULHSU | `0x2` | `0x01` |", com_m)
+        self.assertIn("| divisor = 0 |", com_m)
+        self.assertNotIn("RV32M Implementation Reference", sem_m)
+        self.assertNotIn("MULHSU |", sem_m)
+        self.assertEqual(ct.arquivos_da_isa("rv32i"), ("riscv-rv32i.md",))
+        self.assertEqual(ct.arquivos_da_isa("rv32im"), ("riscv-rv32i.md", "riscv-rv32m.md"))
+
+    def test_rv32im_sem_referencia_do_m_e_erro_claro(self):
+        with tempfile.TemporaryDirectory() as d:
+            pasta = Path(d)
+            for nome in ("cpu.md", "vhdl.md", "riscv-rv32i.md"):
+                shutil.copy(ct.SPECS_DIR / nome, pasta / nome)
+            self.assertIn("RV32I Implementation", ct.texto_do_contrato("single cycle", "rv32i", pasta))
+            with self.assertRaisesRegex(ct.ErroContrato, "RV32IM.*riscv-rv32m.md"):
+                ct.texto_do_contrato("single cycle", "rv32im", pasta)
+
+    def test_exemplos_do_m_batem_com_a_aritmetica(self):
+        # confere a tabela "Exemplos para conferir" de riscv-rv32m.md
+        def s(x):
+            return x - (1 << 32) if x >> 31 else x
+
+        def trunc(a, b):
+            q = abs(a) // abs(b)
+            return q if (a < 0) == (b < 0) else -q
+
+        def m(op, a, b):
+            if op == "MUL":
+                return a * b
+            if op == "MULH":
+                return (s(a) * s(b)) >> 32
+            if op == "MULHSU":
+                return (s(a) * b) >> 32
+            if op == "MULHU":
+                return (a * b) >> 32
+            if b == 0:
+                return {"DIV": -1, "DIVU": -1, "REM": a, "REMU": a}[op]
+            if op == "DIV":
+                return -(1 << 31) if (s(a), s(b)) == (-(1 << 31), -1) else trunc(s(a), s(b))
+            if op == "DIVU":
+                return a // b
+            if op == "REM":
+                return 0 if (s(a), s(b)) == (-(1 << 31), -1) else s(a) - s(b) * trunc(s(a), s(b))
+            return a % b
+
+        texto = (ct.SPECS_DIR / "riscv-rv32m.md").read_text(encoding="utf-8")
+        exemplos = texto.split("## Exemplos para conferir", 1)[1].split("##", 1)[0]
+        linhas = [ln for ln in exemplos.splitlines() if ln.startswith("| ") and "0x" in ln]
+        self.assertEqual(len(linhas), 12)
+        for ln in linhas:
+            op, a, b, rd = (c.strip() for c in ln.strip("|").split("|"))
+            a, b, rd = (int(c.split("`")[1], 16) for c in (a, b, rd))
+            with self.subTest(linha=ln):
+                self.assertEqual(m(op, a, b) & 0xFFFFFFFF, rd)
+
+    def test_numero_de_programas_bate_com_o_juiz(self):
+        import importlib
+        import sys
+        raiz = str(ct.REPO_ROOT / "spec-riscv-test")
+        if raiz not in sys.path:
+            sys.path.insert(0, raiz)
+        try:
+            mod = importlib.import_module("spec_riscv_test.cli")
+        except ImportError as e:  # dependencia do juiz ausente neste ambiente
+            self.skipTest(f"spec_riscv_test.cli nao importa aqui: {e}")
+        self.assertEqual({isa: len(p) for isa, p in mod.ISA_PROFILES.items()}, ct.PROGRAMAS_DO_JUIZ)
+        self.assertIn("48 programas", ct.descrever_isa("rv32im"))
+        self.assertIn("sem M", ct.descrever_isa("rv32i"))
+
     def test_regras_de_testes_sao_uma_especificacao_separada(self):
         regras = ct.texto_de_testes()
         self.assertIn("um único", regras)

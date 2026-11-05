@@ -563,8 +563,12 @@ AssertionError: expected 1, observed 0
         self.assertIn("[2/4] escrevendo src/alu.vhd (arquivo 1 de 3) ...", self.linhas)
         self.assertIn("  fluxo: ● Arquitetura ──▶ ○ Componentes ──▶ ○ spec-riscv-test ──▶ ○ Veredito",
                        self.linhas)
-        self.assertIn("  spec-riscv-test fumaca: fumaca oficial (rv32i/add) ...", self.linhas)
-        self.assertIn("  spec-riscv-test suite: suite oficial RV32IM ...", self.linhas)
+        self.assertIn("  spec-riscv-test fumaca: fumaca oficial RV32IM (rv32i/add) ...", self.linhas)
+        self.assertIn("  spec-riscv-test suite: suite oficial RV32IM, 48 programas ...", self.linhas)
+        self.assertIn("  ISA: RV32IM = RV32I (riscv-rv32i.md) + M (riscv-rv32m.md); o juiz roda "
+                      "48 programas riscv-tests (rv32ui + rv32um)", self.linhas)
+        self.assertIn("[4/4] veredito RV32IM: a ultima execucao ja foi a suite oficial completa",
+                      self.linhas)
         self.assertTrue(any("CPU: RV32IM, microarquitetura monociclo" in l for l in self.linhas))
 
     def test_orquestrador_aceita_caso_sem_prerequisitos(self):
