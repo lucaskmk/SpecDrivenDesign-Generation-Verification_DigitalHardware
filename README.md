@@ -3,15 +3,16 @@
 Bancada de pesquisa para gerar hardware com LLM sem "vibe coding". O `rvgen`
 transforma especificações em Markdown (`specs/`) numa CPU RISC-V em VHDL,
 bloco a bloco, com contrato revisado, testes de componente e portões entre
-etapas. Quem decide se a CPU funciona são dois juízes determinísticos, sem IA:
-o `spec-riscv-test` (programas `riscv-tests`) e o `rvverify` (casos próprios
-com modelo de referência), ambos validados antes com uma CPU escrita à mão.
+etapas. Quem decide se a CPU funciona é um juiz determinístico, sem IA: o
+`spec-riscv-test` (programas `riscv-tests`). O `rvverify` (casos próprios com
+modelo de referência) valida entregas e serve de segunda opinião. Os dois
+foram testados antes com uma CPU escrita à mão.
 
+- **Documento do projeto (único, sempre atualizado):** [`docs/projeto.html`](docs/projeto.html).
+  Traz o fluxo do gerador, os resultados, as mudanças desde o código do
+  professor, as CPUs e modelos possíveis, os próximos passos e o histórico.
 - Artigo (rascunho): [`docs/artigo.md`](docs/artigo.md)
 - Experimentos e como ler uma sessão: [`experimentos/README.md`](experimentos/README.md)
-- Fluxo do gerador: [`docs/fluxo-rvgen.html`](docs/fluxo-rvgen.html)
-  (resumo em [`docs/fluxo-rvgen.md`](docs/fluxo-rvgen.md))
-- Mapa e revisão do projeto: [`docs/projeto-completo.html`](docs/projeto-completo.html)
 
 ## Resultados
 
