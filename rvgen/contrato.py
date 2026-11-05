@@ -42,6 +42,9 @@ __all__ = [
     "renderizar_cpu_toml",
     "ler_configuracao_cpu",
     "instrucoes_da_isa",
+    "arquivos_da_isa",
+    "descrever_isa",
+    "PROGRAMAS_DO_JUIZ",
 ]
 
 TOP = "cpu"
@@ -54,6 +57,7 @@ SPECS_DIR = REPO_ROOT / "specs"
 VHDL_SPEC = SPECS_DIR / "vhdl.md"
 CPU_SPEC = SPECS_DIR / "cpu.md"
 RV32I_SPEC = SPECS_DIR / "riscv-rv32i.md"
+RV32M_SPEC = SPECS_DIR / "riscv-rv32m.md"
 TESTES_SPEC = SPECS_DIR / "testes.md"
 VAR_SPECS = "RVGEN_SPECS_DIR"
 _ISA_CPU_RE = re.compile(r"\bRV32I(?:M)?\b", re.IGNORECASE)
@@ -207,15 +211,51 @@ def instrucoes_da_isa(isa: str) -> tuple[str, ...]:
     return tuple(_RV32I.split()) + (tuple(_RV32M.split()) if isa == "rv32im" else ())
 
 
+# Arquivos de referencia de cada ISA: RV32IM = RV32I + M.
+_ARQUIVOS_ISA = {"rv32i": ("riscv-rv32i.md",),
+                 "rv32im": ("riscv-rv32i.md", "riscv-rv32m.md")}
+# Programas riscv-tests que o spec-riscv-test roda em cada perfil (--isa);
+# conferido contra spec-riscv-test/spec_riscv_test/cli.py nos testes.
+PROGRAMAS_DO_JUIZ = {"rv32i": 40, "rv32im": 48}
+
+
+def arquivos_da_isa(isa: str) -> tuple[str, ...]:
+    """Os .md de referencia que vao para a IA nesta ISA."""
+    validar_isa(isa)
+    return _ARQUIVOS_ISA[isa]
+
+
+def descrever_isa(isa: str) -> str:
+    """Uma linha para o terminal: o que a ISA inclui e o que o juiz vai rodar."""
+    validar_isa(isa)
+    if isa == "rv32im":
+        partes = "RV32I (riscv-rv32i.md) + M (riscv-rv32m.md)"
+        suites = "rv32ui + rv32um"
+    else:
+        partes = "so a base I (riscv-rv32i.md), sem M"
+        suites = "rv32ui"
+    return (f"{isa.upper()} = {partes}; o juiz roda {PROGRAMAS_DO_JUIZ[isa]} "
+            f"programas riscv-tests ({suites})")
+
+
 def texto_do_contrato(microarquitetura: str, isa: str, pasta: Path | None = None) -> str:
     """O prompt de sistema: o contrato inteiro, em ingles.
 
-    Le cpu.md, vhdl.md e riscv-rv32i.md de ``pasta`` (ou de ``pasta_specs()``).
+    Le cpu.md, vhdl.md e riscv-rv32i.md de ``pasta`` (ou de ``pasta_specs()``);
+    com RV32IM le tambem riscv-rv32m.md.
     """
     vhdl_spec = _arquivo_spec("vhdl.md", pasta)
     rv32i_spec = _arquivo_spec("riscv-rv32i.md", pasta)
     cpu_spec_arq = _arquivo_spec("cpu.md", pasta)
+    referencia_rv32m = ""
     if isa == "rv32im":
+        rv32m_spec = _arquivo_spec("riscv-rv32m.md", pasta)
+        try:
+            referencia_rv32m = rv32m_spec.read_text(encoding="utf-8").strip()
+        except OSError as e:
+            raise ErroContrato(
+                f"cpu.md declara RV32IM, mas a referencia do M {rv32m_spec} nao pode ser "
+                f"lida: {e}") from e
         extensao = (
             f"RV32M ({_RV32M}) is required: decode opcode 0110011 with "
             f"funct7 = 0000001. Implement these operations in generated VHDL, "
@@ -245,6 +285,8 @@ def texto_do_contrato(microarquitetura: str, isa: str, pasta: Path | None = None
     }
     for marcador, valor in valores.items():
         cpu_spec = cpu_spec.replace(marcador, valor)
+    secao_rv32m = (f"\n# RV32M Implementation Reference\n{referencia_rv32m}\n"
+                   if referencia_rv32m else "")
     detalhes_derivados = f"""# Requirements derived from the CPU declaration
 ISA base: RV32I ({_RV32I}).
 {extensao}
@@ -262,7 +304,7 @@ contract exactly: a CPU that deviates from it cannot be observed and fails.
 
 # RV32I Implementation Reference
 {referencia_rv32i}
-
+{secao_rv32m}
 # Essential VHDL Generation Specification
 You MUST follow this specification.
 {regras_vhdl}

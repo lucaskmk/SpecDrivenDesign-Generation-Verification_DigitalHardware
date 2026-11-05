@@ -1741,6 +1741,7 @@ class Agente:
         self.relatar(f"{self._fase(1)} arquitetura: entendendo a CPU proposta ...")
         self.relatar(f"  CPU: {self.isa.upper()}, microarquitetura {self.microarquitetura}; "
                      f"{quantidade} instrucoes; top-level `{ct.TOP}`")
+        self.relatar(f"  ISA: {ct.descrever_isa(self.isa)}")
         self.relatar("  interface: barramento virtual de instrucao e dados, "
                      "sem memoria instanciada internamente")
         self._log({"evento": "cpu_proposta", "isa": self.isa,
@@ -4094,7 +4095,8 @@ async def inventory_visible_hierarchy(dut):
         """Gera e roda um testbench por VHDL; falha executada volta ao VHDL."""
         arquivos = [b["file"] for b in arq["blocks"]]
         self._mostrar_fluxo(3)
-        self.relatar(f"{self._fase(3)} testbenches dos componentes ...")
+        self.relatar(f"{self._fase(3)} testbenches dos componentes "
+                     f"(ISA {self.isa.upper()}) ...")
         for bloco in blocos or arq["blocks"]:
             teste = self._caminho_teste(bloco)
             reutilizou_teste = reutilizar_testes and teste.exists()
@@ -4853,9 +4855,12 @@ async def inventory_visible_hierarchy(dut):
         return usados
 
     def _validar(self, rotulo: str, etapa: str, casos: list[str] | None) -> Execucao:
-        o_que = f"suite oficial {etapa.upper()}"
+        o_que = (f"suite oficial {etapa.upper()}, "
+                 f"{ct.PROGRAMAS_DO_JUIZ.get(etapa, '?')} programas")
         if casos:
-            o_que = f"fumaca oficial ({', '.join(casos)})"
+            o_que = f"fumaca oficial {etapa.upper()} ({', '.join(casos)})"
+            if etapa != self.isa:
+                o_que += f"; programa da base I, a CPU e {self.isa.upper()}"
         self.relatar(f"  spec-riscv-test {rotulo}: {o_que} ...")
         ex = self.executor.rodar(
             self.pasta, json_saida=self.sessao / "spec-riscv-test" / rotulo / "report.json",
@@ -5538,12 +5543,13 @@ async def inventory_visible_hierarchy(dut):
         # O veredito vem da suite oficial completa, sem --tests.
         if etapa == "suite":
             self._mostrar_fluxo(5 if self.testes_componentes else 4)
-            self.relatar(f"{self._fase(5 if self.testes_componentes else 4)} veredito: a ultima "
-                          "execucao ja foi a suite oficial completa")
+            self.relatar(f"{self._fase(5 if self.testes_componentes else 4)} veredito "
+                          f"{self.isa.upper()}: a ultima execucao ja foi a suite oficial completa")
             final = ultima
         else:
             self._mostrar_fluxo(5 if self.testes_componentes else 4)
-            self.relatar(f"{self._fase(5 if self.testes_componentes else 4)} veredito")
+            self.relatar(f"{self._fase(5 if self.testes_componentes else 4)} veredito "
+                          f"{self.isa.upper()} ({ct.PROGRAMAS_DO_JUIZ[self.isa]} programas)")
             final = self._validar("final", self.isa, None)
         p = placar_de(final)
         atingido = p.veredito == "aprovado"

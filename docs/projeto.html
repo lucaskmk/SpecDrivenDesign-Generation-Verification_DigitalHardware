@@ -421,11 +421,12 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 <div class="tblwrap"><table>
   <tr><th>Variante</th><th>Linha em <code>cpu.md</code></th><th>O juiz roda</th><th>Situação</th></tr>
   <tr><td><b>RV32I monociclo</b></td><td><code>RV32I single cycle</code></td><td>40 programas <code>rv32ui</code></td><td><span class="st ok">feito</span> gerada por IA (40/40) e gabarito à mão (40/40)</td></tr>
-  <tr><td><b>RV32IM monociclo</b></td><td><code>RV32IM single cycle</code></td><td>48 programas (40 + 8 <code>rv32um</code>: mul, mulh, mulhsu, mulhu, div, divu, rem, remu)</td><td><span class="st pa">pronto para tentar</span> o código e o juiz aceitam. Falta uma tabela de referência do M em <code>specs/</code> (hoje é só uma frase no prompt).</td></tr>
+  <tr><td><b>RV32IM monociclo</b></td><td><code>RV32IM single cycle</code></td><td>48 programas (40 + 8 <code>rv32um</code>: mul, mulh, mulhsu, mulhu, div, divu, rem, remu)</td><td><span class="st pa">pronto para tentar</span> o código e o juiz aceitam. A referência do M fica em <code>specs/riscv-rv32m.md</code>; ainda não foi gerada nenhuma CPU IM.</td></tr>
   <tr><td><b>RV32I multiciclo</b></td><td><code>RV32I multicycle</code></td><td>os mesmos 40</td><td><span class="st pa">precisa ajustar a spec</span> o <code>cpu.md</code> diz “uma instrução por borda de subida”, regra de monociclo. O juiz só espera a escrita em <code>tohost</code>, então em princípio serve.</td></tr>
   <tr><td><b>RV32I pipeline</b></td><td><code>RV32I pipeline</code></td><td>os mesmos 40</td><td><span class="st pa">precisa ajustar a spec</span> mesma regra do multiciclo. É o caso que mais deve forçar o laço de correção (hazards).</td></tr>
   <tr><td>RV32IMC, F, CSR, interrupções</td><td>—</td><td>não suportado</td><td><span class="st di">fora do escopo</span> o <code>spec-riscv-test</code> só conhece os perfis <code>rv32i</code> e <code>rv32im</code>.</td></tr>
 </table></div>
+<p><b>Um arquivo por parte da ISA.</b> <code>specs/riscv-rv32i.md</code> é a base I e vai sempre para a IA. <code>specs/riscv-rv32m.md</code> é a extensão M (as 8 instruções, a codificação, os casos de divisão por zero e overflow e exemplos conferidos por teste) e só vai para a IA quando o <code>cpu.md</code> declara RV32IM. Com RV32IM e sem esse arquivo, o <code>rvgen</code> para com erro antes de chamar a IA. O terminal mostra a ISA no início e em cada fase de teste, por exemplo <code>ISA: RV32IM = RV32I (riscv-rv32i.md) + M (riscv-rv32m.md); o juiz roda 48 programas riscv-tests (rv32ui + rv32um)</code>.</p>
 <p>Referências que já existem em <code>cpus/</code>: <code>rv32i_gabarito</code> (contrato atual, monociclo à mão), <code>rv32i_monociclo</code> e <code>rv32i_pipeline</code> (contrato antigo, com memórias dentro da CPU). As duas antigas servem de exemplo de arquitetura, mas não passam no juiz atual sem adaptar as portas.</p>
 <div class="note"><b>Sugestão simples para o paper:</b> rodar as três primeiras linhas (RV32I monociclo, RV32IM monociclo e RV32I pipeline) com o mesmo modelo, 3 vezes cada. É pouco dinheiro (cerca de US$ 0,15 por rodada com o luna 6) e já mostra até onde o método escala.</div>
 
@@ -1221,6 +1222,7 @@ python -m rvgen preparar --verificar</code></pre>
 <p>Ao mudar este documento, acrescente uma linha aqui e atualize o resumo do topo.</p>
 <div class="tblwrap"><table>
   <tr><th>Data</th><th>O que mudou</th></tr>
+  <tr><td>05/11/2026</td><td><code>specs/riscv-rv32m.md</code> (referência da extensão M); o <code>rvgen</code> só a usa com RV32IM e mostra a ISA e o número de programas do juiz no terminal. Seção “CPUs possíveis” atualizada.</td></tr>
   <tr><td>05/11/2026</td><td>Documento único: junta <code>fluxo-rvgen.html</code>, <code>fluxo-rvgen.md</code>, <code>projeto-completo.html</code> e <code>mudancas.html</code>. Novas seções de CPUs possíveis, modelos de IA e próximos passos. A parte de mudanças foi corrigida conforme uma verificação independente dos números (retomadas, testes pulados, custo total, IDs mortos que restam).</td></tr>
   <tr><td>04/11/2026</td><td>Primeira CPU gerada aprovada (<code>luna6_prof_3</code>), CPU gabarito, app de iterações e imagem do veredito (commits <code>644cba9</code> a <code>0f75780</code>).</td></tr>
   <tr><td>29/10/2026</td><td>Revisão crítica do projeto (hoje no <a href="#historico">histórico</a>).</td></tr>
