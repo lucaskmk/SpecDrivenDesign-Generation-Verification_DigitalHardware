@@ -67,8 +67,8 @@ gerar com uma variante das specs sem tocar em `specs/` (seção 2.4).
 
 ### 2.2 Fases do `rvgen`
 
-O fluxo está resumido em `docs/fluxo-rvgen.md` e desenhado em
-`docs/fluxo-rvgen.html`; a implementação está em `rvgen/agente.py`.
+O fluxo está desenhado em `docs/projeto.html` (parte 1); a implementação
+está em `rvgen/agente.py`.
 
 1. **Inventário de instruções.** A IA descreve cada mnemônico da ISA; o
    gerador confere que a lista é exatamente a exigida (`architecture.json`).
