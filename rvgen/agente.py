@@ -625,6 +625,7 @@ class Agente:
                  max_chamadas: int | None = None,
                  max_tokens: int | None = None,
                  max_blocos: int = MAX_BLOCOS_PADRAO,
+                 topo_sem_conta: bool = True,
                  relatar: Callable[[str], None] = print,
                  protegidos: Callable[[], str] | None = None,
                  caso_de_fumaca: Callable[[], str] = _caso_de_fumaca) -> None:
@@ -642,6 +643,8 @@ class Agente:
         self.max_chamadas = max_chamadas if max_chamadas and max_chamadas > 0 else None
         self.max_tokens = max_tokens if max_tokens and max_tokens > 0 else None
         self.max_blocos = max(2, max_blocos)
+        # proibição de mul/div/rem no topo; desligável para medir o efeito dela
+        self.topo_sem_conta = topo_sem_conta
         self.exemplo = Path(exemplo).resolve() if exemplo else None
         self.descricao = (descricao or "").strip() or None
         self.forcar = forcar
@@ -1689,8 +1692,7 @@ class Agente:
                 partes.append(f"-- {b['file']}\n{decl[0]}")
         return "\n\n".join(partes) or "(none yet)"
 
-    @staticmethod
-    def _requisito_integracao_top(blocos: list[dict]) -> str:
+    def _requisito_integracao_top(self, blocos: list[dict]) -> str:
         """Instrução e evidência estáveis para composição obrigatória do top."""
         componentes = [b["name"] for b in blocos if b["name"] != ct.TOP]
         lista = ", ".join(componentes)
@@ -1705,14 +1707,16 @@ class Agente:
             "for a functional output. Do NOT reimplement decoder, register-file, ALU, branch, "
             "next-PC, or load/store behavior inside `cpu`: compose these entities instead. "
             "The only logic permitted directly in `cpu` is integration wiring and state not owned "
-            "by a generated component; multiplication, division and remainder (`*`, `/`, `rem`, "
-            "`mod`) are never allowed in `cpu`. The generated VHDL is rejected unless every entity below "
+            "by a generated component"
+            + ("; multiplication, division and remainder (`*`, `/`, `rem`, `mod`) are never "
+               "allowed in `cpu`" if self.topo_sem_conta else "") +
+            ". The generated VHDL is rejected unless every entity below "
             "appears as an `entity work.<name> ... port map` instance:\n"
             f"{exemplos}")
 
     def _integracao_top_valida(self, vhdl: str, arq: dict) -> tuple[bool, str]:
         faltantes = componentes_nao_integrados(vhdl, arq["blocks"])
-        conta = operacoes_aritmeticas_no_topo(vhdl)
+        conta = operacoes_aritmeticas_no_topo(vhdl) if self.topo_sem_conta else []
         if conta:
             return False, (f"The top `{ct.TOP}` only instantiates and connects the generated blocks. "
                            f"It contains {', '.join(conta)}: multiplication, division and remainder "

@@ -606,6 +606,7 @@ def cmd_gerar(args: argparse.Namespace) -> int:
                        sessao_existente=sessao_existente,
                        max_chamadas=max_chamadas, max_tokens=max_tokens,
                        max_blocos=max_blocos,
+                       topo_sem_conta=not getattr(args, "permitir_conta_no_topo", False),
                        relatar=relator.linha)
     try:
         if sessao_existente:
@@ -711,6 +712,9 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--max-tokens", type=int, default=None, metavar="N",
                    help="para quando entrada+saida somarem N tokens (padrao: sem teto); "
                         "pode passar do teto por uma chamada")
+    g.add_argument("--permitir-conta-no-topo", action="store_true",
+                   help="nao recusa multiplicacao, divisao e resto (*, /, rem, mod) no topo "
+                        "cpu (padrao: recusa); serve para medir o efeito dessa regra")
     g.add_argument("--max-blocos", type=int, default=None, metavar="N",
                    help="maximo de blocos da decomposicao (padrao: 8 no gerar, 16 com "
                         "--evoluir-de)")
