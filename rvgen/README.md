@@ -74,7 +74,8 @@ outros ficam congelados e rodam os próprios testes de novo. O plano devolve a
 decomposição-alvo inteira e pode manter, mudar, criar, dividir, juntar,
 renomear e remover blocos (`--max-blocos`, padrão 16 na evolução e 8 no
 `gerar`); o topo `cpu` só integra e é recusado se tiver `*`, `/`, `rem` ou
-`mod`. O juiz final roda
+`mod` (`--permitir-conta-no-topo` desliga essa regra; sem ela, a evolução
+RV32I -> RV32IM também criou um bloco próprio para o M). O juiz final roda
 na ISA nova, com o laço de correção de sempre. Código em `rvgen/evolucao.py`.
 
 ## Artefatos

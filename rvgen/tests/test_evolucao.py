@@ -60,12 +60,12 @@ class TestEvoluir(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def agente(self, modelo, executor, pasta: Path, isa: str) -> Agente:
+    def agente(self, modelo, executor, pasta: Path, isa: str, **kw) -> Agente:
         return Agente(cliente=modelo, executor=executor, pasta=pasta,
                       microarquitetura="monociclo", isa=isa, iteracoes=3,
                       relatar=self.linhas.append, protegidos=lambda: "selo",
                       caso_de_fumaca=lambda: "simple", max_casos_teste=1,
-                      testes_componentes=True, gates_componentes=True, max_blocos=16)
+                      testes_componentes=True, gates_componentes=True, max_blocos=16, **kw)
 
     def origem_rv32i(self) -> Path:
         origem = self.raiz / "origem"
@@ -75,7 +75,7 @@ class TestEvoluir(unittest.TestCase):
         self.assertTrue(r.objetivo_atingido)
         return origem
 
-    def evoluir(self, plano_json: dict, escritas: list[str] | None = None):
+    def evoluir(self, plano_json: dict, escritas: list[str] | None = None, **kw):
         origem = self.origem_rv32i()
         roteiro = {"plano_evolucao": [json.dumps(plano_json)]}
         if escritas:
@@ -83,7 +83,7 @@ class TestEvoluir(unittest.TestCase):
         modelo = ModeloEvolucao(roteiro)
         ex = ExecutorFalso([ok(40)] + [ok(1), ok(48)] * 3, [COMPONENTE_OK] * 80)
         pasta = self.raiz / "evoluida"
-        r = evo.evoluir(self.agente(modelo, ex, pasta, "rv32im"), origem)
+        r = evo.evoluir(self.agente(modelo, ex, pasta, "rv32im", **kw), origem)
         return origem, pasta, modelo, ex, r
 
     MUDA_ALU = plano("RV32M adds mul/div", {"name": "alu", "action": "change", "change": "add M"},
@@ -106,6 +106,14 @@ class TestEvoluir(unittest.TestCase):
         self.assertIn("must never contain multiplication, division, remainder", pedido)
         self.assertIn("2 to 16 blocks", pedido)
         self.assertNotIn("SMALLEST", pedido)
+
+    def test_sem_a_regra_do_topo_o_plano_so_libera_a_decomposicao(self):
+        _, _, modelo, _, r = self.evoluir(self.MUDA_ALU, topo_sem_conta=False)
+        pedido = modelo.pedidos[0][2]
+        self.assertIn("The decomposition is free", pedido)
+        self.assertNotIn("must never contain multiplication", pedido)
+        inicio = json.loads((r.sessao / "sessao.jsonl").read_text(encoding="utf-8").splitlines()[0])
+        self.assertFalse(inicio["topo_sem_conta"])
 
     def test_so_o_bloco_mudado_e_reescrito_e_o_juiz_final_e_rv32im(self):
         origem, pasta, modelo, ex, r = self.evoluir(self.MUDA_ALU)
@@ -201,6 +209,20 @@ class TestTopoSemConta(unittest.TestCase):
             self.assertIn("never in the top", motivo)
             self.assertTrue(agente._integracao_top_valida(
                 "u_alu : entity work.alu port map ();", arq)[0])
+            self.assertIn("never allowed in `cpu`", agente._requisito_integracao_top(arq["blocks"]))
+
+    def test_regra_pode_ser_desligada_para_medir_o_efeito(self):
+        # pergunta do professor (06/11/2026): só liberar a decomposição já não
+        # faria a IA criar o módulo novo? A regra vira opção para medir isso.
+        with tempfile.TemporaryDirectory() as d:
+            agente = Agente(cliente=ModeloFalso(), executor=ExecutorFalso([]), pasta=Path(d),
+                            microarquitetura="monociclo", isa="rv32im", relatar=lambda _: None,
+                            protegidos=lambda: "selo", topo_sem_conta=False)
+            arq = {"blocks": [{"name": "alu"}, {"name": "cpu"}]}
+            self.assertTrue(agente._integracao_top_valida(
+                "u_alu : entity work.alu port map ();\nm <= a * b;", arq)[0])
+            self.assertNotIn("never allowed", agente._requisito_integracao_top(arq["blocks"]))
+            self.assertIn("integration wiring", agente._requisito_integracao_top(arq["blocks"]))
 
 
 class TestMontadorNaCpuIM(unittest.TestCase):
@@ -264,6 +286,16 @@ class TestAplicarPlano(unittest.TestCase):
                               {"name": "muldiv", "action": "new", "responsibility": "m", "ports": []},
                               MANTER("cpu"))[3]
         self.assertIn("precisa ser change", motivo)
+
+    def test_portas_num_texto_so_tambem_valem(self):
+        # rodada real (06/11/2026): a IA mandou `ports` como "a; b" e o plano,
+        # idêntico ao original, foi recusado como se mudasse as portas
+        arq, _, _, motivo = self.aplicar(
+            {"name": "alu", "action": "keep", "ports": "a : in   bit"},
+            {"name": "regs", "action": "change", "ports": "w : in bit; x : out bit"},
+            MANTER("cpu"))
+        self.assertEqual(motivo, "")
+        self.assertEqual(arq["blocks"][1]["ports"], ["w : in bit", "x : out bit"])
 
     def test_portas_do_topo_sao_do_contrato(self):
         arq, _, _, motivo = self.aplicar(

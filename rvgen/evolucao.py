@@ -144,6 +144,21 @@ _SCHEMA_PLANO = {
 }
 
 
+def _portas(valor: object) -> list[str] | None:
+    """Portas do plano: lista ou um texto só separado por `;` (as duas formas aparecem)."""
+    if valor is None:
+        return None
+    itens = valor.split(";") if isinstance(valor, str) else valor
+    if not isinstance(itens, list):
+        raise ValueError
+    return [" ".join(str(p).split()) for p in itens if str(p).strip()]
+
+
+def _mesmas_portas(a: list[str], b: list[str]) -> bool:
+    normal = lambda portas: [" ".join(p.lower().split()) for p in portas]  # noqa: E731
+    return normal(a) == normal(b)
+
+
 def _lista(valor: object) -> list[str] | None:
     if valor is None:
         return None
@@ -175,14 +190,14 @@ def aplicar_plano(arq: dict, bruto: object, max_blocos: int = 8
             if acao not in ACOES:
                 return None, {}, [], f"`{nome}`: action precisa ser keep, change ou new"
             de = _lista(item.get("from"))
-            portas = item.get("ports")
+            portas = _portas(item.get("ports"))
             deps = _lista(item.get("depends_on"))
             antigo = antigos.get(nome)
             if acao == "keep":
                 if not antigo:
                     return None, {}, [], f"`{nome}` não existe na CPU de origem; use change ou new"
                 if (de not in (None, [nome]) or
-                        (portas is not None and list(map(str, portas)) != antigo["ports"]) or
+                        (portas is not None and not _mesmas_portas(portas, antigo["ports"])) or
                         (deps is not None and sorted(deps) != sorted(antigo["depends_on"]))):
                     return None, {}, [], (f"`{nome}` está como keep, mas muda nome de origem, portas "
                                           "ou dependências; use change")
@@ -202,7 +217,7 @@ def aplicar_plano(arq: dict, bruto: object, max_blocos: int = 8
                     "name": nome,
                     "responsibility": str(item.get("responsibility") or
                                           (base or {}).get("responsibility", "")).strip(),
-                    "ports": ([str(p) for p in portas] if portas is not None else
+                    "ports": (portas if portas is not None else
                               list((antigo or base or {}).get("ports", []))),
                     "depends_on": deps if deps is not None else list((antigo or base or {}).get(
                         "depends_on", [])),
@@ -281,9 +296,10 @@ def _planejar_evolucao(agente: Agente, arq: dict, isa_antiga: str, base: dict, d
             "lists = split; several previous blocks in one `from` = merge; a different name = "
             "rename), `new` for a block written from scratch. A previous block that appears in no "
             "`name` and no `from` is removed.\n"
-            f"- The top `{ct.TOP}` only instantiates and connects generated blocks: it must never "
-            "contain multiplication, division, remainder or other datapath operations. New "
-            "datapath behavior belongs in a generated block that can be tested on its own.\n"
+            + (f"- The top `{ct.TOP}` only instantiates and connects generated blocks: it must "
+               "never contain multiplication, division, remainder or other datapath operations. "
+               "New datapath behavior belongs in a generated block that can be tested on its own.\n"
+               if agente.topo_sem_conta else "") +
             f"- `{ct.TOP}` is always present and its ports are fixed by the contract; if any block "
             f"is created, renamed or removed, `{ct.TOP}` must be `change`.\n"
             f"- 2 to {max_blocos} blocks; lowercase names; `ports` are VHDL port declarations; "
@@ -443,6 +459,7 @@ def evoluir(agente: Agente, origem: Path) -> Resultado:
                  "tentativas_revisao_semantica": agente.tentativas_revisao_semantica,
                  "max_casos_teste": agente.max_casos_teste,
                  "max_casos_internos": agente.max_casos_internos, "max_blocos": max_blocos,
+                 "topo_sem_conta": agente.topo_sem_conta,
                  "microarquitetura": agente.microarquitetura,
                  "testes_componentes": True, "testes_internos": agente.testes_internos,
                  "regressoes_componentes": agente.regressoes_componentes,
