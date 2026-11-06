@@ -1,0 +1,43 @@
+# Manifesto da CPU de referência (gabarito) do contrato atual, specs/cpu.md.
+#
+# Mesmo formato que `rvgen.contrato.renderizar_cpu_toml` produz para uma CPU
+# gerada: barramento virtual de 9 portas, sem memória dentro da CPU e sem
+# generic. O `rvverify` fornece a ROM e a RAM virtuais.
+#
+#     python -m rvverify cpus/rv32im_gabarito
+
+[design]
+name = "rv32im_gabarito"
+top  = "cpu"
+std  = "08"
+sources = [
+    "src/cpu.vhd",
+]
+
+[clock]
+signal    = "clk"
+period_ns = 10
+
+[reset]
+signal = "rst"
+active = "high"
+cycles = 3
+
+[program]
+mode         = "virtual"
+size_words   = 1024
+
+[memory]
+ram_base  = 0x00FC8100
+ram_bytes = 512
+
+[observe]
+ram       = "virtual"
+
+[halt]
+mode = "fetch_pc"
+pc = "instr_addr"
+stationary = 2
+drain = 2
+
+[metrics]
