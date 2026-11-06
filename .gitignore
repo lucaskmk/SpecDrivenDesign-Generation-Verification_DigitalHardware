@@ -50,3 +50,6 @@ results.xml
 /docker/quartus-lite/quartus_smoketest/incremental_db/
 /docker/quartus-lite/quartus_smoketest/*.qws
 /docker/quartus-lite/quartus_smoketest/*_pin_model_dump.txt
+
+# relatórios locais do spec-riscv-test (docker/veredito)
+/out/
