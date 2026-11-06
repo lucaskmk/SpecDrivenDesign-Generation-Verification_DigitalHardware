@@ -37,6 +37,7 @@ base nunca muda.
   (caracteres e ~tokens = caracteres ÷ 4). Clique para abrir no editor;
   `Salvar` (ou Ctrl+S) grava. Na base o editor é só leitura.
   - *vai para a IA (prompt de sistema)*: `cpu.md`, `vhdl.md`, `riscv-rv32i.md`;
+  - *vai para a IA só com RV32IM*: `riscv-rv32m.md` (a extensão M);
   - *vai para a IA (chamadas de teste)*: `testes.md`;
   - *só documentação, a IA não lê*: `constitution.md`, `plan.md`, `spec.md` e outros.
 - **Comparar**: escolha A e B (qualquer versão); mostra quais arquivos mudaram,
@@ -47,7 +48,8 @@ base nunca muda.
     microarquitetura (single cycle, multicycle, pipeline) — o `rvgen` recusaria;
   - erro: bloco `entity cpu is ... end cpu;` ausente, porta das 9 obrigatórias
     ausente, ou entidade com `generic` (o `spec-riscv-test` recusa);
-  - erro: `cpu.md`, `vhdl.md`, `riscv-rv32i.md` ou `testes.md` ausente ou vazio;
+  - erro: `cpu.md`, `vhdl.md`, `riscv-rv32i.md` ou `testes.md` ausente ou vazio
+    (e `riscv-rv32m.md`, quando o `cpu.md` declara RV32IM);
   - aviso: `-- REQ:` ou `FR-RV-` nos arquivos que vão para a IA (IDs sem definição);
   - info: `rvverify` citado nos arquivos que vão para a IA (o juiz do `rvgen` é o
     `spec-riscv-test`).
@@ -93,7 +95,7 @@ e notas (hipótese). Nome e notas podem ser editados depois no topo da página.
 ## `RVGEN_SPECS_DIR`
 
 O `rvgen` lê `cpu.md`, `vhdl.md`, `riscv-rv32i.md` e `testes.md` de
-`specs/`. Com `RVGEN_SPECS_DIR` (caminho absoluto ou relativo à raiz do
+`specs/` (mais `riscv-rv32m.md` quando o `cpu.md` declara RV32IM). Com `RVGEN_SPECS_DIR` (caminho absoluto ou relativo à raiz do
 repositório), lê da pasta indicada; o `rvgen gerar` mostra
 `specs   : <pasta>` e registra a pasta no evento `inicio` da sessão
 (`sessao.jsonl`, campo `specs`). Sem a variável, nada muda.
@@ -121,3 +123,11 @@ editor de sua preferência na pasta da iteração.
 | `app.html` | a página (HTML/CSS/JS inline, sem CDN; tema claro/escuro) |
 | `__main__.py` | `python -m iteracoes` |
 | `tests/` | testes (`python -m pytest iteracoes/tests`) |
+
+## I ou IM
+
+Para pedir uma CPU RV32IM, crie uma iteração e troque só a linha de
+declaração do `cpu.md`: `- RV32I single cycle` vira `- RV32IM single cycle`.
+O `rvgen` lê a ISA só dessa linha. Com RV32IM ele junta `riscv-rv32m.md` ao
+prompt e o juiz roda 48 programas (40 do I + 8 do M) em vez de 40. A
+iteração `it-001` é exatamente isso.

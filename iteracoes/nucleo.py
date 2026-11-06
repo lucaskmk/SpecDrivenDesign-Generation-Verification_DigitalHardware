@@ -34,6 +34,8 @@ __all__ = [
     "PAPEL_SISTEMA",
     "PAPEL_TESTES",
     "PAPEL_DOC",
+    "PAPEL_SISTEMA_IM",
+    "ARQUIVO_M",
     "papel_do_arquivo",
 ]
 
@@ -41,10 +43,13 @@ __all__ = [
 ARQUIVOS_SISTEMA = ("cpu.md", "vhdl.md", "riscv-rv32i.md")
 ARQUIVO_TESTES = "testes.md"
 OBRIGATORIOS = ARQUIVOS_SISTEMA + (ARQUIVO_TESTES,)
+# Referencia do M: so vai para a IA (e so e obrigatoria) quando cpu.md e RV32IM.
+ARQUIVO_M = "riscv-rv32m.md"
 
 PAPEL_SISTEMA = "vai para a IA (prompt de sistema)"
 PAPEL_TESTES = "vai para a IA (chamadas de teste)"
 PAPEL_DOC = "so documentacao, a IA nao le"
+PAPEL_SISTEMA_IM = "vai para a IA so com RV32IM (prompt de sistema)"
 
 _ID_ITERACAO_RE = re.compile(r"^it-\d{3}$")
 # um trecho do caminho: letras (com acento), numeros, _ - . e espaco; nao
@@ -73,6 +78,8 @@ def papel_do_arquivo(rel: str) -> str:
     """Se o .md vai para a IA e em qual chamada."""
     if rel in ARQUIVOS_SISTEMA:
         return PAPEL_SISTEMA
+    if rel == ARQUIVO_M:
+        return PAPEL_SISTEMA_IM
     if rel == ARQUIVO_TESTES:
         return PAPEL_TESTES
     return PAPEL_DOC
@@ -347,7 +354,16 @@ class Repositorio:
     def obrigatorios_ausentes(self, versao: str) -> list[str]:
         """Os arquivos que o rvgen le e que faltam nesta versao."""
         pasta = self.pasta_da_versao(versao)
-        return [rel for rel in OBRIGATORIOS if not (pasta / rel).is_file()]
+        return [rel for rel in self._obrigatorios(pasta) if not (pasta / rel).is_file()]
+
+    @staticmethod
+    def _obrigatorios(pasta: Path) -> tuple[str, ...]:
+        """OBRIGATORIOS, mais a referencia do M quando cpu.md declara RV32IM."""
+        try:
+            isa = ct.ler_configuracao_cpu(pasta / "cpu.md")["isa"]
+        except (ct.ErroContrato, OSError):
+            return OBRIGATORIOS
+        return OBRIGATORIOS + ((ARQUIVO_M,) if isa == "rv32im" else ())
 
     def ler_arquivo(self, versao: str, rel: str) -> str:
         return _ler_texto(self.validar_rel(versao, rel))
@@ -367,9 +383,9 @@ class Repositorio:
         _codificar(texto)                          # antes do backup e da gravacao
         caminho = self.validar_rel(versao, rel, existir=False)
         # so edita o que existe; criar, so um obrigatorio que sumiu
-        if not caminho.is_file() and rel not in OBRIGATORIOS:
+        if not caminho.is_file() and rel not in OBRIGATORIOS + (ARQUIVO_M,):
             raise ErroIteracoes(f"{rel} não existe em {versao}; o app só edita arquivos "
-                                f"existentes (ou recria {', '.join(OBRIGATORIOS)})")
+                                f"existentes (ou recria {', '.join(OBRIGATORIOS + (ARQUIVO_M,))})")
         texto = texto.replace("\r\n", "\n")
         if caminho.is_file() and _ler_texto(caminho) == texto:
             return {"alterado": False, "backup": None}
@@ -489,7 +505,7 @@ class Repositorio:
             checagens.append({"nivel": nivel, "arquivo": arquivo, "mensagem": mensagem})
 
         textos = {a["rel"]: _ler_texto(pasta / a["rel"]) for a in arquivos}
-        for rel in OBRIGATORIOS:
+        for rel in self._obrigatorios(pasta):
             if rel not in textos:
                 checar("erro", rel, f"{rel} ausente: o rvgen precisa dele para montar o prompt.")
             elif not textos[rel].strip():
@@ -505,7 +521,7 @@ class Repositorio:
                        "O rvgen recusa gerar com este cpu.md.")
             self._checar_entidade(cpu_md, checar)
 
-        ia = [rel for rel in OBRIGATORIOS if rel in textos]
+        ia = [rel for rel in self._obrigatorios(pasta) if rel in textos]
         for rel in ia:
             texto = textos[rel]
             req = texto.count("-- REQ:")
