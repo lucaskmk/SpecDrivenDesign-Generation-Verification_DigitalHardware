@@ -1,0 +1,309 @@
+{
+  "design": "luna6_prof_3",
+  "microarquitetura": "monociclo",
+  "isa": "rv32im",
+  "top": "cpu",
+  "origem": "modelo",
+  "blocks": [
+    {
+      "name": "immediate_generator",
+      "file": "src/immediate_generator.vhd",
+      "responsibility": "Generate sign-extended I-, S-, B-, and J-type immediates, and the zero-extended U-type immediate from the instruction word.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "imm_i : out std_logic_vector(31 downto 0)",
+        "imm_s : out std_logic_vector(31 downto 0)",
+        "imm_b : out std_logic_vector(31 downto 0)",
+        "imm_u : out std_logic_vector(31 downto 0)",
+        "imm_j : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Centralizes immediate bit mapping and sign extension, making branch, jump, load/store, and ALU-immediate behavior independently verifiable.",
+      "depends_on": []
+    },
+    {
+      "name": "register_file",
+      "file": "src/register_file.vhd",
+      "responsibility": "Provide 32 32-bit integer registers with two asynchronous read ports, one rising-edge write port, asynchronous active-high reset, and hardwired-zero x0.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "rs1_addr : in std_logic_vector(4 downto 0)",
+        "rs2_addr : in std_logic_vector(4 downto 0)",
+        "rs1_data : out std_logic_vector(31 downto 0)",
+        "rs2_data : out std_logic_vector(31 downto 0)",
+        "rd_addr : in std_logic_vector(4 downto 0)",
+        "rd_data : in std_logic_vector(31 downto 0)",
+        "rd_write : in std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "Isolates architectural state and asynchronous operand reads, keeping the single-cycle datapath simple and register behavior easy to test.",
+      "depends_on": []
+    },
+    {
+      "name": "alu",
+      "file": "src/alu.vhd",
+      "responsibility": "Perform RV32I arithmetic, logic, shifts, and signed and unsigned comparisons selected by an operation control input.",
+      "ports": [
+        "operand_a : in std_logic_vector(31 downto 0)",
+        "operand_b : in std_logic_vector(31 downto 0)",
+        "alu_control : in std_logic_vector(3 downto 0)",
+        "result : out std_logic_vector(31 downto 0)",
+        "equal : out std_logic",
+        "signed_less : out std_logic",
+        "unsigned_less : out std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "Keeps datapath operations and comparison semantics in one combinational block, supporting focused verification and avoiding unnecessary pipeline state.",
+      "depends_on": []
+    },
+    {
+      "name": "decoder",
+      "file": "src/decoder.vhd",
+      "responsibility": "Decode RV32I instruction opcode and function fields into register-write, memory-write, operand-source, ALU-operation, branch, jump, and writeback-selection controls.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "reg_write : out std_logic",
+        "mem_write : out std_logic",
+        "alu_src_a_pc : out std_logic",
+        "alu_src_b_imm : out std_logic",
+        "alu_control : out std_logic_vector(3 downto 0)",
+        "branch_enable : out std_logic",
+        "jump : out std_logic",
+        "jalr : out std_logic",
+        "wb_select : out std_logic_vector(1 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Separates instruction decoding from datapath execution, improving control-path readability and making instruction coverage easier to verify.",
+      "depends_on": []
+    },
+    {
+      "name": "rv32m_unit",
+      "file": "src/rv32m_unit.vhd",
+      "responsibility": "Recognize valid RV32M instructions and produce the 32-bit result for MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, and REMU. Report whether the current instruction is a valid M instruction. Implement division by zero and signed division overflow explicitly.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "operand_a : in std_logic_vector(31 downto 0)",
+        "operand_b : in std_logic_vector(31 downto 0)",
+        "valid : out std_logic",
+        "result : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "This isolates all newly required multiply, divide, and remainder datapath behavior in a block that can be tested independently. The valid output is asserted only for opcode 0110011 and funct7 0000001; funct3 selects the operation. The block is combinational so results are ready for the same rising edge as all other instructions.",
+      "depends_on": []
+    },
+    {
+      "name": "cpu",
+      "file": "src/cpu.vhd",
+      "responsibility": "Implement the RV32IM single-cycle top level: maintain the PC, instantiate and connect the immediate generator, register file, ALU, decoder, and RV32M unit, select control-flow targets and writeback data, handle loads and stores, and drive the external instruction and data buses according to the contract.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "instr_addr : out std_logic_vector(31 downto 0)",
+        "instr_data : in std_logic_vector(31 downto 0)",
+        "data_addr : out std_logic_vector(31 downto 0)",
+        "data_write : out std_logic",
+        "data_width : out std_logic_vector(1 downto 0)",
+        "data_write_data : out std_logic_vector(31 downto 0)",
+        "data_read_data : in std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "The external interface and established RV32I decomposition remain intact. M execution is delegated to a generated datapath block rather than implemented in the top level. The M-valid signal must not cause memory writes or redirects; it only selects the M result and enables the normal register-file write path.",
+      "depends_on": [
+        "immediate_generator",
+        "register_file",
+        "alu",
+        "decoder",
+        "rv32m_unit"
+      ]
+    }
+  ],
+  "notes": "Use only ieee.std_logic_1164 and ieee.numeric_std. The decoder's wb_select encodings should distinguish ALU result, load data, PC+4, and U-immediate; AUIPC uses PC as the ALU first operand. Branch conditions use funct3 together with the ALU comparison outputs. Stores drive the unshifted rs2 value and select byte, halfword, or word width; loads select and extend the addressed subword from the asynchronously supplied aligned word.",
+  "instructions": [
+    {
+      "mnemonic": "lui",
+      "description": "Write the upper 20-bit immediate to rd, with the lower 12 bits zero."
+    },
+    {
+      "mnemonic": "auipc",
+      "description": "Write pc plus the upper 20-bit immediate shifted left by 12 to rd."
+    },
+    {
+      "mnemonic": "jal",
+      "description": "Write pc+4 to rd and jump to pc plus the sign-extended J immediate."
+    },
+    {
+      "mnemonic": "jalr",
+      "description": "Write pc+4 to rd and jump to (rs1 plus the sign-extended I immediate) with bit 0 cleared."
+    },
+    {
+      "mnemonic": "beq",
+      "description": "If rs1 equals rs2, jump to pc plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "bne",
+      "description": "If rs1 differs from rs2, jump to pc plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "blt",
+      "description": "If signed rs1 is less than signed rs2, jump to pc plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "bge",
+      "description": "If signed rs1 is greater than or equal to signed rs2, jump to pc plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "bltu",
+      "description": "If unsigned rs1 is less than unsigned rs2, jump to pc plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "bgeu",
+      "description": "If unsigned rs1 is greater than or equal to unsigned rs2, jump to pc plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "lb",
+      "description": "Load the addressed byte and sign-extend it to rd."
+    },
+    {
+      "mnemonic": "lh",
+      "description": "Load the addressed halfword and sign-extend it to rd."
+    },
+    {
+      "mnemonic": "lw",
+      "description": "Load the addressed 32-bit word into rd."
+    },
+    {
+      "mnemonic": "lbu",
+      "description": "Load the addressed byte and zero-extend it to rd."
+    },
+    {
+      "mnemonic": "lhu",
+      "description": "Load the addressed halfword and zero-extend it to rd."
+    },
+    {
+      "mnemonic": "sb",
+      "description": "Store the low byte of rs2 at the effective address."
+    },
+    {
+      "mnemonic": "sh",
+      "description": "Store the low halfword of rs2 at the effective address."
+    },
+    {
+      "mnemonic": "sw",
+      "description": "Store rs2 at the effective address as a 32-bit word."
+    },
+    {
+      "mnemonic": "addi",
+      "description": "Write rs1 plus the sign-extended I immediate to rd."
+    },
+    {
+      "mnemonic": "slti",
+      "description": "Write 1 to rd if signed rs1 is less than the sign-extended I immediate; otherwise write 0."
+    },
+    {
+      "mnemonic": "sltiu",
+      "description": "Write 1 to rd if unsigned rs1 is less than the sign-extended I immediate interpreted as unsigned; otherwise write 0."
+    },
+    {
+      "mnemonic": "xori",
+      "description": "Write rs1 bitwise XOR the sign-extended I immediate to rd."
+    },
+    {
+      "mnemonic": "ori",
+      "description": "Write rs1 bitwise OR the sign-extended I immediate to rd."
+    },
+    {
+      "mnemonic": "andi",
+      "description": "Write rs1 bitwise AND the sign-extended I immediate to rd."
+    },
+    {
+      "mnemonic": "slli",
+      "description": "Write rs1 shifted left logically by the immediate's low five bits to rd."
+    },
+    {
+      "mnemonic": "srli",
+      "description": "Write rs1 shifted right logically by the immediate's low five bits to rd."
+    },
+    {
+      "mnemonic": "srai",
+      "description": "Write signed rs1 shifted right arithmetically by the immediate's low five bits to rd."
+    },
+    {
+      "mnemonic": "add",
+      "description": "Write rs1 plus rs2 to rd, retaining the low 32 bits."
+    },
+    {
+      "mnemonic": "sub",
+      "description": "Write rs1 minus rs2 to rd, retaining the low 32 bits."
+    },
+    {
+      "mnemonic": "sll",
+      "description": "Write rs1 shifted left logically by rs2's low five bits to rd."
+    },
+    {
+      "mnemonic": "slt",
+      "description": "Write 1 to rd if signed rs1 is less than signed rs2; otherwise write 0."
+    },
+    {
+      "mnemonic": "sltu",
+      "description": "Write 1 to rd if unsigned rs1 is less than unsigned rs2; otherwise write 0."
+    },
+    {
+      "mnemonic": "xor",
+      "description": "Write rs1 bitwise XOR rs2 to rd."
+    },
+    {
+      "mnemonic": "srl",
+      "description": "Write rs1 shifted right logically by rs2's low five bits to rd."
+    },
+    {
+      "mnemonic": "sra",
+      "description": "Write signed rs1 shifted right arithmetically by rs2's low five bits to rd."
+    },
+    {
+      "mnemonic": "or",
+      "description": "Write rs1 bitwise OR rs2 to rd."
+    },
+    {
+      "mnemonic": "and",
+      "description": "Write rs1 bitwise AND rs2 to rd."
+    },
+    {
+      "mnemonic": "mul",
+      "description": "Write the low 32 bits of rs1 multiplied by rs2 to rd."
+    },
+    {
+      "mnemonic": "mulh",
+      "description": "Write the high 32 bits of the signed 32-by-32-bit product to rd."
+    },
+    {
+      "mnemonic": "mulhsu",
+      "description": "Write the high 32 bits of signed rs1 multiplied by unsigned rs2 to rd."
+    },
+    {
+      "mnemonic": "mulhu",
+      "description": "Write the high 32 bits of the unsigned 32-by-32-bit product to rd."
+    },
+    {
+      "mnemonic": "div",
+      "description": "Write signed rs1 divided by signed rs2, truncated toward zero; return all ones for divisor zero and preserve the signed-overflow result."
+    },
+    {
+      "mnemonic": "divu",
+      "description": "Write unsigned rs1 divided by unsigned rs2; return all ones for divisor zero."
+    },
+    {
+      "mnemonic": "rem",
+      "description": "Write the signed remainder of rs1 divided by rs2, with the dividend's sign; return rs1 for divisor zero and zero for signed overflow."
+    },
+    {
+      "mnemonic": "remu",
+      "description": "Write the unsigned remainder of rs1 divided by rs2; return rs1 for divisor zero."
+    }
+  ],
+  "evolucao": {
+    "de": "experimentos/luna6_prof_3",
+    "sessao": "sessao-20261104-171911",
+    "isa_anterior": "rv32i"
+  }
+}

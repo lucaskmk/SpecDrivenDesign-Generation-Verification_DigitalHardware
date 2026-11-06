@@ -1,0 +1,8 @@
+{
+  "bloco": "rv32m_unit",
+  "arquivo": "src/rv32m_unit.vhd",
+  "hash_vhdl": "699729ed184bf49add751723de49ec138a98b85128ffd2e192b190f77dc9d050",
+  "testes": [
+    "testes/test_rv32m_unit.py"
+  ]
+}

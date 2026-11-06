@@ -1,0 +1,109 @@
+{
+  "veredito": "aprovado",
+  "objetivo_atingido": true,
+  "placar": "48/48 casos",
+  "iteracoes": 0,
+  "chamadas": 28,
+  "tokens_entrada": 380089,
+  "tokens_saida": 52818,
+  "segundos": 706.6,
+  "provedor": "openrouter",
+  "modelo": "openai/gpt-6-luna",
+  "microarquitetura": "monociclo",
+  "isa": "rv32im",
+  "testes_componentes": true,
+  "regressoes_componentes": true,
+  "gates_componentes": true,
+  "evolucao": {
+    "de": "experimentos/luna6_prof_3",
+    "sessao": "sessao-20261104-171911",
+    "isa_anterior": "rv32i",
+    "blocos": {
+      "immediate_generator": {
+        "acao": "keep",
+        "de": [
+          "immediate_generator"
+        ],
+        "mudanca": "No change. The existing immediate generation contract is identical in RV32IM."
+      },
+      "register_file": {
+        "acao": "keep",
+        "de": [
+          "register_file"
+        ],
+        "mudanca": "No change. The existing 32-register state, asynchronous reads, reset, and x0 behavior remain sufficient."
+      },
+      "alu": {
+        "acao": "keep",
+        "de": [
+          "alu"
+        ],
+        "mudanca": "No change. It continues to implement the approved RV32I operations; RV32M arithmetic is handled by a separate unit."
+      },
+      "decoder": {
+        "acao": "keep",
+        "de": [
+          "decoder"
+        ],
+        "mudanca": "No change. Its existing RV32I decode remains valid; M encodings remain unsupported by this decoder and are recognized by rv32m_unit."
+      },
+      "rv32m_unit": {
+        "acao": "new",
+        "de": [],
+        "mudanca": "Add combinational decode and execution for opcode 0110011 with funct7 0000001, including all eight RV32M operations and their required division corner cases."
+      },
+      "cpu": {
+        "acao": "change",
+        "de": [
+          "cpu"
+        ],
+        "mudanca": "Integrate one rv32m_unit while preserving the fixed top-level ports and existing RV32I datapaths. Use the unit's valid signal to enable register writes for M instructions and select its result for writeback; retain the existing decoder controls for RV32I instructions. Preserve reset suppression of stores and execution, PC sequencing, and all existing RV32I behavior."
+      }
+    },
+    "removidos": [],
+    "mudaram": [
+      "cpu",
+      "rv32m_unit"
+    ],
+    "congelados": [
+      "alu",
+      "decoder",
+      "immediate_generator",
+      "register_file"
+    ],
+    "linha_de_base": {
+      "isa": "rv32i",
+      "componentes": {
+        "immediate_generator": {
+          "passaram": 5,
+          "total": 5
+        },
+        "register_file": {
+          "passaram": 5,
+          "total": 5
+        },
+        "alu": {
+          "passaram": 5,
+          "total": 5
+        },
+        "decoder": {
+          "passaram": 5,
+          "total": 5
+        },
+        "cpu": {
+          "passaram": 5,
+          "total": 5
+        }
+      },
+      "spec_riscv_test": "40/40 casos"
+    }
+  },
+  "relatorio": ".rvgen/sessao-20261106-205625/spec-riscv-test/suite/report.json",
+  "sessao": {
+    "chamadas": 28,
+    "tokens_entrada": 380089,
+    "tokens_saida": 52818,
+    "segundos_modelo": 554.1,
+    "execucoes": 1
+  }
+}
