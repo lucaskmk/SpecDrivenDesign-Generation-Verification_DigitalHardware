@@ -1,0 +1,63 @@
+# Component semantic contract: muldiv
+
+## Public interface
+```vhdl
+entity muldiv is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end muldiv;
+```
+
+## Responsibility
+Compute the selected RV32M result from two 32-bit operands and funct3. Implement low and high product results with the required signedness, truncation-toward-zero signed division and remainder, division-by-zero results, and the signed division overflow case.
+
+## Timing
+
+`muldiv` is purely combinational. There is no clock, state, or latency. After `operand_a`, `operand_b`, or `funct3` changes, `result` must reflect the operation selected by the current inputs after combinational settling.
+
+## Reset
+
+None. The component has no reset input and retains no state.
+
+## Behavior
+
+Interpret `operand_a` and `operand_b` as 32-bit bit patterns. `funct3` selects the RV32M operation, and `result` is that operation’s 32-bit result. Signed operands use two’s-complement interpretation; unsigned operands use values from 0 through 2³²−1. Product results are selected or truncated as specified below. Division and remainder follow the specified RISC-V exceptional-case rules.
+
+All eight binary `funct3` encodings are defined. Behavior for inputs containing `X` or `Z` is unspecified.
+
+## Operations
+
+| `funct3` | Operation | Result |
+|---|---|---|
+| `000` | MUL | Bits `[31:0]` of the 64-bit product. |
+| `001` | MULH | Bits `[63:32]` of the signed × signed product. |
+| `010` | MULHSU | Bits `[63:32]` of the signed `operand_a` × unsigned `operand_b` product. |
+| `011` | MULHU | Bits `[63:32]` of the unsigned × unsigned product. |
+| `100` | DIV | Signed quotient, rounded toward zero. |
+| `101` | DIVU | Unsigned quotient. |
+| `110` | REM | Signed remainder; when nonzero, its sign matches `operand_a`. |
+| `111` | REMU | Unsigned remainder. |
+
+## Edge cases
+
+- For DIV and DIVU, if `operand_b` is zero, `result` is `0xFFFFFFFF`.
+- For REM and REMU, if `operand_b` is zero, `result` equals `operand_a`.
+- For DIV with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, `result` is `0x80000000`.
+- For REM with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, `result` is `0x00000000`.
+- Signed division truncates toward zero: for example, −7 / 2 is −3, and −7 / −2 is 3. The corresponding signed remainder is −1 in both cases where the dividend is −7.
+- MUL returns only the low 32 product bits; multiplication does not raise an exception or signal overflow.
+
+## Test strategy
+
+Use a Cocotb test that drives binary inputs, waits for combinational settling after each change, and compares `result` against an independent Python integer reference. For multiplication, interpret operands according to the selected operation, compute the exact product, then select the specified 32-bit slice. For division and remainder, explicitly apply the zero-divisor and signed-overflow rules before calculating ordinary quotients or remainders. Convert each expected result to its low 32-bit bit pattern.
+
+- **Selector decoding and operation selection:** Hold `operand_a = 0xFFFFFFFF` and `operand_b = 0x80000001` fixed. Apply `funct3` values `000` through `111` one at a time and check, respectively, `0x7FFFFFFF`, `0x00000000`, `0xFFFFFFFF`, `0x80000000`, `0x00000000`, `0x00000001`, `0xFFFFFFFF`, and `0x7FFFFFFE`. These distinguish all selected results for this operand pair and expose selection or signedness errors.
+- **Product signedness and slicing:** For each of `000`, `001`, `010`, and `011`, hold `funct3` fixed and vary one operand at a time, keeping the other fixed. Include `operand_a = 0xFFFFFFFF`, `operand_b = 0x80000001` to distinguish the three high-product signedness rules, and include `operand_a = 0x80000000`, `operand_b = 0x80000000` to exercise a product with both sign bits set. Check low and high results against the independent product oracle; choose operands whose upper and lower product halves differ so an incorrect slice cannot pass.
+- **Signed division and remainder:** For `funct3 = 100` and `110`, hold `operand_b = 2` and vary `operand_a` through `0xFFFFFFF9`, `0x00000007`, and `0x80000000`. Then hold `operand_a = 0xFFFFFFF9` and vary `operand_b` through `2` and `0xFFFFFFFE`. Check each result against truncation-toward-zero quotient and the corresponding signed remainder. These cases exercise negative and positive operands and both quotient and remainder signs.
+- **Unsigned division and remainder:** For `funct3 = 101` and `111`, hold `operand_b = 3` and vary `operand_a` through `0xFFFFFFFF`, `0x80000000`, and `0x00000007`. Then hold `operand_a = 0xFFFFFFFF` and vary `operand_b` through `2` and `0x80000001`. Check against unsigned quotient and remainder, using operands whose signed interpretations would produce different results.
+- **Division by zero:** Hold `operand_a = 0x89ABCDEF` fixed, set `operand_b = 0`, and check `funct3 = 100` and `101` produce `0xFFFFFFFF`, while `110` and `111` produce `0x89ABCDEF`. Change only `operand_a` to `0x00000000` and repeat, verifying that remainder-by-zero follows the current dividend.
+- **Signed division overflow:** With `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, check `funct3 = 100` produces `0x80000000` and `110` produces `0x00000000`. Change only `funct3` to `101` and `111` and check ordinary unsigned division and remainder results, confirming the special case applies only to signed operations.

@@ -1,0 +1,109 @@
+{
+  "veredito": "aprovado",
+  "objetivo_atingido": true,
+  "placar": "48/48 casos",
+  "iteracoes": 0,
+  "chamadas": 38,
+  "tokens_entrada": 501848,
+  "tokens_saida": 56953,
+  "segundos": 847.7,
+  "provedor": "openrouter",
+  "modelo": "openai/gpt-6-luna",
+  "microarquitetura": "monociclo",
+  "isa": "rv32im",
+  "testes_componentes": true,
+  "regressoes_componentes": true,
+  "gates_componentes": true,
+  "evolucao": {
+    "de": "experimentos/luna6_prof_3",
+    "sessao": "sessao-20261104-171911",
+    "isa_anterior": "rv32i",
+    "blocos": {
+      "immediate_generator": {
+        "acao": "keep",
+        "de": [
+          "immediate_generator"
+        ],
+        "mudanca": "No change. Its RV32I immediate generation remains correct for RV32IM."
+      },
+      "register_file": {
+        "acao": "keep",
+        "de": [
+          "register_file"
+        ],
+        "mudanca": "No change. The existing 32-register file, asynchronous reads, rising-edge writes, reset, and hardwired x0 behavior apply equally to RV32IM."
+      },
+      "alu": {
+        "acao": "keep",
+        "de": [
+          "alu"
+        ],
+        "mudanca": "No change. This block continues to implement the existing RV32I operations; M operations are handled by a separate block."
+      },
+      "decoder": {
+        "acao": "change",
+        "de": [
+          "decoder"
+        ],
+        "mudanca": "Extend OP decoding to recognize funct7 = 0000001 and all eight funct3 values as valid M instructions. Assert reg_write and a new m_enable output for those encodings, with register operands selected. Preserve all existing RV32I decoding and no-side-effect behavior for unsupported encodings."
+      },
+      "muldiv": {
+        "acao": "new",
+        "de": [],
+        "mudanca": "Add a purely combinational RV32M execution block implementing MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, and REMU."
+      },
+      "cpu": {
+        "acao": "change",
+        "de": [
+          "cpu"
+        ],
+        "mudanca": "Keep the exact existing top-level entity and ports. Integrate the changed decoder and one muldiv instance; route rs1, rs2, and instr funct3 to the M unit; select its result for writeback when m_enable is asserted. Preserve the existing RV32I datapath, reset behavior, PC sequencing, memory interface, and one-instruction-per-edge execution."
+      }
+    },
+    "removidos": [],
+    "mudaram": [
+      "cpu",
+      "decoder",
+      "muldiv"
+    ],
+    "congelados": [
+      "alu",
+      "immediate_generator",
+      "register_file"
+    ],
+    "linha_de_base": {
+      "isa": "rv32i",
+      "componentes": {
+        "immediate_generator": {
+          "passaram": 5,
+          "total": 5
+        },
+        "register_file": {
+          "passaram": 5,
+          "total": 5
+        },
+        "alu": {
+          "passaram": 5,
+          "total": 5
+        },
+        "decoder": {
+          "passaram": 5,
+          "total": 5
+        },
+        "cpu": {
+          "passaram": 5,
+          "total": 5
+        }
+      },
+      "spec_riscv_test": "40/40 casos"
+    }
+  },
+  "relatorio": ".rvgen/sessao-20261106-220100/spec-riscv-test/suite/report.json",
+  "sessao": {
+    "chamadas": 38,
+    "tokens_entrada": 501848,
+    "tokens_saida": 56953,
+    "segundos_modelo": 639.7,
+    "execucoes": 1
+  }
+}

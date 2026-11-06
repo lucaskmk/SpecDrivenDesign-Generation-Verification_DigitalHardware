@@ -1,0 +1,166 @@
+# Component semantic contract: decoder
+
+## Public interface
+```vhdl
+entity decoder is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        reg_write : out std_logic;
+        mem_write : out std_logic;
+        alu_src_a_pc : out std_logic;
+        alu_src_b_imm : out std_logic;
+        alu_control : out std_logic_vector(3 downto 0);
+        branch_enable : out std_logic;
+        jump : out std_logic;
+        jalr : out std_logic;
+        wb_select : out std_logic_vector(1 downto 0)
+    );
+end decoder;
+```
+
+## Responsibility
+Decode RV32I instruction opcode and function fields into register-write, memory-write, operand-source, ALU-operation, branch, jump, and writeback-selection controls.
+
+## Timing
+
+`decoder` is purely combinational. After `instr` changes, every output shall settle to the value specified below without requiring a clock edge. The decoder has no state, handshake, or latency.
+
+## Reset
+
+None. The decoder has no reset input. Its outputs are determined solely by `instr`.
+
+## Behavior
+
+`instr` is a 32-bit RV32I instruction. The decoder uses `instr[6:0]` as the opcode, `instr[14:12]` as `funct3`, and, where specified, `instr[31:25]` as `funct7`.
+
+For every recognized instruction encoding, outputs shall match the instruction-class definitions below. For any unsupported opcode or unsupported function encoding, the instruction shall have no architectural side effects: `reg_write`, `mem_write`, `branch_enable`, `jump`, and `jalr` shall be `'0'`; `alu_src_a_pc` and `alu_src_b_imm` shall be `'0'`; `alu_control` shall be `"0000"`; and `wb_select` shall be `"00"`.
+
+For valid instructions, `reg_write` indicates that the instruction produces a register result. It is asserted for register-writing instruction classes even when `rd` is `x0`; suppression of writes to `x0` is the responsibility of the register-file component. `mem_write` is asserted only for valid stores. `branch_enable` is asserted only for valid conditional branches. `jump` is asserted for `JAL` and `JALR`; `jalr` is asserted only for `JALR`.
+
+`alu_src_a_pc` selects the PC as ALU operand A when `'1'`, and `rs1` otherwise. `alu_src_b_imm` selects the instruction’s applicable immediate as ALU operand B when `'1'`, and `rs2` otherwise. For instructions whose ALU operands do not affect their architectural result, the source controls and ALU control are nevertheless specified below.
+
+Valid instruction classes and their controls:
+
+| Instruction class | `reg_write` | `mem_write` | `alu_src_a_pc` | `alu_src_b_imm` | `branch_enable` | `jump` | `jalr` | `wb_select` |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| OP (`0x33`) | 1 | 0 | 0 | 0 | 0 | 0 | 0 | `"00"` |
+| OP-IMM (`0x13`) | 1 | 0 | 0 | 1 | 0 | 0 | 0 | `"00"` |
+| Loads (`0x03`) | 1 | 0 | 0 | 1 | 0 | 0 | 0 | `"01"` |
+| Stores (`0x23`) | 0 | 1 | 0 | 1 | 0 | 0 | 0 | `"00"` |
+| Conditional branches (`0x63`) | 0 | 0 | 0 | 0 | 1 | 0 | 0 | `"00"` |
+| LUI (`0x37`) | 1 | 0 | 0 | 1 | 0 | 0 | 0 | `"00"` |
+| AUIPC (`0x17`) | 1 | 0 | 1 | 1 | 0 | 0 | 0 | `"00"` |
+| JAL (`0x6F`) | 1 | 0 | 1 | 1 | 0 | 1 | 0 | `"10"` |
+| JALR (`0x67`, `funct3="000"`) | 1 | 0 | 0 | 1 | 0 | 1 | 1 | `"10"` |
+
+The ALU control and operand meaning for each valid class are specified in `Operations`. For JAL and JALR, the ALU control is `"0000"`; jump-target generation is not selected by `alu_control`.
+
+## Operations
+
+`alu_control` is a four-bit selector. Its meaning for non-branch instructions is:
+
+| `alu_control` | Operation |
+|---|---|
+| `"0000"` | ADD |
+| `"0001"` | SUB |
+| `"0010"` | SLL |
+| `"0011"` | SLT (signed) |
+| `"0100"` | SLTU (unsigned) |
+| `"0101"` | XOR |
+| `"0110"` | SRL |
+| `"0111"` | SRA |
+| `"1000"` | OR |
+| `"1001"` | AND |
+| `"1010"` | PASS_B: the result is operand B |
+| `"1011"`–`"1111"` | Not selected for non-branch instructions |
+
+When `branch_enable='1'`, `alu_control` instead selects the branch condition:
+
+| `alu_control` | Branch condition |
+|---|---|
+| `"0000"` | BEQ |
+| `"0001"` | BNE |
+| `"0010"` | BLT (signed) |
+| `"0011"` | BGE (signed) |
+| `"0100"` | BLTU (unsigned) |
+| `"0101"` | BGEU (unsigned) |
+
+The branch-specific meanings apply only when `branch_enable='1'`.
+
+`wb_select` is a two-bit selector:
+
+| `wb_select` | Writeback source |
+|---|---|
+| `"00"` | ALU result |
+| `"01"` | Data-memory read result |
+| `"10"` | `PC + 4` |
+| `"11"` | Reserved; never selected by a valid instruction |
+
+Opcode and function decoding:
+
+| Opcode | Required function encoding | `alu_control` | Additional behavior |
+|---|---|---|---|
+| `0x33` OP | `funct3="000"`, `funct7="0000000"` | `"0000"` ADD | |
+| `0x33` OP | `funct3="000"`, `funct7="0100000"` | `"0001"` SUB | |
+| `0x33` OP | `funct3="001"`, `funct7="0000000"` | `"0010"` SLL | |
+| `0x33` OP | `funct3="010"`, `funct7="0000000"` | `"0011"` SLT | |
+| `0x33` OP | `funct3="011"`, `funct7="0000000"` | `"0100"` SLTU | |
+| `0x33` OP | `funct3="100"`, `funct7="0000000"` | `"0101"` XOR | |
+| `0x33` OP | `funct3="101"`, `funct7="0000000"` | `"0110"` SRL | |
+| `0x33` OP | `funct3="101"`, `funct7="0100000"` | `"0111"` SRA | |
+| `0x33` OP | `funct3="110"`, `funct7="0000000"` | `"1000"` OR | |
+| `0x33` OP | `funct3="111"`, `funct7="0000000"` | `"1001"` AND | |
+| `0x13` OP-IMM | `funct3="000"` | `"0000"` ADD | |
+| `0x13` OP-IMM | `funct3="001"`, `instr[31:25]="0000000"` | `"0010"` SLL | |
+| `0x13` OP-IMM | `funct3="010"` | `"0011"` SLT | |
+| `0x13` OP-IMM | `funct3="011"` | `"0100"` SLTU | |
+| `0x13` OP-IMM | `funct3="100"` | `"0101"` XOR | |
+| `0x13` OP-IMM | `funct3="101"`, `instr[31:25]="0000000"` | `"0110"` SRL | |
+| `0x13` OP-IMM | `funct3="101"`, `instr[31:25]="0100000"` | `"0111"` SRA | |
+| `0x13` OP-IMM | `funct3="110"` | `"1000"` OR | |
+| `0x13` OP-IMM | `funct3="111"` | `"1001"` AND | |
+| `0x03` Load | `funct3` in `"000"`, `"001"`, `"010"`, `"100"`, `"101"` | `"0000"` ADD | |
+| `0x23` Store | `funct3` in `"000"`, `"001"`, `"010"` | `"0000"` ADD | |
+| `0x63` Branch | `funct3="000"` | `"0000"` BEQ | |
+| `0x63` Branch | `funct3="001"` | `"0001"` BNE | |
+| `0x63` Branch | `funct3="100"` | `"0010"` BLT | |
+| `0x63` Branch | `funct3="101"` | `"0011"` BGE | |
+| `0x63` Branch | `funct3="110"` | `"0100"` BLTU | |
+| `0x63` Branch | `funct3="111"` | `"0101"` BGEU | |
+| `0x37` LUI | Any `funct3` and `funct7` | `"1010"` PASS_B | |
+| `0x17` AUIPC | Any `funct3` and `funct7` | `"0000"` ADD | |
+| `0x6F` JAL | Any `funct3` and `funct7` | `"0000"` | |
+| `0x67` JALR | `funct3="000"` | `"0000"` ADD | |
+
+For OP and OP-IMM, all function encodings not listed above are unsupported. For loads, stores, branches, and JALR, function encodings not listed above are unsupported. LUI, AUIPC, and JAL do not have function-field restrictions in this contract.
+
+## Edge cases
+
+- OP encodings are valid only for the exact `funct7` values shown. In particular, the SUB and SRA encodings are distinct from their ADD and SRL counterparts; all other OP `funct7` combinations are unsupported.
+- SLLI, SRLI, and SRAI are valid only for the exact upper-bit patterns shown. Their shift amount is not decoded as a selector by this component.
+- For non-shift OP-IMM instructions, `instr[31:25]` does not restrict validity or change the selected operation.
+- `rd`, `rs1`, `rs2`, and immediate bits do not change the controls except where explicitly used as function bits above.
+- Any unsupported function combination, including an otherwise recognized opcode with an invalid `funct3` or required `funct7`, produces the no-side-effect outputs defined in `Behavior`.
+- All outputs have defined values for every possible 32-bit `instr`; there are no don’t-care outputs.
+
+## Test strategy
+
+Use a combinational Cocotb test that drives a complete 32-bit instruction, allows outputs to settle, and checks every output against the contract. Run each case without a clock or reset stimulus.
+
+1. **Opcode-class controls and writeback selection:** For each valid class in the `Behavior` table, drive a canonical instruction and check the complete output tuple, including `reg_write`, `mem_write`, both operand selectors, branch/jump controls, `alu_control`, and `wb_select`. Use different values for `rd`, `rs1`, `rs2`, and immediate fields between cases so field changes cannot accidentally conceal opcode-class selection errors. Include `rd=x0` for at least one register-writing instruction and require `reg_write='1'`.
+
+2. **OP operations:** Exercise every valid OP `funct3`/`funct7` pair in `Operations`. For each case, hold opcode and all fields other than the function selector constant, vary only the relevant `funct3` or `funct7`, and check the exact `alu_control` and full output tuple. Use distinct `funct3` and `funct7` values to distinguish each operation. Also exercise invalid `funct7` values for each relevant OP `funct3`, including the alternate `funct7` for ADD/SUB, SRL/SRA, and at least one unsupported pattern for every other `funct3`; require the unsupported-instruction outputs.
+
+3. **OP-IMM operations and function restrictions:** Exercise every valid OP-IMM row, changing only `funct3` or, for shift operations, only `instr[31:25]` between related cases. Check the exact ALU selector and full tuple. For SLLI, SRLI, and SRAI, test both permitted and disallowed upper-bit patterns. For each non-shift `funct3`, vary `instr[31:25]` while holding the other fields fixed and require that controls remain unchanged.
+
+4. **Loads and stores:** Exercise each valid load and store `funct3` independently, checking all outputs and confirming that only loads assert `reg_write` and select `"01"`, while only stores assert `mem_write`. Vary `rd`, `rs1`, `rs2`, and immediate fields independently while keeping opcode and `funct3` fixed; require that controls remain unchanged. Test every unsupported load/store `funct3` and require the no-side-effect outputs.
+
+5. **Branches:** Exercise all six valid branch `funct3` values, varying only `funct3` between cases. Check `branch_enable`, the branch-specific `alu_control`, and all other outputs. Use distinct function values to ensure each condition is selected correctly. Test unsupported branch `funct3` values and require the no-side-effect outputs.
+
+6. **Unrestricted instruction fields:** For LUI, AUIPC, and JAL, vary `funct3` and `funct7` while holding the opcode and other fields fixed; require their controls to remain unchanged. For non-shift OP-IMM operations, vary `instr[31:25]` in the same manner. In each case, separately vary register-index and immediate bits and confirm they do not alter the decoded controls.
+
+7. **JALR restriction and jump controls:** Check JAL and valid JALR as separate cases, requiring `jump='1'`, the specified `jalr` value, and `"10"` writeback selection. Vary JALR `funct3` across all values; require the valid encoding to match the JALR row and every other value to produce the no-side-effect outputs.
+
+8. **Unknown opcodes and invalid encodings:** Drive representative unrecognized opcode values and every invalid function combination required above. For each, check the entire no-side-effect output tuple, not only the side-effect flags.
+
+9. **Combinational response:** Apply consecutive instructions from different classes without any intervening clock. After each input change, require outputs to match that instruction’s expected tuple. Include transitions between valid and unsupported instructions and between classes with different writeback and control selections to detect stale output values.

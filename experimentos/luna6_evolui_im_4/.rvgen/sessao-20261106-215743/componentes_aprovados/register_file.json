@@ -1,0 +1,8 @@
+{
+  "bloco": "register_file",
+  "arquivo": "src/register_file.vhd",
+  "hash_vhdl": "ff11bb37c5f6d619331436483047eebd28988e29495f9778368b8708639dbe99",
+  "testes": [
+    "testes/test_register_file.py"
+  ]
+}

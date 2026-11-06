@@ -1,0 +1,8 @@
+{
+  "bloco": "alu",
+  "arquivo": "src/alu.vhd",
+  "hash_vhdl": "71b19a9ff8f4dc53062d3281c654ac92e154c1bb5c116782bc06a0ff393a80b0",
+  "testes": [
+    "testes/test_alu.py"
+  ]
+}
