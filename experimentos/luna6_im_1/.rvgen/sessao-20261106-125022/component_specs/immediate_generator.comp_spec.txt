@@ -1,0 +1,72 @@
+# Component semantic contract: immediate_generator
+
+## Public interface
+```vhdl
+entity immediate_generator is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0)
+    );
+end immediate_generator;
+```
+
+## Responsibility
+Generate sign-extended I, S, B, and J immediates and the zero-extended U immediate from the instruction, with the required bit rearrangements and implicit zero bits.
+
+## Timing
+
+The component is purely combinational. After `instr` changes, all five outputs must reflect that input without waiting for a clock edge. There is no clock input and no cycle-based latency.
+
+## Reset
+
+There is no reset.
+
+## Behavior
+
+For every `instr` value, all five outputs are produced simultaneously. The component does not interpret or gate its outputs by opcode or instruction validity.
+
+- `imm_i` is the sign extension to 32 bits of `instr(31 downto 20)`.
+- `imm_s` is the sign extension to 32 bits of `instr(31 downto 25) & instr(11 downto 7)`.
+- `imm_b` is the sign extension to 32 bits of the 13-bit value whose bits are:
+  - bit 12 = `instr(31)`
+  - bit 11 = `instr(7)`
+  - bits 10:5 = `instr(30 downto 25)`
+  - bits 4:1 = `instr(11 downto 8)`
+  - bit 0 = `0`
+- `imm_u` is the 32-bit value `instr(31 downto 12) & 12'b0`. It is not sign-extended.
+- `imm_j` is the sign extension to 32 bits of the 21-bit value whose bits are:
+  - bit 20 = `instr(31)`
+  - bits 19:12 = `instr(19 downto 12)`
+  - bit 11 = `instr(20)`
+  - bits 10:1 = `instr(30 downto 21)`
+  - bit 0 = `0`
+
+## Operations
+
+None; there is no encoded selector. All five immediate formats are generated for every input value.
+
+## Edge cases
+
+- A zero sign bit produces zero extension for I, S, B, and J; a one sign bit produces sign extension for those formats.
+- The implicit low bit of B and J is always zero, independent of the other input bits.
+- The low 12 bits of U are always zero; its upper 20 bits equal `instr(31 downto 12)` regardless of `instr(31)`.
+- Input bits not listed as sources for an output do not affect that output.
+- Every 32-bit input pattern is valid. Opcode, `funct3`, and other instruction fields do not alter the results.
+
+## Test strategy
+
+Use a Cocotb test that drives each specified `instr` value, waits for combinational outputs to settle, and checks all five outputs against independently calculated reference values using the bit mappings in **Behavior**. Check after each drive, without a clock or reset. Use distinct nonuniform bit patterns for source fields so that exchanging, shifting, or dropping fields cannot accidentally produce the expected result.
+
+Run these directed groups, changing only the stated semantic factor within each group:
+
+1. **Zero and sign extension:** Start with all-zero `instr`; then set `instr(31)` to one while keeping every other bit zero. Check I, S, B, and J for the corresponding all-zero or sign-extended result, and check U against its separate upper-field-and-zero-low-bits rule. Repeat with `instr(31)=1` and distinct nonzero patterns in the other source fields to verify that sign extension preserves the immediate’s low bits.
+2. **I source and sign:** With a fixed background, vary only `instr(30 downto 20)` through distinct values while holding `instr(31)=0`; check that `imm_i(11 downto 0)` follows those bits and its upper bits are zero. Then hold the low 11 immediate bits fixed and change only `instr(31)`; check that only the required sign extension and sign bit change in I.
+3. **S source and sign:** With a fixed background, vary only `instr(30 downto 25)` and `instr(11 downto 7)` using distinguishable patterns; check that they occupy the specified S immediate positions. Repeat with the same low 11 immediate bits and the opposite `instr(31)` value to check S sign extension.
+4. **B rearrangement and implicit bit:** Use distinguishable patterns in `instr(30 downto 25)`, `instr(11 downto 8)`, and `instr(7)`, changing one source field at a time. Check each field’s specified destination bits and require `imm_b(0)=0` in every case. Separately change only `instr(31)` and check the B sign bit and sign extension.
+5. **U packing:** Use several distinct values of `instr(31 downto 12)`, including values with the top bit clear and set. Check that `imm_u(31 downto 12)` matches exactly and `imm_u(11 downto 0)` is always zero. Change only bits `instr(11 downto 0)` and require `imm_u` to remain unchanged.
+6. **J rearrangement and implicit bit:** Use distinguishable patterns in `instr(30 downto 21)`, `instr(20)`, `instr(19 downto 12)`, and `instr(31)`, changing one source field at a time. Check each field’s specified destination bits and require `imm_j(0)=0` in every case. Separately change only `instr(31)` and check the J sign bit and sign extension.
+7. **Independence and arbitrary inputs:** For each output, change only input bits that are not sources for that output and require that output to remain unchanged. Also run a deterministic set of varied 32-bit input patterns (including all zeros, all ones, alternating bits, and patterns with distinct values in adjacent source fields); check all five outputs against the reference equations on every pattern.

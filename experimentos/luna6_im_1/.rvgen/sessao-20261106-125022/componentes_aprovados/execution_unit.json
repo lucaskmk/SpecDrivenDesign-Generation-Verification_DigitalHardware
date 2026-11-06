@@ -1,0 +1,8 @@
+{
+  "bloco": "execution_unit",
+  "arquivo": "src/execution_unit.vhd",
+  "hash_vhdl": "fc8e82c8267692e7b407ca1644e50f635e1aa8dae3053ba0cec43f1c3d4983c8",
+  "testes": [
+    "testes/test_execution_unit.py"
+  ]
+}

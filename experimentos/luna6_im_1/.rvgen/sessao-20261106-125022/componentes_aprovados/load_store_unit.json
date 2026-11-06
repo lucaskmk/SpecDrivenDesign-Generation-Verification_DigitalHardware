@@ -1,0 +1,8 @@
+{
+  "bloco": "load_store_unit",
+  "arquivo": "src/load_store_unit.vhd",
+  "hash_vhdl": "f7ab5464328372b3f03c651b1488a50e1c509a5408aae8b79683063c4c5c6a72",
+  "testes": [
+    "testes/test_load_store_unit.py"
+  ]
+}

@@ -1,0 +1,115 @@
+# Component semantic contract: execution_unit
+
+## Public interface
+```vhdl
+entity execution_unit is
+    port(
+        opcode : in std_logic_vector(6 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        funct7 : in std_logic_vector(6 downto 0);
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        result : out std_logic_vector(31 downto 0);
+        branch_taken : out std_logic
+    );
+end execution_unit;
+```
+
+## Responsibility
+Compute RV32I register-register and immediate arithmetic, logic, comparisons, and shifts, plus all RV32M multiply, divide, and remainder results. Also evaluate all six branch conditions using signed or unsigned comparisons as appropriate.
+
+## Timing
+`execution_unit` is purely combinational and has no clock. After any input changes, `result` and `branch_taken` must reflect the corresponding inputs once combinational propagation has settled; no prior input or output value may affect them.
+
+## Reset
+None. The component has no reset input and retains no state.
+
+## Behavior
+Inputs are `opcode`, `funct3`, and `funct7`, plus two 32-bit operands, `operand_a` and `operand_b`. Outputs are the 32-bit `result` and one-bit `branch_taken`.
+
+- For register-register operations, `operand_a` is the first source value and `operand_b` is the second source value.
+- For immediate operations, `operand_a` is the source value and `operand_b` is the already sign-extended 32-bit immediate. Immediate shifts use only `operand_b[4:0]`.
+- For branch operations, `operand_a` and `operand_b` are the values being compared. Branch-immediate bits do not affect either output.
+- All arithmetic results are 32-bit values; arithmetic overflow wraps modulo \(2^{32}\).
+- `branch_taken` is meaningful only for a supported branch encoding. It is `'0'` for every non-branch opcode and every unsupported encoding.
+- `result` is meaningful for supported arithmetic, logic, shift, and RV32M operations. It is zero for supported branches and for all unsupported opcode/selector combinations.
+
+## Operations
+All selector values below are binary. Opcodes are `0110011` for register-register (`OP`), `0010011` for immediate (`OP-IMM`), and `1100011` for branches.
+
+For `OP`, the following encodings require the stated result:
+
+| `funct7` | `funct3` | Operation |
+|---|---|---|
+| `0000000` | `000` | `operand_a + operand_b` |
+| `0100000` | `000` | `operand_a - operand_b` |
+| `0000000` | `001` | Shift `operand_a` left logically by `operand_b[4:0]` |
+| `0000000` | `010` | 1 if signed `operand_a < operand_b`, otherwise 0 |
+| `0000000` | `011` | 1 if unsigned `operand_a < operand_b`, otherwise 0 |
+| `0000000` | `100` | Bitwise XOR |
+| `0000000` | `101` | Shift `operand_a` right logically by `operand_b[4:0]` |
+| `0100000` | `101` | Shift signed `operand_a` right arithmetically by `operand_b[4:0]` |
+| `0000000` | `110` | Bitwise OR |
+| `0000000` | `111` | Bitwise AND |
+
+For `OP-IMM`, `funct7` is ignored except for shifts. The following encodings require the stated result:
+
+| `funct3` | Required `funct7` for shifts | Operation |
+|---|---|---|
+| `000` | Not applicable | `operand_a + operand_b` |
+| `010` | Not applicable | 1 if signed `operand_a < operand_b`, otherwise 0 |
+| `011` | Not applicable | 1 if unsigned `operand_a < operand_b`, otherwise 0 |
+| `100` | Not applicable | Bitwise XOR |
+| `110` | Not applicable | Bitwise OR |
+| `111` | Not applicable | Bitwise AND |
+| `001` | `0000000` | Shift `operand_a` left logically by `operand_b[4:0]` |
+| `101` | `0000000` | Shift `operand_a` right logically by `operand_b[4:0]` |
+| `101` | `0100000` | Shift signed `operand_a` right arithmetically by `operand_b[4:0]` |
+
+For `OP` with `funct7 = 0000001`, `funct3` selects RV32M as follows:
+
+| `funct3` | Operation |
+|---|---|
+| `000` | `MUL`: low 32 bits of the product |
+| `001` | `MULH`: high 32 bits of signed × signed product |
+| `010` | `MULHSU`: high 32 bits of signed `operand_a` × unsigned `operand_b` product |
+| `011` | `MULHU`: high 32 bits of unsigned × unsigned product |
+| `100` | `DIV`: signed quotient, rounded toward zero |
+| `101` | `DIVU`: unsigned quotient |
+| `110` | `REM`: signed remainder, with the sign of `operand_a` when nonzero |
+| `111` | `REMU`: unsigned remainder |
+
+For `BRANCH`, `funct3` selects the condition; `funct7` is ignored:
+
+| `funct3` | Condition for `branch_taken = '1'` |
+|---|---|
+| `000` | `operand_a = operand_b` (`BEQ`) |
+| `001` | `operand_a ≠ operand_b` (`BNE`) |
+| `100` | signed `operand_a < operand_b` (`BLT`) |
+| `101` | signed `operand_a ≥ operand_b` (`BGE`) |
+| `110` | unsigned `operand_a < operand_b` (`BLTU`) |
+| `111` | unsigned `operand_a ≥ operand_b` (`BGEU`) |
+
+For all listed comparison operations, the result is exactly `0x00000001` when true and `0x00000000` when false. Branch operations instead report the condition on `branch_taken` and set `result` to zero.
+
+## Edge cases
+- Shift amounts are the unsigned integer represented by `operand_b[4:0]`; bits `operand_b[31:5]` do not affect a shift. A shift by zero returns `operand_a`. Logical shifts fill vacated bits with zero. Arithmetic right shifts replicate the sign bit.
+- Signed comparisons interpret each operand as a two’s-complement 32-bit value. Unsigned comparisons interpret each operand as a value in the range 0 through \(2^{32}-1\).
+- `MUL` returns the low 32 product bits regardless of signed interpretation. The high-product operations return bits 63:32 of the product under their specified signedness.
+- For `DIV` and `DIVU`, a zero divisor produces `0xFFFFFFFF`. For `REM` and `REMU`, a zero divisor produces `operand_a`.
+- For signed division of `0x80000000` by `0xFFFFFFFF`, `DIV` returns `0x80000000` and `REM` returns `0x00000000`.
+- Signed division and remainder truncate toward zero; for example, `-7 / 2` is `-3` and `-7 rem 2` is `-1`.
+- Unsupported opcodes, unsupported `funct3` values, and unsupported `funct7` combinations produce `result = 0` and `branch_taken = '0'`. For `OP-IMM` non-shift operations, `funct7` is ignored. For branches, `funct7` is ignored.
+
+## Test strategy
+The following is a normative executable evidence plan. Each test observes outputs after inputs settle. Unless a step explicitly varies a selector, hold all other inputs and selectors fixed; when varying an operand or control, change only that semantic factor. Use the stated distinguishable values so an incorrect source, signedness, bit position, or selector cannot pass by coincidence.
+
+1. **Opcode and default behavior:** Test every opcode other than `0110011`, `0010011`, and `1100011`, using nonzero, unequal operands. Test unsupported `funct3` values for each supported opcode and unsupported `funct7` combinations for `OP` and immediate shifts. Require zero result and false branch output. Change only the opcode or selector between cases.
+2. **Register-register arithmetic and logic:** For each `OP` encoding in the table, test at least one nonzero pair with different operands, then change only one operand to confirm the result follows the specified operand relation. Use values such as `0x12345678` and `0x00FF0F0F` for logic and addition, and `0x87654321` and `0x01020304` for subtraction. For XOR, OR, and AND, require their distinct bit patterns; for ADD and SUB, require the exact wrapped 32-bit result. Test addition and subtraction with operands that wrap across zero.
+3. **Register-register comparisons:** For both signed and unsigned `SLT`/`SLTU`, test less-than, equal, and greater-than cases. Include `0xFFFFFFFF` versus `0x00000001` and `0x80000000` versus `0x7FFFFFFF` to distinguish signed from unsigned ordering. Require exactly zero or one. Change only the comparison operands to move between the three relations.
+4. **Register-register shifts:** For SLL, SRL, and SRA, use a source with distinguishable high, low, and sign bits, such as `0x80000081`, and test shift amounts 0, 1, 7, 31, and 32. The amount 32 must behave as zero because only the low five bits select the amount. For nonzero amounts, require the exact shifted bit pattern; for SRA also test a nonnegative source. Change only the shift amount or source sign between cases. For SLL and SRL, vary only `operand_b[31:5]` while holding `[4:0]` fixed and require no output change.
+5. **Immediate operations:** For every non-shift `OP-IMM` `funct3`, test with positive, negative, and boundary bit patterns in `operand_b`; require the operation to use the complete 32-bit immediate value. Include arithmetic wraparound and signed/unsigned comparison cases that distinguish the two comparison interpretations. For each operation, vary only the source or immediate at a time. For shifts, use the shift cases in item 4 and confirm that changing `operand_b[31:5]` alone does not change the result. Test each permitted shift `funct7` and reject other shift `funct7` values.
+6. **Branch conditions:** For each of the six branch `funct3` encodings, test true and false cases, including equality, inequality, both signed orderings, and both unsigned orderings. Include `0xFFFFFFFF` versus `0x00000001` and `0x80000000` versus `0x7FFFFFFF` to distinguish signed from unsigned conditions. Require `result = 0` in every branch case. Change only the operands to invert the selected condition; separately vary `funct7` and require the branch outcome to remain unchanged.
+7. **Multiplication:** For each of `MUL`, `MULH`, `MULHSU`, and `MULHU`, test operands whose product has nonzero high and low halves. Include `0x80000000` and `0xFFFFFFFF` in both operand positions as applicable, and use asymmetric operands to verify that `MULHSU` treats `operand_a` as signed and `operand_b` as unsigned. Require exact low or high product bits as specified. Change only the selected `funct3` to verify that each operation returns its specified portion and signedness; change one operand at a time for operand-routing evidence.
+8. **Division and remainder:** For each of `DIV`, `DIVU`, `REM`, and `REMU`, test positive operands, negative signed operands, and operands with the high bit set. Use `operand_a = 0xFFFFFFF9`, `operand_b = 0x00000002` to distinguish signed from unsigned results. Test zero divisors for all four selectors and the signed overflow pair `0x80000000`, `0xFFFFFFFF` for `DIV` and `REM`. Require exact results, including truncation toward zero and the specified special-case results. Change only the selector or one operand at a time.
+9. **Output independence and settled behavior:** For representative arithmetic, shift, M, and branch cases, change one input at a time and require outputs to match the contract for the new input values without requiring a clock or reset. Confirm that changing irrelevant fields—`funct7` on branches and non-shift immediate operations, or `operand_b[31:5]` on shifts—does not alter the result.

@@ -1,0 +1,86 @@
+# Component semantic contract: load_store_unit
+
+## Public interface
+```vhdl
+entity load_store_unit is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        effective_address : in std_logic_vector(31 downto 0);
+        store_data_in : in std_logic_vector(31 downto 0);
+        data_read_data : in std_logic_vector(31 downto 0);
+        data_addr : out std_logic_vector(31 downto 0);
+        data_write : out std_logic;
+        data_width : out std_logic_vector(1 downto 0);
+        data_write_data : out std_logic_vector(31 downto 0);
+        load_result : out std_logic_vector(31 downto 0)
+    );
+end load_store_unit;
+```
+
+## Responsibility
+Drive the byte-addressed effective data address, access width, store enable, and store data for LB/LH/LW/LBU/LHU and SB/SH/SW. Select the addressed byte or halfword from the aligned read word and perform the required sign or zero extension for loads.
+
+## Timing
+
+- The component is purely combinational and has no clock or state.
+- Each output reflects the current inputs after combinational propagation; there is no transaction latency or retained result.
+
+## Reset
+
+- None. The interface has no reset input, and the component has no reset behavior.
+
+## Behavior
+
+- `data_addr` equals `effective_address` for every input instruction. The address is passed through unchanged, including its low bits.
+- For a recognized store, `data_write` is `'1'` and `data_write_data` equals all 32 bits of `store_data_in`. The selected width determines which low bits are used by the memory interface; the component does not shift or replicate the store data.
+- For every other instruction, `data_write` is `'0'` and `data_write_data` is all zeros.
+- For a recognized load, `load_result` is the selected and extended value described below. For every other instruction, `load_result` is all zeros.
+- Instructions are selected using `instr(6 downto 0)` (opcode) and `instr(14 downto 12)` (`funct3`). All other instruction bits are ignored.
+- `data_read_data` is the little-endian 32-bit word based at `effective_address` with its low two address bits cleared. Loads select from this word using `effective_address(1 downto 0)`.
+- For recognized byte and halfword accesses, `data_width` is `"00"` and `"01"`, respectively; for recognized word accesses it is `"10"`.
+- For an unsupported opcode or unsupported `funct3`, `data_width` is `"10"`; the other outputs follow the non-store and non-load defaults above.
+- Halfword and word accesses are required to be aligned. Behavior of `load_result` for misaligned halfword or word addresses is outside the contract. The address is still passed through unchanged.
+
+## Operations
+
+The opcode and `funct3` encodings are:
+
+| Operation | Opcode | `funct3` | `data_width` | Result |
+|---|---:|---:|---:|---|
+| LB | `0000011` | `000` | `00` | Select addressed byte; sign-extend to 32 bits |
+| LH | `0000011` | `001` | `01` | Select addressed halfword; sign-extend to 32 bits |
+| LW | `0000011` | `010` | `10` | Return all of `data_read_data` |
+| LBU | `0000011` | `100` | `00` | Select addressed byte; zero-extend to 32 bits |
+| LHU | `0000011` | `101` | `01` | Select addressed halfword; zero-extend to 32 bits |
+| SB | `0100011` | `000` | `00` | Assert store enable; pass through `store_data_in` |
+| SH | `0100011` | `001` | `01` | Assert store enable; pass through `store_data_in` |
+| SW | `0100011` | `010` | `10` | Assert store enable; pass through `store_data_in` |
+
+Byte selection uses the address offset as follows:
+
+| `effective_address(1 downto 0)` | Selected bits |
+|---:|---|
+| `00` | `data_read_data(7 downto 0)` |
+| `01` | `data_read_data(15 downto 8)` |
+| `10` | `data_read_data(23 downto 16)` |
+| `11` | `data_read_data(31 downto 24)` |
+
+For aligned halfword loads, offset `00` selects `data_read_data(15 downto 0)` and offset `10` selects `data_read_data(31 downto 16)`. `LH` sign-extends the selected halfword; `LHU` zero-extends it.
+
+## Edge cases
+
+- `x0` and register-file behavior are not part of this component’s interface.
+- Store data is not offset-adjusted: for SB, SH, and SW, `data_write_data` always equals the complete `store_data_in` value.
+- `data_addr` is never aligned, masked, incremented, or otherwise transformed by this component.
+- Byte loads support all four address offsets. Halfword and word load results are specified only for aligned addresses.
+- Unsupported opcodes and unsupported `funct3` values do not assert `data_write` and produce zero `data_write_data` and `load_result`, with `data_width` equal to `"10"`.
+
+## Test strategy
+
+- **Address pass-through:** For each of the three control classes—recognized load, recognized store, and unsupported instruction—apply distinct `effective_address` values, including addresses ending in `00`, `01`, `10`, and `11`. Check that `data_addr` exactly equals the applied address. Change only `effective_address` between checks; use different values in the other inputs so an accidental source substitution cannot pass.
+- **Opcode and `funct3` decoding:** For each row in the operations table, apply its opcode and `funct3` and check `data_width`, `data_write`, and whether `load_result` is active. Then change only the opcode to the other valid opcode and check that the instruction’s load/store class changes. For each valid opcode, change only `funct3` through all eight values and check recognized rows against the table and other values against the unsupported defaults.
+- **Store enable, width, and data routing:** For SB, SH, and SW, use a nonzero, asymmetric value such as `0xA1B2C3D4` and check `data_write = '1'`, the table’s width, and exact equality of `data_write_data` to the full input value. Change only `store_data_in` to a second distinct value and check the output follows it. Repeat with each store’s `funct3` changed to an unsupported value, checking the non-store defaults.
+- **Byte selection and extension:** For LB and LBU, use `data_read_data = 0xD3A5C67E`. At each of the four address offsets, check selection of the corresponding distinct byte (`7E`, `C6`, `A5`, `D3`) and the required extension. Use byte values with both high-bit states so sign extension and zero extension are distinguishable. Change only the address offset between lane checks; then hold the offset fixed and change only `data_read_data` to confirm the selected lane follows the input.
+- **Halfword selection and extension:** For LH and LHU, use `data_read_data = 0x80F17E35`. At aligned offset `00`, check the result from `0x7E35`; at aligned offset `10`, check the result from `0x80F1`. Check sign extension for LH and zero extension for LHU, including the negative signed halfword. Change only the address offset between the two selections, and compare LH with LHU while holding all data and address inputs fixed.
+- **Word load:** For LW, apply a non-symmetric `data_read_data` value such as `0x93C5E72B` at an aligned address and check exact 32-bit equality at `load_result`. Change only `data_read_data` and check the result changes to the new full word.
+- **Inactive outputs and unsupported instructions:** For every valid load, check `data_write = '0'` and `data_write_data = 0`; for every valid store, check `load_result = 0`. Apply unsupported opcodes and unsupported `funct3` values with nonzero read and store inputs, checking the specified defaults so stale or accidentally selected input values cannot pass.

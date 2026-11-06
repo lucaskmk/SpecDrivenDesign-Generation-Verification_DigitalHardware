@@ -1,0 +1,92 @@
+# Component semantic contract: register_file
+
+## Public interface
+```vhdl
+entity register_file is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        read_addr1 : in std_logic_vector(4 downto 0);
+        read_addr2 : in std_logic_vector(4 downto 0);
+        read_data1 : out std_logic_vector(31 downto 0);
+        read_data2 : out std_logic_vector(31 downto 0);
+        write_enable : in std_logic;
+        write_addr : in std_logic_vector(4 downto 0);
+        write_data : in std_logic_vector(31 downto 0)
+    );
+end register_file;
+```
+
+## Responsibility
+Provide two asynchronous register reads and one rising-edge register write for the 32 RV32 registers. Reset all registers asynchronously to zero, always return zero for x0, and ignore writes to x0.
+
+## Timing
+
+- `read_data1` and `read_data2` are asynchronous outputs. For binary read addresses, each output reflects the currently selected register without waiting for a clock edge.
+- A write takes effect only on a rising edge of `clk`. Before that edge, reads of the destination return its previous value; after the edge and signal propagation, they return the written value.
+- There is no write-through behavior before the rising edge. If a read address selects the register being written, the read returns the old value before the edge and the new value after the edge.
+- Changes to a read address affect its corresponding output independently of the clock. A change to one read address does not change the other read output unless its selected register’s value changes.
+
+## Reset
+
+- `rst` is asynchronous and active high. When `rst` becomes `'1'`, all registers are immediately set to zero; no clock edge is required.
+- While `rst` is high, both read outputs are zero for every binary read address, and rising clock edges do not perform writes.
+- Deasserting `rst` does not itself change register values or perform a write. After reset, all registers contain zero until written.
+- Register x0 always reads as zero, including during and after reset.
+
+## Behavior
+
+- There are 32 32-bit registers, selected by the 5-bit addresses described under **Operations**.
+- `read_addr1` selects the value presented on `read_data1`; `read_addr2` independently selects the value presented on `read_data2`.
+- `write_enable = '1'` requests a write at the next rising edge of `clk`. If reset is not active and `write_addr` selects x1 through x31, `write_data` becomes that register’s value at the edge.
+- `write_enable = '0'` causes no write. Registers not selected by an accepted write retain their values.
+- Writes to x0 are ignored for every `write_data` value. Reads of x0 return zero regardless of writes or other register values.
+- The interface defines behavior for binary addresses and binary control values. Behavior for address or control inputs containing non-binary `std_logic` values is unspecified.
+
+## Operations
+
+There is no opcode selector. The 5-bit addresses encode register numbers as unsigned values:
+
+| Address | Register | Address | Register |
+|---|---|---|---|
+| `00000` | x0 | `10000` | x16 |
+| `00001` | x1 | `10001` | x17 |
+| `00010` | x2 | `10010` | x18 |
+| `00011` | x3 | `10011` | x19 |
+| `00100` | x4 | `10100` | x20 |
+| `00101` | x5 | `10101` | x21 |
+| `00110` | x6 | `10110` | x22 |
+| `00111` | x7 | `10111` | x23 |
+| `01000` | x8 | `11000` | x24 |
+| `01001` | x9 | `11001` | x25 |
+| `01010` | x10 | `11010` | x26 |
+| `01011` | x11 | `11011` | x27 |
+| `01100` | x12 | `11100` | x28 |
+| `01101` | x13 | `11101` | x29 |
+| `01110` | x14 | `11110` | x30 |
+| `01111` | x15 | `11111` | x31 |
+
+## Edge cases
+
+- x0 returns zero at both read outputs in all circumstances and cannot be changed by a write.
+- A write is accepted only when `write_enable` is `'1'`, reset is inactive, and `write_addr` is not x0, sampled at a rising edge.
+- A rising edge with `write_enable = '0'` leaves every register unchanged. A write request between rising edges does not change register values.
+- Reset assertion takes precedence over a pending or coincident write. Reset release does not restore pre-reset values.
+- Both read addresses may select the same register; both outputs then report that register’s value.
+- A read address may select the register being written. Its output reports the old value before the accepting edge and the new value after the edge propagates.
+- Addresses x0 and x31 are valid boundary addresses. x0 has the special constant-zero behavior; x31 behaves like any writable register other than x0.
+
+## Test strategy
+
+Use binary inputs and check outputs after allowing signal propagation. Use distinct, nonzero, pairwise-different 32-bit patterns for registers x1–x31, for example `0x13579BDF XOR (index * 0x01010101)`, and use new patterns distinct from the seeded values for write checks. This prevents a wrong register selection from passing because two sources happen to match.
+
+1. **Read selection on port 1:** Initialize x1–x31 to distinct patterns. Hold `read_addr2` fixed, then set `read_addr1` in turn to every address from x0 through x31. Require `read_data1` to equal the selected register’s pattern, or zero for x0. Vary only `read_addr1` between checks.
+2. **Read selection on port 2:** With the same distinct register contents, hold `read_addr1` fixed and set `read_addr2` in turn to every address from x0 through x31. Require the corresponding value on `read_data2`. Vary only `read_addr2` between checks.
+3. **Read-port independence and equal addresses:** Select two different nonzero registers with distinct values and check both outputs simultaneously. Change only one address and require only its selected output to change. Then set both addresses to each same selected address in turn, including x0 and x31, and require both outputs to match that register’s value.
+4. **Asynchronous read timing:** With the clock held away from a rising edge, change each read address separately and require its output to change to the newly selected value without a clock edge. Keep the other read address fixed and require its output to remain correct.
+5. **Write enable and edge timing:** Seed a writable register with a known value. Set `write_enable` high, select that register, and provide a different value while holding the clock away from a rising edge; require reads to continue reporting the old value. Create a rising edge and require reads to report the new value. Repeat with `write_enable` low and require no register to change at the rising edge.
+6. **Write-address selection and isolation:** Seed every writable register with a distinct pattern. For each address x1–x31, perform one enabled write of a new, distinct value at a rising edge. After each write, read all 32 addresses and require only the selected register to have changed; require x0 to remain zero. Vary only the write address and corresponding write data between write trials.
+7. **Ignored writes to x0:** Seed x1–x31 with distinct values. Write several distinct values to x0 with `write_enable` high, each on a rising edge. After each write, read x0 and all writable registers; require x0 to remain zero and every other register to retain its seeded value.
+8. **Reset assertion and reset priority:** First write distinct nonzero values to x1–x31. Assert `rst` between clock edges and require reads of all 32 addresses to return zero without a clock edge. While reset remains high, request writes to a nonzero register and create a rising edge; require all addresses still to read zero. Vary the write address and data one at a time across checks.
+9. **Reset release and persistence:** Deassert reset without a clock edge and require all addresses to continue reading zero. Then write a nonzero value to one writable register at a rising edge and verify that only that register changes from zero. This confirms reset release alone does not write or restore state.
+10. **Read/write collision boundary:** With a writable register holding a known old value, select it on one or both read ports and request a write of a distinct new value. Require the old value before the rising edge and the new value after it. Repeat with the other read port selecting an unchanged register and require that output to retain its distinct value.
