@@ -1,0 +1,65 @@
+{
+  "veredito": "aprovado",
+  "objetivo_atingido": true,
+  "placar": "48/48 casos",
+  "iteracoes": 0,
+  "chamadas": 26,
+  "tokens_entrada": 388021,
+  "tokens_saida": 41988,
+  "segundos": 717.8,
+  "provedor": "openrouter",
+  "modelo": "openai/gpt-6-luna",
+  "microarquitetura": "monociclo",
+  "isa": "rv32im",
+  "testes_componentes": true,
+  "regressoes_componentes": true,
+  "gates_componentes": true,
+  "evolucao": {
+    "de": "experimentos/luna6_prof_3",
+    "sessao": "sessao-20261104-171911",
+    "isa_anterior": "rv32i",
+    "mudaram": [
+      "cpu",
+      "decoder"
+    ],
+    "congelados": [
+      "alu",
+      "immediate_generator",
+      "register_file"
+    ],
+    "linha_de_base": {
+      "isa": "rv32i",
+      "componentes": {
+        "immediate_generator": {
+          "passaram": 5,
+          "total": 5
+        },
+        "register_file": {
+          "passaram": 5,
+          "total": 5
+        },
+        "alu": {
+          "passaram": 5,
+          "total": 5
+        },
+        "decoder": {
+          "passaram": 5,
+          "total": 5
+        },
+        "cpu": {
+          "passaram": 5,
+          "total": 5
+        }
+      },
+      "spec_riscv_test": "40/40 casos"
+    }
+  },
+  "relatorio": ".rvgen/sessao-20261106-193511/spec-riscv-test/suite/report.json",
+  "sessao": {
+    "chamadas": 26,
+    "tokens_entrada": 388021,
+    "tokens_saida": 41988,
+    "segundos_modelo": 446.0,
+    "execucoes": 1
+  }
+}

@@ -1,0 +1,1 @@
+/usr/lib/gcc/riscv64-unknown-elf/12.2.0/../../../riscv64-unknown-elf/bin/ld: warning: /repo/experimentos/luna6_evolui_im_2/.rvgen/sessao-20261106-193511/spec-riscv-test/linha-de-base/programs/rv32ui-p-slli has a LOAD segment with RWX permissions

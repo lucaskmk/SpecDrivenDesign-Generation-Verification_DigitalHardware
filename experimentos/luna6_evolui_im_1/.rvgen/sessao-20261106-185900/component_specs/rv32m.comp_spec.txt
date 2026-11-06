@@ -1,0 +1,70 @@
+# Component semantic contract: rv32m
+
+## Public interface
+```vhdl
+entity rv32m is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end rv32m;
+```
+
+## Responsibility
+Combinationally implement MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, and REMU, selected by funct3. Produce the low or high product word as appropriate; implement truncation-toward-zero division and remainder; handle divide-by-zero and signed division overflow exactly as specified.
+
+## Timing
+
+`rv32m` is purely combinational. It has no clock, cycle boundary, or latency. After any input changes, `result` must settle to the value specified by the current `operand_a`, `operand_b`, and `funct3`.
+
+## Reset
+
+None. The component has no reset input or reset state.
+
+## Behavior
+
+All inputs are binary values: `operand_a` and `operand_b` are 32-bit bit patterns, and `funct3` is a 3-bit selector. Their signed or unsigned interpretation depends on the selected operation. Every possible binary `funct3` value selects exactly one operation; no encoding is reserved. Behavior for inputs containing `X`, `Z`, or other non-binary logic values is unspecified.
+
+## Operations
+
+| `funct3` | Operation | Result |
+|---|---|---|
+| `"000"` | MUL | Low 32 bits of the product of `operand_a` and `operand_b`. |
+| `"001"` | MULH | High 32 bits of the product of signed(`operand_a`) and signed(`operand_b`). |
+| `"010"` | MULHSU | High 32 bits of the product of signed(`operand_a`) and unsigned(`operand_b`). Operand order matters. |
+| `"011"` | MULHU | High 32 bits of the product of unsigned(`operand_a`) and unsigned(`operand_b`). |
+| `"100"` | DIV | Signed quotient of `operand_a` divided by `operand_b`, rounded toward zero. |
+| `"101"` | DIVU | Unsigned quotient of `operand_a` divided by `operand_b`. |
+| `"110"` | REM | Signed remainder of `operand_a` divided by `operand_b`, with quotient rounded toward zero. |
+| `"111"` | REMU | Unsigned remainder of `operand_a` divided by `operand_b`. |
+
+For multiplication, the product is treated as a 64-bit result. MUL returns bits `[31:0]`; MULH, MULHSU, and MULHU return bits `[63:32]`. The returned word is the corresponding 32-bit pattern, including for negative signed products.
+
+For division and remainder, a signed operand is interpreted as a two’s-complement value in the range −2³¹ through 2³¹−1; an unsigned operand is in the range 0 through 2³²−1. Signed quotient rounding is toward zero. For signed remainder, the remainder has the sign of `operand_a` when nonzero. The identity `operand_a = quotient * operand_b + remainder`, using signed integer values, applies to signed division and remainder **except** for the signed division overflow case specified below.
+
+## Edge cases
+
+- For DIV or DIVU with `operand_b = 0`, `result` is `0xFFFFFFFF`.
+- For REM or REMU with `operand_b = 0`, `result` is `operand_a`.
+- For DIV with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, `result` is `0x80000000`.
+- For REM with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, `result` is `0x00000000`. This overflow case is the exception to the signed quotient/remainder identity stated above.
+- The signed division overflow case does not apply to DIVU or REMU.
+- No operation raises an exception or has any effect beyond producing `result`.
+
+## Test strategy
+
+Use a Cocotb test that drives the three inputs, waits for combinational settling after each change, and compares `result` against an independent Python reference model. The model must use arbitrary-precision integer arithmetic, explicitly interpret signed operands as two’s-complement 32-bit values, and mask each expected result to 32 bits. Apply one semantic factor at a time: hold all other inputs fixed when varying the selector or either operand.
+
+- **Selector decoding:** Exercise every `funct3` encoding from `"000"` through `"111"` and compare each result against the reference model. Also hold an operand pair fixed while changing only `funct3`; choose a pair for which all eight reference results are distinct, so selecting the wrong operation cannot pass. Find such a pair deterministically by searching a fixed, seeded sequence of 32-bit operand pairs, and require that the search finds one.
+- **Operand dependence for each operation:** For each selector, hold `funct3` and `operand_b` fixed while varying `operand_a`; then hold `funct3` and `operand_a` fixed while varying `operand_b`. Include zero, one, two, `0x7FFFFFFF`, `0x80000000`, `0xFFFFFFFF`, and nontrivial patterns such as `0x12345678` and `0x9ABCDEF1`. Check every result against the reference model.
+- **MUL low-word selection:** Use operand pairs whose full product has nonzero high and low words, and whose high word differs from the low word. Change one operand at a time and verify that MUL returns the low word.
+- **MULH signed multiplication:** Test positive-positive, negative-positive, positive-negative, and negative-negative operands. Include `0x80000000` and `0xFFFFFFFF`, and verify that the returned word is the high word of the signed product.
+- **MULHSU mixed signedness and operand order:** Test negative and nonnegative `operand_a` values with `operand_b` values having their top bit set and clear. Include `(operand_a, operand_b) = (0x80000000, 0xFFFFFFFF)` and the reversed pair; verify each against the signed-first, unsigned-second reference calculation.
+- **MULHU unsigned multiplication:** Test values with the top bit set and clear in each operand, including `0xFFFFFFFF` and `0x80000000`. Use products with nonzero high words and verify the unsigned product’s high word.
+- **DIV and REM signed behavior:** Test positive and negative dividends and divisors, including combinations with opposite signs. Include `-7 / 2` and `-7 rem 2`, checking respectively `0xFFFFFFFD` and `0xFFFFFFFF`. Also test values that do not divide evenly and values that divide evenly, changing only the operand under test. Check the quotient/remainder identity for signed cases other than the specified overflow case.
+- **DIVU and REMU unsigned behavior:** Test operands with the top bit set and clear, including `0xFFFFFFFF` and `0x80000000`, and verify quotient and remainder using unsigned Python integers.
+- **Division-by-zero handling:** For each of DIV, DIVU, REM, and REMU, hold the selector and `operand_a` fixed, change only `operand_b` to zero, and check the specified result. Use at least two distinct `operand_a` values so the remainder results are verified to follow the dividend.
+- **Signed division overflow:** For DIV and REM, test `(operand_a, operand_b) = (0x80000000, 0xFFFFFFFF)` and check both specified results. Change only `funct3` between DIV and REM for this pair; do not apply the signed quotient/remainder identity to this case.
+- **Zero and unit boundaries:** For every selector, test zero operands and operands equal to one. For division and remainder, separately test divisors `1`, `0xFFFFFFFF`, and `0x80000000`, without changing the selector or dividend when comparing divisor cases.
