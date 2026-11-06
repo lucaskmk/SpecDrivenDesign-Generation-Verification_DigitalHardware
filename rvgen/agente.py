@@ -625,7 +625,7 @@ class Agente:
                  max_chamadas: int | None = None,
                  max_tokens: int | None = None,
                  max_blocos: int = MAX_BLOCOS_PADRAO,
-                 topo_sem_conta: bool = True,
+                 topo_sem_conta: bool = False,
                  relatar: Callable[[str], None] = print,
                  protegidos: Callable[[], str] | None = None,
                  caso_de_fumaca: Callable[[], str] = _caso_de_fumaca) -> None:
@@ -643,7 +643,9 @@ class Agente:
         self.max_chamadas = max_chamadas if max_chamadas and max_chamadas > 0 else None
         self.max_tokens = max_tokens if max_tokens and max_tokens > 0 else None
         self.max_blocos = max(2, max_blocos)
-        # proibição de mul/div/rem no topo; desligável para medir o efeito dela
+        # proibição de mul/div/rem no topo: opcional (--proibir-conta-no-topo).
+        # Desligada por padrão: sem ela, a evolução luna6_evolui_im_5 também pôs
+        # o M num bloco próprio; o que decidiu foi liberar a decomposição.
         self.topo_sem_conta = topo_sem_conta
         self.exemplo = Path(exemplo).resolve() if exemplo else None
         self.descricao = (descricao or "").strip() or None
