@@ -1,0 +1,97 @@
+# Component semantic contract: rv32m_unit
+
+## Public interface
+```vhdl
+entity rv32m_unit is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        valid : out std_logic;
+        result : out std_logic_vector(31 downto 0)
+    );
+end rv32m_unit;
+```
+
+## Responsibility
+Recognize valid RV32M instructions and produce the 32-bit result for MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, and REMU. Report whether the current instruction is a valid M instruction. Implement division by zero and signed division overflow explicitly.
+
+## Timing
+
+`rv32m_unit` is combinational. After `instr`, `operand_a`, or `operand_b` changes, `valid` and `result` must reflect the new inputs without a clock edge, after combinational propagation settles. There is no state, handshake, or additional latency.
+
+## Reset
+
+None. The component has no reset input and requires no reset sequence.
+
+## Behavior
+
+The instruction fields determine whether the current instruction is a valid RV32M operation:
+
+- `instr(6 downto 0)` is the opcode.
+- `instr(14 downto 12)` is the operation selector.
+- `instr(31 downto 25)` is the function code.
+
+`valid` is `'1'` exactly when the opcode is `0110011` and the function code is `0000001`. For every other encoding, `valid` is `'0'` and `result` is all zero bits.
+
+When `valid` is `'1'`, `operand_a` is the 32-bit value of `rs1`, `operand_b` is the 32-bit value of `rs2`, and `result` is the selected operation’s 32-bit result. Instruction fields other than opcode, function code, and operation selector do not affect `valid` or `result`.
+
+These definitions apply to binary-valued inputs. An instruction containing non-binary values in the opcode, function-code, or operation-selector fields is not a valid M instruction and must produce `valid = '0'` and `result = 0`.
+
+## Operations
+
+For every operation below, the required opcode is `0110011` and the required function code is `0000001`.
+
+| `instr(14 downto 12)` | Operation | Result |
+|---|---|---|
+| `000` | MUL | Bits `[31:0]` of the product of the two 32-bit operands. |
+| `001` | MULH | Bits `[63:32]` of the 64-bit two’s-complement product of signed `operand_a` and signed `operand_b`. |
+| `010` | MULHSU | Bits `[63:32]` of the 64-bit two’s-complement product of signed `operand_a` and unsigned `operand_b`. |
+| `011` | MULHU | Bits `[63:32]` of the unsigned 64-bit product of `operand_a` and `operand_b`. |
+| `100` | DIV | Signed quotient of `operand_a` divided by `operand_b`, rounded toward zero. |
+| `101` | DIVU | Unsigned quotient of `operand_a` divided by `operand_b`. |
+| `110` | REM | Signed remainder of `operand_a` divided by `operand_b`, with quotient rounded toward zero. |
+| `111` | REMU | Unsigned remainder of `operand_a` divided by `operand_b`. |
+
+All results are exactly 32 bits. Multiplication results are the specified 32-bit slice of the full product; they are not trapped or saturated.
+
+## Edge cases
+
+- For `DIV` and `DIVU`, a zero divisor produces `0xFFFFFFFF`.
+- For `REM` and `REMU`, a zero divisor produces `operand_a` unchanged.
+- For signed `DIV`, `0x80000000 / 0xFFFFFFFF` produces `0x80000000`.
+- For signed `REM`, `0x80000000 rem 0xFFFFFFFF` produces `0x00000000`.
+- Signed division and remainder truncate the quotient toward zero. A nonzero signed remainder has the sign of `operand_a`; it satisfies `operand_a = quotient × operand_b + remainder`.
+- No RV32M operation raises an exception or changes behavior based on overflow beyond the defined division cases and the specified multiplication result slices.
+- Writes to a destination register are outside this component’s interface; `result` must still report the selected operation’s result regardless of instruction `rd`.
+
+## Test strategy
+
+Use Cocotb to drive inputs, wait for combinational propagation after each change, and check both outputs. Use a Python reference model with explicit 32-bit masking, signed interpretation, and the edge-case rules in this contract. For each test group, hold all inputs constant except the stated semantic factor.
+
+1. **Instruction recognition and invalid-result behavior**
+   - Start from a valid instruction with selector `000`; change only the opcode to values other than `0110011`, checking `valid = 0` and `result = 0`.
+   - Restore the opcode, then change only the function code to values other than `0000001`, checking the same outputs.
+   - For each of the eight selectors, change only `instr(14 downto 12)` and check `valid = 1`.
+   - With a valid operation fixed, vary `rd`, `rs1`, and `rs2` instruction fields individually. Check that `valid` and the result are unchanged, using operands whose expected result is nonzero where applicable.
+   - Drive a non-binary value in each recognition field in turn; check `valid = 0` and `result = 0`.
+
+2. **Operation-selector decoding and operand use**
+   - Test every selector with the required opcode and function code, checking the exact result against the reference model.
+   - For the four multiplication selectors, use `operand_a = 0x80000003` and `operand_b = 0xFFFFFFFD`. Check each operation independently against its specified signedness and product slice; these operands distinguish signed and unsigned interpretations and exercise nonzero high product bits.
+   - For `DIV`, `DIVU`, `REM`, and `REMU`, use `operand_a = 0xFFFFFFF9` and `operand_b = 2`. Check respectively `0xFFFFFFFD`, `0x7FFFFFFC`, `0xFFFFFFFF`, and `0x00000001`. This makes signed and unsigned division and remainder distinguishable.
+   - For each operation, change only `operand_a` and check the corresponding reference result, then restore it and change only `operand_b`. Include cases where a changed operand changes the result, so a result routed from the wrong operand cannot pass.
+
+3. **Multiplication result slicing and signedness**
+   - For `MUL`, check `0xFFFFFFFF × 2 = 0xFFFFFFFE`, and check `0x80000000 × 2 = 0x00000000` in the low 32 bits.
+   - For `MULH`, check `0x80000000 × 0x80000000` gives `0x40000000`.
+   - For `MULHSU`, check `0xFFFFFFFF × 0xFFFFFFFF` gives `0xFFFFFFFF`.
+   - For `MULHU`, check `0xFFFFFFFF × 0xFFFFFFFF` gives `0xFFFFFFFE`.
+   - Change one operand at a time for each multiplication case. Include products with nonzero low and high halves so an incorrect slice is detectable.
+
+4. **Division, remainder, and boundary semantics**
+   - For each of `DIV`, `DIVU`, `REM`, and `REMU`, set `operand_b = 0`; vary `operand_a` between `0`, `1`, `0x80000000`, and `0xFFFFFFFF`. Check the specified zero-divisor result for each value.
+   - Check signed truncation toward zero using `-7 / 2 = -3`, `-7 rem 2 = -1`, `7 / -2 = -3`, and `7 rem -2 = 1`, encoding signed values as 32-bit two’s-complement inputs.
+   - Check signed overflow with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF` for both `DIV` and `REM`.
+   - Check unsigned division and remainder with high-bit-set operands, including `0xFFFFFFF9 / 2` and its remainder, against the unsigned reference model.
+   - Change only the selector between signed and unsigned variants for the same operands and check each defined result separately. Use operands for which the signed and unsigned results differ.
