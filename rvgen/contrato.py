@@ -146,6 +146,15 @@ def ler_configuracao_cpu(caminho: Path | None = None, *, pasta: Path | None = No
         texto = caminho.read_text(encoding="utf-8")
     except OSError as e:
         raise ErroContrato(f"nao foi possivel ler a especificacao da CPU {caminho}: {e}") from e
+    # A declaracao e a linha que traz ISA e microarquitetura juntas
+    # ("- RV32IM single cycle"). Lida dela, uma mencao solta a "RV32I" no
+    # resto do texto nao torna uma CPU RV32IM ambigua. Sem uma linha assim
+    # (ou com mais de uma), vale o texto inteiro, como antes.
+    declaracoes = [ln for ln in texto.splitlines()
+                   if _ISA_CPU_RE.search(ln)
+                   and any(p.search(ln) for p in _MICROARQUITETURAS_CPU_RE.values())]
+    if len(declaracoes) == 1:
+        texto = declaracoes[0]
     isas = {m.group(0).lower() for m in _ISA_CPU_RE.finditer(texto)}
     microarquiteturas = {nome for nome, padrao in _MICROARQUITETURAS_CPU_RE.items()
               if padrao.search(texto)}
