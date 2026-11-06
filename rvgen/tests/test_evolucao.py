@@ -101,19 +101,19 @@ class TestEvoluir(unittest.TestCase):
         self.assertIn('"spec_riscv_test": "40/40', pedido)
         self.assertIn("RV32M Implementation Reference", pedido)
         self.assertIn("mul, mulh, mulhsu, mulhu, div, divu, rem, remu", pedido)
-        # a decomposição é livre e o topo não faz conta
+        # a decomposição é livre; a regra do topo só entra se pedida
         self.assertIn("The decomposition is free", pedido)
-        self.assertIn("must never contain multiplication, division, remainder", pedido)
+        self.assertNotIn("must never contain multiplication", pedido)
         self.assertIn("2 to 16 blocks", pedido)
         self.assertNotIn("SMALLEST", pedido)
 
-    def test_sem_a_regra_do_topo_o_plano_so_libera_a_decomposicao(self):
-        _, _, modelo, _, r = self.evoluir(self.MUDA_ALU, topo_sem_conta=False)
+    def test_com_a_regra_do_topo_o_plano_a_cita(self):
+        _, _, modelo, _, r = self.evoluir(self.MUDA_ALU, topo_sem_conta=True)
         pedido = modelo.pedidos[0][2]
         self.assertIn("The decomposition is free", pedido)
-        self.assertNotIn("must never contain multiplication", pedido)
+        self.assertIn("must never contain multiplication, division, remainder", pedido)
         inicio = json.loads((r.sessao / "sessao.jsonl").read_text(encoding="utf-8").splitlines()[0])
-        self.assertFalse(inicio["topo_sem_conta"])
+        self.assertTrue(inicio["topo_sem_conta"])
 
     def test_so_o_bloco_mudado_e_reescrito_e_o_juiz_final_e_rv32im(self):
         origem, pasta, modelo, ex, r = self.evoluir(self.MUDA_ALU)
@@ -197,11 +197,11 @@ class TestTopoSemConta(unittest.TestCase):
         self.assertEqual(operacoes_aritmeticas_no_topo(
             "x <= a when b /= c else d; -- a*b / c rem d\n"), [])
 
-    def test_topo_com_conta_e_recusado(self):
+    def test_com_a_regra_ligada_topo_com_conta_e_recusado(self):
         with tempfile.TemporaryDirectory() as d:
             agente = Agente(cliente=ModeloFalso(), executor=ExecutorFalso([]), pasta=Path(d),
                             microarquitetura="monociclo", isa="rv32im", relatar=lambda _: None,
-                            protegidos=lambda: "selo")
+                            protegidos=lambda: "selo", topo_sem_conta=True)
             arq = {"blocks": [{"name": "alu"}, {"name": "cpu"}]}
             ok_, motivo = agente._integracao_top_valida(
                 "u_alu : entity work.alu port map ();\nm <= a * b;", arq)
@@ -211,13 +211,14 @@ class TestTopoSemConta(unittest.TestCase):
                 "u_alu : entity work.alu port map ();", arq)[0])
             self.assertIn("never allowed in `cpu`", agente._requisito_integracao_top(arq["blocks"]))
 
-    def test_regra_pode_ser_desligada_para_medir_o_efeito(self):
+    def test_por_padrao_a_regra_esta_desligada(self):
         # pergunta do professor (06/11/2026): só liberar a decomposição já não
-        # faria a IA criar o módulo novo? A regra vira opção para medir isso.
+        # faria a IA criar o módulo novo? Fez (luna6_evolui_im_5); a regra
+        # ficou como opção, desligada por padrão.
         with tempfile.TemporaryDirectory() as d:
             agente = Agente(cliente=ModeloFalso(), executor=ExecutorFalso([]), pasta=Path(d),
                             microarquitetura="monociclo", isa="rv32im", relatar=lambda _: None,
-                            protegidos=lambda: "selo", topo_sem_conta=False)
+                            protegidos=lambda: "selo")
             arq = {"blocks": [{"name": "alu"}, {"name": "cpu"}]}
             self.assertTrue(agente._integracao_top_valida(
                 "u_alu : entity work.alu port map ();\nm <= a * b;", arq)[0])
