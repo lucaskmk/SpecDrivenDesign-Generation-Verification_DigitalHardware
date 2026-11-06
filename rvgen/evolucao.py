@@ -1,4 +1,4 @@
-"""`rvgen evoluir`: muda uma CPU já aprovada para specs novas, sem gerar do zero.
+"""`rvgen gerar --evoluir-de`: muda uma CPU já aprovada para specs novas.
 
 Exemplo: a CPU RV32I aprovada em ``experimentos/luna6_prof_3`` vira RV32IM.
 O fluxo segue a sugestão do professor: primeiro roda tudo e entende as specs,
@@ -9,13 +9,15 @@ só depois altera.
    os testes de componente e o juiz na ISA antiga. Essa é a linha de base.
 1. Planejar: uma chamada à IA lê o diff entre o contrato antigo e o novo, as
    instruções novas, a arquitetura, o contrato de cada bloco e a linha de base,
-   e responde quais blocos mudam (e se precisa de bloco novo). O plano fica em
-   ``evolucao/plano.md`` na sessão.
-2. Contratos: só os blocos do plano têm o contrato atualizado (e revisado pelo
-   revisor semântico de sempre); bloco novo ganha contrato do zero.
-3. VHDL e testes, na ordem da arquitetura: bloco do plano é reescrito a partir
-   do VHDL aprovado; os testes antigos dele viram casos de regressão, e a IA
-   acrescenta casos novos para o que mudou. Bloco fora do plano fica como
+   e devolve a decomposição-alvo inteira. A decomposição é livre: cada bloco é
+   mantido, mudado ou novo, e pode vir de um ou mais blocos antigos (renomear,
+   dividir, juntar); bloco antigo que não aparece é removido. O topo `cpu` só
+   liga blocos. O plano fica em ``evolucao/plano.md``.
+2. Contratos: blocos mudados ou novos ganham contrato atualizado a partir dos
+   contratos de origem (e passam pelo revisor semântico de sempre).
+3. VHDL e testes, na ordem da arquitetura: bloco mudado é reescrito a partir do
+   VHDL aprovado de origem; se manteve o nome, os testes antigos dele viram
+   casos de regressão, e a IA acrescenta casos novos. Bloco mantido fica como
    estava e só roda de novo os próprios testes (pode quebrar por causa de uma
    dependência que mudou; aí a triagem de sempre corrige).
 4. Juiz: o mesmo laço de correção do ``gerar``, com a ISA nova.
@@ -30,15 +32,16 @@ import time
 from pathlib import Path
 
 from . import contrato as ct
-from .config import REPO_ROOT
 from .agente import (Agente, ErroGeracao, ErroIntegridade, ErroLLM, Resultado,
                      extrair_json, placar_de, validar_arquitetura)
+from .config import REPO_ROOT
 
-__all__ = ["sessao_aprovada", "evoluir"]
+__all__ = ["sessao_aprovada", "aplicar_plano", "evoluir"]
 
 # o que a sessão de origem guarda e a sessão nova herda
 _HERDADO = ("component_specs", "testes", "testes_aprovados", "testes_casos",
             "componentes_aprovados", "regressoes", "hierarquia")
+ACOES = ("keep", "change", "new")
 
 
 def sessao_aprovada(origem: Path) -> Path:
@@ -72,7 +75,7 @@ def _copiar_origem(agente: Agente, origem: Path, sessao_o: Path) -> dict:
     (agente.sessao / "evolucao").mkdir(parents=True, exist_ok=True)
     shutil.copyfile(sessao_o / "contrato.txt", agente.sessao / "evolucao" / "contrato-anterior.txt")
     arq = json.loads((origem / "architecture.json").read_text(encoding="utf-8"))
-    blocos, motivo = validar_arquitetura(arq)
+    blocos, motivo = validar_arquitetura(arq, max(agente.max_blocos, len(arq.get("blocks") or [])))
     if not blocos:
         raise ErroGeracao(f"architecture.json da origem inválido: {motivo}")
     arq["blocks"] = blocos
@@ -120,83 +123,130 @@ def _diff_contrato(anterior: str, novo: str) -> str:
     return "\n".join(linhas) or "(no textual change)"
 
 
+# -- plano -------------------------------------------------------------------
+
 _SCHEMA_PLANO = {
     "type": "object",
     "properties": {
         "understanding": {"type": "string"},
-        "changes": {"type": "array", "items": {"type": "object", "properties": {
-            "block": {"type": "string"}, "change": {"type": "string"},
-            "ports": {"type": "array", "items": {"type": "string"}},
-            "depends_on": {"type": "array", "items": {"type": "string"}}},
-            "required": ["block", "change"]}},
-        "new_blocks": {"type": "array", "items": {"type": "object", "properties": {
-            "name": {"type": "string"}, "responsibility": {"type": "string"},
+        "blocks": {"type": "array", "items": {"type": "object", "properties": {
+            "name": {"type": "string"},
+            "action": {"type": "string", "enum": list(ACOES)},
+            "from": {"type": "array", "items": {"type": "string"}},
+            "change": {"type": "string"},
+            "responsibility": {"type": "string"},
             "ports": {"type": "array", "items": {"type": "string"}},
             "depends_on": {"type": "array", "items": {"type": "string"}},
             "design_rationale": {"type": "string"}},
-            "required": ["name", "responsibility", "ports"]}},
+            "required": ["name", "action"]}},
     },
-    "required": ["understanding", "changes"],
+    "required": ["understanding", "blocks"],
 }
 
 
-def aplicar_plano(arq: dict, bruto: object) -> tuple[dict | None, dict[str, str], str]:
-    """Arquitetura nova, {bloco: mudança} e motivo (vazio quando o plano é válido)."""
-    if not isinstance(bruto, dict) or not isinstance(bruto.get("changes"), list):
-        return None, {}, "a resposta não tem a lista `changes`"
-    por_nome = {b["name"]: dict(b) for b in arq["blocks"]}
-    novos = bruto.get("new_blocks") or []
-    if not isinstance(novos, list):
-        return None, {}, "`new_blocks` precisa ser uma lista"
-    nomes_novos = []
-    for novo in novos:
-        if not isinstance(novo, dict):
-            return None, {}, "um item de `new_blocks` não é objeto"
-        nome = str(novo.get("name", "")).strip().lower()
-        if nome in por_nome:
-            return None, {}, f"bloco novo {nome!r} já existe"
-        nomes_novos.append(nome)
-    mudancas: dict[str, str] = {}
-    for item in bruto["changes"]:
-        if not isinstance(item, dict):
-            return None, {}, "um item de `changes` não é objeto"
-        nome = str(item.get("block", "")).strip().lower()
-        if nome not in por_nome and nome not in nomes_novos:
-            return None, {}, f"`changes` cita bloco inexistente {nome!r}"
-        mudancas[nome] = str(item.get("change", "")).strip() or "update for the new specification"
-        if nome in por_nome:
-            if item.get("ports"):
-                if nome == ct.TOP:
-                    return None, {}, f"as portas do `{ct.TOP}` são do contrato e não mudam"
-                por_nome[nome]["ports"] = [str(p) for p in item["ports"]]
-            if item.get("depends_on") is not None:
-                por_nome[nome]["depends_on"] = [str(d).strip().lower() for d in item["depends_on"]]
-    if not mudancas and not nomes_novos:
-        return None, {}, "o plano não muda nenhum bloco"
-    for nome in nomes_novos:
-        mudancas.setdefault(nome, "new block")
-        # quem instancia um bloco novo também muda
-        donos = [b for b in por_nome.values() if nome in b.get("depends_on", [])]
-        for dono in donos or [por_nome[ct.TOP]]:
-            if nome not in dono["depends_on"]:
-                dono["depends_on"] = [*dono["depends_on"], nome]
-            mudancas.setdefault(dono["name"], f"instantiate the new block `{nome}`")
-    ordem = [b["name"] for b in arq["blocks"] if b["name"] != ct.TOP]
-    blocos = [por_nome[n] for n in ordem] + list(novos) + [por_nome[ct.TOP]]
-    validados, motivo = validar_arquitetura({"blocks": blocos})
+def _lista(valor: object) -> list[str] | None:
+    if valor is None:
+        return None
+    if not isinstance(valor, list):
+        raise ValueError
+    return [str(v).strip().lower() for v in valor]
+
+
+def aplicar_plano(arq: dict, bruto: object, max_blocos: int = 8
+                  ) -> tuple[dict | None, dict[str, dict], list[str], str]:
+    """Aplica a decomposição-alvo do plano à arquitetura antiga.
+
+    Devolve (arquitetura nova, ações, removidos, motivo). ``ações`` é
+    ``{bloco: {"acao": keep|change|new, "de": [blocos antigos], "mudanca": texto}}``;
+    ``removidos`` são os blocos antigos que nenhum bloco novo mantém nem usa
+    como origem. ``motivo`` vem vazio quando o plano é válido.
+    """
+    if not isinstance(bruto, dict) or not isinstance(bruto.get("blocks"), list):
+        return None, {}, [], "a resposta não tem a lista `blocks` (a decomposição-alvo inteira)"
+    antigos = {b["name"]: b for b in arq["blocks"]}
+    alvo: list[dict] = []
+    acoes: dict[str, dict] = {}
+    try:
+        for item in bruto["blocks"]:
+            if not isinstance(item, dict):
+                return None, {}, [], "um item de `blocks` não é objeto"
+            nome = str(item.get("name", "")).strip().lower()
+            acao = str(item.get("action", "")).strip().lower()
+            if acao not in ACOES:
+                return None, {}, [], f"`{nome}`: action precisa ser keep, change ou new"
+            de = _lista(item.get("from"))
+            portas = item.get("ports")
+            deps = _lista(item.get("depends_on"))
+            antigo = antigos.get(nome)
+            if acao == "keep":
+                if not antigo:
+                    return None, {}, [], f"`{nome}` não existe na CPU de origem; use change ou new"
+                if (de not in (None, [nome]) or
+                        (portas is not None and list(map(str, portas)) != antigo["ports"]) or
+                        (deps is not None and sorted(deps) != sorted(antigo["depends_on"]))):
+                    return None, {}, [], (f"`{nome}` está como keep, mas muda nome de origem, portas "
+                                          "ou dependências; use change")
+                bloco = dict(antigo)
+            else:
+                if acao == "new":
+                    de = []
+                elif de is None:
+                    de = [nome]
+                if acao == "change" and not de:
+                    return None, {}, [], f"`{nome}`: change precisa dizer de quais blocos vem (`from`)"
+                faltam = [d for d in de if d not in antigos]
+                if faltam:
+                    return None, {}, [], f"`{nome}` vem de bloco inexistente: {', '.join(faltam)}"
+                base = antigos.get(de[0]) if de else None
+                bloco = {
+                    "name": nome,
+                    "responsibility": str(item.get("responsibility") or
+                                          (base or {}).get("responsibility", "")).strip(),
+                    "ports": ([str(p) for p in portas] if portas is not None else
+                              list((antigo or base or {}).get("ports", []))),
+                    "depends_on": deps if deps is not None else list((antigo or base or {}).get(
+                        "depends_on", [])),
+                    "design_rationale": str(item.get("design_rationale") or
+                                            (base or {}).get("design_rationale", "")).strip(),
+                }
+            if nome == ct.TOP:
+                if acao == "new" or (de not in (None, [ct.TOP])):
+                    return None, {}, [], f"`{ct.TOP}` é o topo de sempre: keep ou change, de `{ct.TOP}`"
+                bloco["ports"] = list(antigos[ct.TOP]["ports"])   # portas do contrato
+            acoes[nome] = {"acao": acao, "de": [nome] if acao == "keep" else de,
+                           "mudanca": str(item.get("change", "")).strip() or
+                           ("kept" if acao == "keep" else "update for the new specification")}
+            alvo.append(bloco)
+    except (ValueError, TypeError):
+        return None, {}, [], "`from` e `depends_on` precisam ser listas de nomes"
+    if ct.TOP not in acoes:
+        return None, {}, [], f"falta o topo `{ct.TOP}` na decomposição-alvo"
+    if all(a["acao"] == "keep" for a in acoes.values()):
+        return None, {}, [], "o plano não muda nenhum bloco"
+    usados = {d for a in acoes.values() for d in a["de"]}
+    removidos = [n for n in antigos if n not in usados]
+    validados, motivo = validar_arquitetura({"blocks": alvo}, max_blocos)
     if not validados:
-        return None, {}, motivo
-    # validar_arquitetura normaliza; mantém campos extras dos blocos antigos
+        return None, {}, [], motivo
+    # quem passa a instanciar outro conjunto de blocos precisa mudar
     for bloco in validados:
-        antigo = por_nome.get(bloco["name"])
-        if antigo:
-            for chave, valor in antigo.items():
-                bloco.setdefault(chave, valor)
-    return dict(arq, blocks=validados), mudancas, ""
+        a = acoes[bloco["name"]]
+        if a["acao"] == "keep":
+            deps_antigas = sorted(antigos[bloco["name"]]["depends_on"])
+            if sorted(bloco["depends_on"]) != deps_antigas:
+                return None, {}, [], f"`{bloco['name']}` muda as dependências; use change"
+            if bloco["name"] == ct.TOP and (removidos or any(
+                    x["acao"] != "keep" and x["de"] != [n] for n, x in acoes.items())):
+                return None, {}, [], (f"blocos foram criados, renomeados ou removidos: o `{ct.TOP}` "
+                                      "precisa ser change para instanciar a nova decomposição")
+        antigo = antigos.get(bloco["name"], {})
+        for chave, valor in antigo.items():
+            bloco.setdefault(chave, valor)
+    return dict(arq, blocks=validados), acoes, removidos, ""
 
 
-def _planejar_evolucao(agente: Agente, arq: dict, isa_antiga: str, base: dict,
-                       diff: str) -> tuple[dict, dict[str, str], str]:
+def _planejar_evolucao(agente: Agente, arq: dict, isa_antiga: str, base: dict, diff: str,
+                       max_blocos: int) -> tuple[dict, dict[str, dict], list[str], str]:
     novas = [i for i in ct.instrucoes_da_isa(agente.isa) if i not in ct.instrucoes_da_isa(isa_antiga)]
     blocos = "\n".join(
         f"- {b['name']} ({b['file']}): {b['responsibility']}\n"
@@ -210,8 +260,8 @@ def _planejar_evolucao(agente: Agente, arq: dict, isa_antiga: str, base: dict,
             f"This project already contains a CPU that was generated and APPROVED by the "
             f"official judge for the PREVIOUS specification ({isa_antiga.upper()}, "
             f"{agente.microarquitetura}). The specification has changed. Your job is to "
-            "understand the project and plan the SMALLEST change that satisfies the new "
-            "specification; nothing is modified yet.\n\n"
+            "understand the project and design the target decomposition for the NEW "
+            "specification, as a hardware designer would; nothing is modified yet.\n\n"
             "Before planning, every existing test was run again on the approved CPU (baseline):\n"
             f"```json\n{json.dumps(base, ensure_ascii=False, indent=1)}\n```\n\n"
             f"Instructions required now that were not required before: {', '.join(novas) or 'none'}\n\n"
@@ -219,17 +269,27 @@ def _planejar_evolucao(agente: Agente, arq: dict, isa_antiga: str, base: dict,
             f"Current architecture:\n{blocos}\n\n"
             f"Current semantic contract of each block:\n{contratos}\n\n"
             "Answer ONLY with JSON: {\"understanding\": \"what changed in the specification and "
-            "what it means for this CPU\", \"changes\": [{\"block\", \"change\", \"ports\" "
-            "(optional: the complete new port list), \"depends_on\" (optional)}], "
-            "\"new_blocks\": [{\"name\", \"responsibility\", \"ports\", \"depends_on\", "
-            "\"design_rationale\"}]}.\n"
-            f"Rules: blocks not listed in `changes` stay frozen (VHDL and tests kept); never "
-            f"rename or remove a block; the ports of `{ct.TOP}` are fixed by the contract; a new "
-            "block must be instantiated by a block listed in `changes` (normally the one that "
-            "lists it in `depends_on`); prefer changing existing blocks over adding new ones "
-            "unless a separate block is clearly simpler to verify.")},
+            "what it means for this CPU\", \"blocks\": [the COMPLETE target decomposition, one "
+            "entry per block: {\"name\", \"action\": \"keep\" | \"change\" | \"new\", \"from\": "
+            "[previous block names this block is derived from], \"change\": \"what changes and "
+            "why\", \"responsibility\", \"ports\", \"depends_on\", \"design_rationale\"}]}.\n"
+            "Rules:\n"
+            "- The decomposition is free. Keep a block (`keep`) only when it is still correct and "
+            "well scoped: it stays frozen with its VHDL and tests. Change, split, merge, rename or "
+            "add blocks when that gives a cleaner, more verifiable design: `change` with `from` "
+            "naming the previous block(s) it derives from (one previous block in several `from` "
+            "lists = split; several previous blocks in one `from` = merge; a different name = "
+            "rename), `new` for a block written from scratch. A previous block that appears in no "
+            "`name` and no `from` is removed.\n"
+            f"- The top `{ct.TOP}` only instantiates and connects generated blocks: it must never "
+            "contain multiplication, division, remainder or other datapath operations. New "
+            "datapath behavior belongs in a generated block that can be tested on its own.\n"
+            f"- `{ct.TOP}` is always present and its ports are fixed by the contract; if any block "
+            f"is created, renamed or removed, `{ct.TOP}` must be `change`.\n"
+            f"- 2 to {max_blocos} blocks; lowercase names; `ports` are VHDL port declarations; "
+            "`depends_on` lists the generated blocks a block instantiates.")},
     ]
-    agente.relatar("[1] planejando a mudança a partir do diff das specs ...")
+    agente.relatar("[1] planejando a decomposição-alvo a partir do diff das specs ...")
     motivo = ""
     for _ in (1, 2):
         r = agente._chamar("plano_evolucao", "evolucao/plano.json", mensagens,
@@ -239,44 +299,51 @@ def _planejar_evolucao(agente: Agente, arq: dict, isa_antiga: str, base: dict,
         except ErroLLM as e:
             bruto, motivo = None, str(e)
         if bruto is not None:
-            novo, mudancas, motivo = aplicar_plano(arq, bruto)
+            novo, acoes, removidos, motivo = aplicar_plano(arq, bruto, max_blocos)
             if novo:
-                entendimento = str(bruto.get("understanding", "")).strip()
-                return novo, mudancas, entendimento
+                return novo, acoes, removidos, str(bruto.get("understanding", "")).strip()
         mensagens += [{"role": "assistant", "content": r.texto},
                       {"role": "user", "content": f"That plan is invalid: {motivo}. Send the JSON again."}]
     agente._log({"evento": "plano_evolucao_invalido", "motivo": motivo})
     raise ErroGeracao(f"o modelo não produziu um plano de evolução válido: {motivo}")
 
 
-def _gravar_plano(agente: Agente, origem: Path, isa_antiga: str, base: dict,
-                  entendimento: str, mudancas: dict[str, str], arq: dict) -> None:
+def _gravar_plano(agente: Agente, origem: str, isa_antiga: str, base: dict, entendimento: str,
+                  acoes: dict[str, dict], removidos: list[str]) -> None:
     pasta = agente.sessao / "evolucao"
-    dados = {"origem": origem.as_posix(), "isa_anterior": isa_antiga, "isa_nova": agente.isa,
-             "linha_de_base": base, "entendimento": entendimento, "mudancas": mudancas,
-             "congelados": [b["name"] for b in arq["blocks"] if b["name"] not in mudancas]}
+    dados = {"origem": origem, "isa_anterior": isa_antiga, "isa_nova": agente.isa,
+             "linha_de_base": base, "entendimento": entendimento, "blocos": acoes,
+             "removidos": removidos}
     (pasta / "plano.json").write_text(json.dumps(dados, indent=2, ensure_ascii=False) + "\n",
                                       encoding="utf-8")
+    nomes = {"keep": "mantido (congelado)", "change": "muda", "new": "novo"}
     linhas = [f"# Plano de evolução: {isa_antiga.upper()} -> {agente.isa.upper()}", "",
-              f"Origem: `{origem.as_posix()}`", "", "## Linha de base (antes de mudar)", "",
+              f"Origem: `{origem}`", "", "## Linha de base (antes de mudar)", "",
               f"- spec-riscv-test ({isa_antiga}): {base['spec_riscv_test']}"]
     linhas += [f"- {nome}: {v['passaram']}/{v['total']} teste(s) de componente ok"
                for nome, v in base["componentes"].items()]
-    linhas += ["", "## Entendimento da IA", "", entendimento or "(vazio)", "", "## Blocos que mudam", ""]
-    linhas += [f"- `{nome}`: {texto}" for nome, texto in mudancas.items()]
-    linhas += ["", "## Blocos congelados", ""]
-    linhas += [f"- `{nome}`" for nome in dados["congelados"]] or ["- (nenhum)"]
+    linhas += ["", "## Entendimento da IA", "", entendimento or "(vazio)", "",
+               "## Decomposição-alvo", "", "| Bloco | Ação | De | O que muda |", "|---|---|---|---|"]
+    for nome, a in acoes.items():
+        texto = a["mudanca"].replace("|", "/").replace("\n", " ")
+        linhas.append(f"| `{nome}` | {nomes[a['acao']]} | {', '.join(a['de']) or '-'} | {texto} |")
+    linhas += ["", "## Removidos", ""] + ([f"- `{n}`" for n in removidos] or ["- (nenhum)"])
     (pasta / "plano.md").write_text("\n".join(linhas) + "\n", encoding="utf-8")
     agente._log({"evento": "plano_evolucao", **{k: v for k, v in dados.items() if k != "linha_de_base"}})
     agente.relatar(f"  entendimento: {agente._linha_curta(entendimento)}")
-    for nome, texto in mudancas.items():
-        agente.relatar(f"  muda   {nome:<20} {agente._linha_curta(texto, 160)}")
-    for nome in dados["congelados"]:
-        agente.relatar(f"  mantém {nome:<20} (VHDL e testes congelados)")
+    for nome, a in acoes.items():
+        origem_txt = "" if a["de"] in ([nome], []) else f" (de {', '.join(a['de'])})"
+        agente.relatar(f"  {nomes[a['acao']]:<20} {nome}{origem_txt}: "
+                       f"{agente._linha_curta(a['mudanca'], 140)}")
+    for nome in removidos:
+        agente.relatar(f"  {'removido':<20} {nome}")
 
 
-def _evoluir_especificacao(agente: Agente, bloco: dict, arq: dict, mudanca: str, diff: str) -> None:
-    anterior = agente._ler_especificacao(bloco)
+# -- execução ----------------------------------------------------------------
+
+def _evoluir_especificacao(agente: Agente, bloco: dict, arq: dict, mudanca: str, diff: str,
+                           anterior: str, anteriores_txt: str) -> None:
+    """Contrato novo a partir do(s) contrato(s) de origem."""
     mensagens = [
         {"role": "system", "content": agente.contrato},
         {"role": "user", "content": (
@@ -284,14 +351,16 @@ def _evoluir_especificacao(agente: Agente, bloco: dict, arq: dict, mudanca: str,
             "specification changed and this component must change with it. Return replacement "
             "Markdown with exactly these six level-2 headings: `## Timing`, `## Reset`, "
             "`## Behavior`, `## Operations`, `## Edge cases`, and `## Test strategy`. Do not "
-            "include Public interface or Responsibility. Keep every rule of the current "
-            "contract that still holds; make every new or changed rule explicit, including "
-            "encodings and edge cases, and extend the Test strategy to cover them.\n"
+            "include Public interface or Responsibility. Keep every rule of the previous "
+            "contract(s) that still applies to this component; make every new or changed rule "
+            "explicit, including encodings and edge cases, and extend the Test strategy to "
+            "cover them.\n"
+            f"Responsibility now: {bloco['responsibility']}\n"
             f"{agente._decomposicao_fixa(bloco, arq)}\n\n"
             f"Required change (from the evolution plan): {mudanca}\n\n"
             f"Diff of the system contract (previous -> new):\n```diff\n{diff}\n```\n\n"
             f"Public interface now:\n```vhdl\n{agente._interface_do_bloco(bloco)}\n```\n\n"
-            f"Current contract:\n{anterior}\n\n"
+            f"Previous contract(s) this component derives from:\n{anteriores_txt}\n\n"
             "Semantic contracts of direct dependencies:\n"
             f"{agente._especificacoes_dependencias(bloco, arq)}")},
     ]
@@ -304,7 +373,7 @@ def _evoluir_especificacao(agente: Agente, bloco: dict, arq: dict, mudanca: str,
             corpo, preservadas = agente._completar_revisao_de_spec(r.texto, anterior)
             agente._salvar_especificacao(bloco, corpo)
             agente._log({"evento": "especificacao_evoluida", "bloco": bloco["name"],
-                         "anterior": anterior, "mudanca": mudanca,
+                         "anterior": anteriores_txt, "mudanca": mudanca,
                          "secoes_preservadas": list(preservadas)})
             return
         except (ErroLLM, KeyError, AttributeError, TypeError, ValueError):
@@ -317,25 +386,35 @@ def _evoluir_especificacao(agente: Agente, bloco: dict, arq: dict, mudanca: str,
 
 
 def _arquivar_testes(agente: Agente, bloco: dict) -> int:
-    """Testes do bloco viram casos de regressão; o smoke e a expansão recomeçam."""
+    """Testes do bloco (mesmo nome) viram casos de regressão; smoke e expansão recomeçam."""
     destino = agente.sessao / "testes_casos" / bloco["name"] / "publicos"
     destino.mkdir(parents=True, exist_ok=True)
     smoke = agente._caminho_teste(bloco)
-    movidos = 0
     if smoke.exists():
         shutil.move(str(smoke), destino / f"anterior-{smoke.name}")
-        movidos += 1
     snapshot = agente._caminho_snapshot_teste(smoke)
     if snapshot.exists():
         snapshot.unlink()
     for caso in sorted(destino.glob("*.py")):
         if not caso.name.startswith("anterior-"):
             caso.rename(destino / f"anterior-{caso.name}")
-            movidos += 1
-    registro = agente.sessao / "componentes_aprovados" / f"{bloco['name']}.json"
-    if registro.exists():
-        registro.unlink()
     return len(list(destino.glob("anterior-*.py")))
+
+
+def _retirar_bloco_antigo(agente: Agente, nome: str) -> None:
+    """Bloco antigo sem lugar na decomposição nova: sai de src/ e da sessão ativa."""
+    destino = agente.sessao / "evolucao" / "removidos" / nome
+    destino.mkdir(parents=True, exist_ok=True)
+    origens = [agente.pasta / "src" / f"{nome}.vhd",
+               agente.sessao / "component_specs" / f"{nome}.comp_spec.txt",
+               agente.sessao / "componentes_aprovados" / f"{nome}.json",
+               agente.sessao / "hierarquia" / f"{nome}.json",
+               *(agente.sessao / "testes").glob(f"test_{nome}.py"),
+               *(agente.sessao / "testes_aprovados").glob(f"test_{nome}.py"),
+               agente.sessao / "testes_casos" / nome]
+    for caminho in origens:
+        if caminho.exists():
+            shutil.move(str(caminho), destino / caminho.name)
 
 
 def evoluir(agente: Agente, origem: Path) -> Resultado:
@@ -354,7 +433,8 @@ def evoluir(agente: Agente, origem: Path) -> Resultado:
         rel_origem = origem.as_posix()
     selo = agente.protegidos()
     arq = _copiar_origem(agente, origem, sessao_o)
-    portas_antigas = {b["name"]: list(b["ports"]) for b in arq["blocks"]}
+    antigos = {b["name"]: dict(b) for b in arq["blocks"]}
+    max_blocos = max(agente.max_blocos, len(arq["blocks"]))
     agente._log({"evento": "inicio", "modo": "evoluir", "pasta": str(agente.pasta),
                  "evoluido_de": rel_origem, "sessao_origem": sessao_o.name,
                  "isa_anterior": isa_antiga, "isa": agente.isa,
@@ -362,7 +442,7 @@ def evoluir(agente: Agente, origem: Path) -> Resultado:
                  "executor": agente.executor.nome, "iteracoes": agente.iteracoes,
                  "tentativas_revisao_semantica": agente.tentativas_revisao_semantica,
                  "max_casos_teste": agente.max_casos_teste,
-                 "max_casos_internos": agente.max_casos_internos,
+                 "max_casos_internos": agente.max_casos_internos, "max_blocos": max_blocos,
                  "microarquitetura": agente.microarquitetura,
                  "testes_componentes": True, "testes_internos": agente.testes_internos,
                  "regressoes_componentes": agente.regressoes_componentes,
@@ -377,59 +457,86 @@ def evoluir(agente: Agente, origem: Path) -> Resultado:
         agente.contrato)
     (agente.sessao / "evolucao" / "diff-contrato.diff").write_text(diff + "\n", encoding="utf-8")
 
-    # 1. planejar
-    arq, mudancas, entendimento = _planejar_evolucao(agente, arq, isa_antiga, base, diff)
+    # 1. planejar a decomposição-alvo
+    arq, acoes, removidos, entendimento = _planejar_evolucao(
+        agente, arq, isa_antiga, base, diff, max_blocos)
     arq.update(isa=agente.isa, evolucao={"de": rel_origem, "sessao": sessao_o.name,
                                          "isa_anterior": isa_antiga})
-    _gravar_plano(agente, origem, isa_antiga, base, entendimento, mudancas, arq)
-    # a expansão de testes dos blocos congelados já terminou na origem
+    _gravar_plano(agente, rel_origem, isa_antiga, base, entendimento, acoes, removidos)
+    mantidos = {n for n, a in acoes.items() if a["acao"] == "keep"}
+    # a expansão de testes dos blocos mantidos já terminou na origem
     for evento in _eventos(sessao_o):
-        if evento.get("evento") == "testbench_expansao_concluida" and \
-                evento.get("bloco") not in mudancas:
+        if evento.get("evento") == "testbench_expansao_concluida" and evento.get("bloco") in mantidos:
             agente._log({**{k: v for k, v in evento.items() if k not in ("t", "escopo", "pai")},
                          "herdado_de": sessao_o.name})
+
+    # o que os blocos de origem eram, lido antes de qualquer remoção
+    vhdl_antigo = {n: (agente.pasta / b["file"]).read_text(encoding="utf-8")
+                   for n, b in antigos.items() if (agente.pasta / b["file"]).exists()}
+    spec_antiga = {n: agente._ler_especificacao(b) for n, b in antigos.items()
+                   if agente._caminho_especificacao(b).exists()}
+    alvo = {b["name"] for b in arq["blocks"]}
+    for nome in antigos:
+        if nome not in alvo:
+            _retirar_bloco_antigo(agente, nome)
+    for bloco in arq["blocks"]:
+        a = acoes[bloco["name"]]
+        if a["acao"] == "keep":
+            continue
+        # interface nova ou bloco que mudou de origem: a declaração vem da arquitetura
+        fonte = agente._destino(bloco["file"])
+        no_lugar = a["de"] == [bloco["name"]]
+        if fonte.exists() and not (no_lugar and bloco["ports"] == antigos[bloco["name"]]["ports"]):
+            fonte.unlink()
+        for velho in (agente.sessao / "componentes_aprovados" / f"{bloco['name']}.json",
+                      agente.sessao / "hierarquia" / f"{bloco['name']}.json"):
+            if velho.exists():
+                velho.unlink()
     arq["instructions"] = agente._inventariar_instrucoes()
     (agente.pasta / "architecture.json").write_text(
         json.dumps(arq, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    # 2. contratos dos blocos que mudam
+    # 2. contratos dos blocos que mudam ou nascem
     agente.relatar("[2] contratos dos blocos que mudam ...")
-    anteriores: dict[str, str] = {}
     for bloco in arq["blocks"]:
-        if bloco["name"] not in mudancas:
+        a = acoes[bloco["name"]]
+        if a["acao"] == "keep":
             continue
-        fonte = agente._destino(bloco["file"])
-        if fonte.exists():
-            anteriores[bloco["name"]] = fonte.read_text(encoding="utf-8")
-            # portas novas: a interface passa a vir da arquitetura, não do VHDL antigo
-            if bloco["ports"] != portas_antigas.get(bloco["name"], bloco["ports"]):
-                fonte.unlink()
-        if agente._caminho_especificacao(bloco).exists():
-            _evoluir_especificacao(agente, bloco, arq, mudancas[bloco["name"]], diff)
-        else:
+        if a["acao"] == "new":
             agente._escrever_especificacao(bloco, arq)
+        else:
+            anteriores_txt = "\n\n".join(f"### {d}\n{spec_antiga.get(d, '(none)')}" for d in a["de"])
+            _evoluir_especificacao(agente, bloco, arq, a["mudanca"], diff,
+                                   spec_antiga.get(a["de"][0], ""), anteriores_txt)
         agente._validar_especificacao_por_agente(bloco, arq)
 
     # 3. VHDL e testes, na ordem da arquitetura
     usados = 0
     base_casos = agente.max_casos_teste
     for k, bloco in enumerate(arq["blocks"], start=1):
-        if bloco["name"] in mudancas:
-            agente.relatar(f"[3] {k}/{len(arq['blocks'])} {bloco['name']}: muda "
-                           "(testes antigos viram regressão) ...")
-            antigos = _arquivar_testes(agente, bloco)
-            agente._escrever_bloco(bloco, arq, k, len(arq["blocks"]),
-                                   anterior=anteriores.get(bloco["name"]))
+        a = acoes[bloco["name"]]
+        if a["acao"] == "keep":
+            agente.relatar(f"[3] {k}/{len(arq['blocks'])} {bloco['name']}: mantido; "
+                           "rodando os testes dele de novo ...")
+            usados = agente._testar_componentes(arq, usados, [bloco], reutilizar_testes=True)
+        else:
+            herdados = 0
+            if a["de"] == [bloco["name"]]:
+                herdados = _arquivar_testes(agente, bloco)
+            origem_vhdl = "\n\n".join(f"-- previous {d}.vhd\n{vhdl_antigo[d]}"
+                                      for d in a["de"] if d in vhdl_antigo) or None
+            agente.relatar(f"[3] {k}/{len(arq['blocks'])} {bloco['name']}: {a['acao']}"
+                           + (f" (de {', '.join(a['de'])})" if a["de"] not in ([bloco['name']], [])
+                              else "")
+                           + (f"; {herdados} teste(s) antigo(s) viram regressão" if herdados else "")
+                           + " ...")
+            agente._escrever_bloco(bloco, arq, k, len(arq["blocks"]), anterior=origem_vhdl)
             # os casos herdados não consomem o orçamento de casos novos
-            agente.max_casos_teste = base_casos + antigos
+            agente.max_casos_teste = base_casos + herdados
             try:
                 usados = agente._testar_componentes(arq, usados, [bloco], reutilizar_testes=True)
             finally:
                 agente.max_casos_teste = base_casos
-        else:
-            agente.relatar(f"[3] {k}/{len(arq['blocks'])} {bloco['name']}: congelado; "
-                           "rodando os testes dele de novo ...")
-            usados = agente._testar_componentes(arq, usados, [bloco], reutilizar_testes=True)
         agente._congelar_bloco(bloco)
 
     # 4. juiz na ISA nova, com o laço de correção de sempre
@@ -453,10 +560,9 @@ def evoluir(agente: Agente, origem: Path) -> Resultado:
               "isa": agente.isa, "testes_componentes": True,
               "regressoes_componentes": agente.regressoes_componentes, "gates_componentes": True,
               "evolucao": {"de": rel_origem, "sessao": sessao_o.name, "isa_anterior": isa_antiga,
-                           "mudaram": sorted(mudancas),
-                           "congelados": sorted(b["name"] for b in arq["blocks"]
-                                                if b["name"] not in mudancas),
-                           "linha_de_base": base},
+                           "blocos": acoes, "removidos": removidos,
+                           "mudaram": sorted(n for n, a in acoes.items() if a["acao"] != "keep"),
+                           "congelados": sorted(mantidos), "linha_de_base": base},
               "relatorio": final.json_path.relative_to(agente.pasta).as_posix(),
               "sessao": resultado.totais_sessao}
     (agente.sessao / "resultado.json").write_text(
