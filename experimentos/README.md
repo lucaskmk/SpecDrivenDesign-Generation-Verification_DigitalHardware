@@ -11,6 +11,7 @@ resultados estão em [`docs/artigo.md`](../docs/artigo.md).
 |---|---|---|---|---|---|---|---|---|---|
 | [`luna6_prof_3`](luna6_prof_3/) | `openai/gpt-6-luna` (OpenRouter) | RV32I monociclo | completo, `--max-casos-teste 4` | 40/40 | 24/24 na etapa RV32I (veredito `parcial`) | 78 | 743.978 / 124.821 | cerca de US$ 0,137 | `5068458` |
 | [`luna6_im_1`](luna6_im_1/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM monociclo | completo, `--max-casos-teste 4`, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado (a etapa RV32M exige generic) | 68 | 740.595 / 115.218 | cerca de US$ 0,132 | `068cc7b` |
+| [`luna6_evolui_im_3`](luna6_evolui_im_3/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM, **evoluindo** a `luna6_prof_3`, decomposição livre | `--evoluir-de`, mesmas flags, `--max-chamadas 150`, `--max-blocos` 16 | 48/48 (8/8 só no M) | não rodado | 28 | 380.089 / 52.818 | cerca de US$ 0,064 | este commit |
 | [`luna6_evolui_im_2`](luna6_evolui_im_2/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM, **evoluindo** a `luna6_prof_3` | `--evoluir-de`, mesmas flags, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado | 26 | 388.021 / 41.988 | cerca de US$ 0,060 | este commit |
 | [`luna6_evolui_im_1`](luna6_evolui_im_1/) | `openai/gpt-6-luna` (OpenRouter) | idem | idem | não chegou ao juiz final (teto de 150 chamadas) | — | 150 | 1.940.538 / 131.307 | cerca de US$ 0,26 | este commit |
 
@@ -46,7 +47,24 @@ testbench nas duas vezes (2 chamadas `triagem_componente` e 2
 `correcao_testbench`). A revisão recusou uma vez a especificação do `cpu`.
 40 das 68 chamadas foram na expansão de testes.
 
+### `luna6_evolui_im_3`
+
+A mesma evolução depois de liberar a decomposição (o plano pode manter,
+mudar, criar, dividir, juntar, renomear e remover blocos), proibir conta no
+topo e trocar o limite fixo de 8 blocos por `--max-blocos`. A IA criou um
+bloco novo `rv32m_unit` (91 linhas) com as 8 operações do M e seus casos
+especiais, mudou só o `cpu` (que agora apenas integra) e manteve `alu`,
+`decoder`, `register_file` e `immediate_generator` byte a byte iguais. 48/48
+(8/8 só no M), 28 chamadas, 0 correções de VHDL; 44 de 45 testes de
+componente (um caso novo do `rv32m_unit` falhou, a triagem culpou o teste e o
+corrigiu).
+
 ### `luna6_evolui_im_2` (e `luna6_evolui_im_1`)
+
+Plano ainda restrito ("a menor mudança", sem criar blocos de preferência,
+limite de 8): a IA pôs o M dentro do `cpu`. Passou no juiz, mas é a
+decomposição que a `luna6_evolui_im_3` corrige.
+
 
 A mesma mudança de RV32I para RV32IM, mas **evoluindo** a CPU aprovada
 `luna6_prof_3` em vez de gerar do zero (`rvgen gerar --evoluir-de`, specs de

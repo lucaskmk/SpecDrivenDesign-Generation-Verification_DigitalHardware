@@ -267,7 +267,7 @@ cita "RV32I" numa frase fora da declaração, e trocar a declaração para RV32I
 deixava a ISA ambígua, de modo que o `rvgen` se recusava a gerar. O leitor
 passou a ler a ISA só da linha de declaração.
 
-### 4.6 Evoluir em vez de gerar do zero (`luna6_evolui_im_2`)
+### 4.6 Evoluir em vez de gerar do zero (`luna6_evolui_im_2` e `_3`)
 
 `rvgen gerar --evoluir-de experimentos/luna6_prof_3`, com as specs de
 `iteracoes/it-001` e a mesma configuração. O fluxo: (0) copia a CPU aprovada e
@@ -278,14 +278,23 @@ de mudança; (2) só os blocos do plano têm contrato e VHDL atualizados, a
 partir do VHDL aprovado, com os testes antigos como regressão; (3) os demais
 rodam os próprios testes de novo; (4) o juiz roda na ISA nova.
 
-| Medida | do zero (`luna6_im_1`) | evoluindo (`luna6_evolui_im_2`) |
-|---|---|---|
-| `spec-riscv-test --isa rv32im` | 48/48 (8/8 só no M) | 48/48 (8/8 só no M) |
-| Chamadas | 68 | 26 |
-| Tokens | 740.595 / 115.218 | 388.021 / 41.988 |
-| Custo estimado | US$ 0,132 | US$ 0,060 |
-| Blocos reescritos | 5 de 5 | 2 de 5 (`decoder`, `cpu`) |
-| Testes de componente | 47 de 49 | 43 de 43 |
+| Medida | do zero (`luna6_im_1`) | evoluindo, plano restrito (`_2`) | evoluindo, decomposição livre (`_3`) |
+|---|---|---|---|
+| `spec-riscv-test --isa rv32im` | 48/48 (8/8 só no M) | 48/48 (8/8 só no M) | 48/48 (8/8 só no M) |
+| Chamadas | 68 | 26 | 28 |
+| Tokens | 740.595 / 115.218 | 388.021 / 41.988 | 380.089 / 52.818 |
+| Custo estimado | US$ 0,132 | US$ 0,060 | US$ 0,064 |
+| Blocos escritos | 5 de 5 | 2 de 5 (`decoder`, `cpu`) | 1 novo (`rv32m_unit`) + `cpu` |
+| Onde ficou o M | `execution_unit` | dentro do `cpu` | `rv32m_unit` |
+| Testes de componente | 47 de 49 | 43 de 43 | 44 de 45 |
+
+Na primeira versão do plano (`_2`), o pedido era "a menor mudança", com
+preferência por não criar blocos e limite fixo de 8 blocos, e a IA pôs
+multiplicação e divisão dentro do topo `cpu`, que devia só integrar. Na
+segunda (`_3`), o plano devolve a decomposição-alvo inteira e pode manter,
+mudar, criar, dividir, juntar, renomear ou remover blocos; o limite virou
+`--max-blocos`; e um topo com `*`, `/`, `rem` ou `mod` é recusado. A IA então
+criou um bloco próprio para o M e manteve os outros quatro intactos.
 
 A linha de base deu 25/25 testes de componente e 40/40 no RV32I. Os três
 blocos congelados ficaram byte a byte iguais aos da origem. A primeira
