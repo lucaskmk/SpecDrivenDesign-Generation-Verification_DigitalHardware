@@ -1,0 +1,287 @@
+{
+  "design": "luna6_im_1",
+  "microarquitetura": "monociclo",
+  "isa": "rv32im",
+  "top": "cpu",
+  "origem": "modelo",
+  "blocks": [
+    {
+      "name": "register_file",
+      "file": "src/register_file.vhd",
+      "responsibility": "Provide two asynchronous register reads and one rising-edge register write for the 32 RV32 registers. Reset all registers asynchronously to zero, always return zero for x0, and ignore writes to x0.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "read_addr1 : in std_logic_vector(4 downto 0)",
+        "read_addr2 : in std_logic_vector(4 downto 0)",
+        "read_data1 : out std_logic_vector(31 downto 0)",
+        "read_data2 : out std_logic_vector(31 downto 0)",
+        "write_enable : in std_logic",
+        "write_addr : in std_logic_vector(4 downto 0)",
+        "write_data : in std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Isolates architectural state for straightforward reset and x0 verification, while asynchronous reads support single-cycle execution.",
+      "depends_on": []
+    },
+    {
+      "name": "immediate_generator",
+      "file": "src/immediate_generator.vhd",
+      "responsibility": "Generate sign-extended I, S, B, and J immediates and the zero-extended U immediate from the instruction, with the required bit rearrangements and implicit zero bits.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "imm_i : out std_logic_vector(31 downto 0)",
+        "imm_s : out std_logic_vector(31 downto 0)",
+        "imm_b : out std_logic_vector(31 downto 0)",
+        "imm_u : out std_logic_vector(31 downto 0)",
+        "imm_j : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Centralizes immediate construction so every instruction format can be checked independently for correct bit mapping and sign extension.",
+      "depends_on": []
+    },
+    {
+      "name": "execution_unit",
+      "file": "src/execution_unit.vhd",
+      "responsibility": "Compute RV32I register-register and immediate arithmetic, logic, comparisons, and shifts, plus all RV32M multiply, divide, and remainder results. Also evaluate all six branch conditions using signed or unsigned comparisons as appropriate.",
+      "ports": [
+        "opcode : in std_logic_vector(6 downto 0)",
+        "funct3 : in std_logic_vector(2 downto 0)",
+        "funct7 : in std_logic_vector(6 downto 0)",
+        "operand_a : in std_logic_vector(31 downto 0)",
+        "operand_b : in std_logic_vector(31 downto 0)",
+        "result : out std_logic_vector(31 downto 0)",
+        "branch_taken : out std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "Keeps arithmetic and branch semantics in one independently testable combinational block; explicit M-operation handling makes division edge cases and product widths verifiable.",
+      "depends_on": []
+    },
+    {
+      "name": "load_store_unit",
+      "file": "src/load_store_unit.vhd",
+      "responsibility": "Drive the byte-addressed effective data address, access width, store enable, and store data for LB/LH/LW/LBU/LHU and SB/SH/SW. Select the addressed byte or halfword from the aligned read word and perform the required sign or zero extension for loads.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "effective_address : in std_logic_vector(31 downto 0)",
+        "store_data_in : in std_logic_vector(31 downto 0)",
+        "data_read_data : in std_logic_vector(31 downto 0)",
+        "data_addr : out std_logic_vector(31 downto 0)",
+        "data_write : out std_logic",
+        "data_width : out std_logic_vector(1 downto 0)",
+        "data_write_data : out std_logic_vector(31 downto 0)",
+        "load_result : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Separates little-endian lane selection and bus formatting from instruction control, making memory behavior directly verifiable.",
+      "depends_on": []
+    },
+    {
+      "name": "cpu",
+      "file": "src/cpu.vhd",
+      "responsibility": "Implement the specified RV32IM single-cycle top level and expose exactly the contract bus ports. Maintain the PC, fetch the current instruction, decode instructions, select immediates and operands, instantiate the register file, immediate generator, execution unit, and load/store unit, write back results, and choose the next PC with JAL/JALR priority over taken branches and sequential execution.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "instr_addr : out std_logic_vector(31 downto 0)",
+        "instr_data : in std_logic_vector(31 downto 0)",
+        "data_addr : out std_logic_vector(31 downto 0)",
+        "data_write : out std_logic",
+        "data_width : out std_logic_vector(1 downto 0)",
+        "data_write_data : out std_logic_vector(31 downto 0)",
+        "data_read_data : in std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Keeps architectural sequencing and instruction decode at the integration boundary while delegating independently verifiable datapath functions; the single-cycle structure preserves one completed instruction per rising edge.",
+      "depends_on": [
+        "register_file",
+        "immediate_generator",
+        "execution_unit",
+        "load_store_unit"
+      ]
+    }
+  ],
+  "notes": "Use only ieee.std_logic_1164 and ieee.numeric_std. The top-level entity must be named cpu and have exactly the listed contract ports. Handle signed division overflow and division by zero explicitly in execution_unit; ensure all combinational outputs receive defaults.",
+  "instructions": [
+    {
+      "mnemonic": "lui",
+      "description": "Write the 20-bit upper immediate to rd, with the low 12 bits zero."
+    },
+    {
+      "mnemonic": "auipc",
+      "description": "Write the current PC plus the upper immediate (low 12 bits zero) to rd."
+    },
+    {
+      "mnemonic": "jal",
+      "description": "Write PC+4 to rd and jump to PC plus the sign-extended J immediate."
+    },
+    {
+      "mnemonic": "jalr",
+      "description": "Write PC+4 to rd and jump to (rs1 plus the sign-extended I immediate) with bit 0 cleared."
+    },
+    {
+      "mnemonic": "beq",
+      "description": "If rs1 equals rs2, branch to PC plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "bne",
+      "description": "If rs1 differs from rs2, branch to PC plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "blt",
+      "description": "If signed rs1 is less than signed rs2, branch to PC plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "bge",
+      "description": "If signed rs1 is greater than or equal to signed rs2, branch to PC plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "bltu",
+      "description": "If unsigned rs1 is less than unsigned rs2, branch to PC plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "bgeu",
+      "description": "If unsigned rs1 is greater than or equal to unsigned rs2, branch to PC plus the sign-extended B immediate."
+    },
+    {
+      "mnemonic": "lb",
+      "description": "Load the addressed byte and sign-extend it to 32 bits."
+    },
+    {
+      "mnemonic": "lh",
+      "description": "Load the addressed halfword and sign-extend it to 32 bits."
+    },
+    {
+      "mnemonic": "lw",
+      "description": "Load the 32-bit word at the effective address."
+    },
+    {
+      "mnemonic": "lbu",
+      "description": "Load the addressed byte and zero-extend it to 32 bits."
+    },
+    {
+      "mnemonic": "lhu",
+      "description": "Load the addressed halfword and zero-extend it to 32 bits."
+    },
+    {
+      "mnemonic": "sb",
+      "description": "Store the low byte of rs2 at rs1 plus the sign-extended S immediate."
+    },
+    {
+      "mnemonic": "sh",
+      "description": "Store the low halfword of rs2 at rs1 plus the sign-extended S immediate."
+    },
+    {
+      "mnemonic": "sw",
+      "description": "Store rs2 at rs1 plus the sign-extended S immediate."
+    },
+    {
+      "mnemonic": "addi",
+      "description": "Write rs1 plus the sign-extended I immediate to rd."
+    },
+    {
+      "mnemonic": "slti",
+      "description": "Write 1 to rd if signed rs1 is less than the sign-extended I immediate; otherwise write 0."
+    },
+    {
+      "mnemonic": "sltiu",
+      "description": "Write 1 to rd if unsigned rs1 is less than the sign-extended I immediate treated as unsigned; otherwise write 0."
+    },
+    {
+      "mnemonic": "xori",
+      "description": "Write rs1 XOR the sign-extended I immediate to rd."
+    },
+    {
+      "mnemonic": "ori",
+      "description": "Write rs1 OR the sign-extended I immediate to rd."
+    },
+    {
+      "mnemonic": "andi",
+      "description": "Write rs1 AND the sign-extended I immediate to rd."
+    },
+    {
+      "mnemonic": "slli",
+      "description": "Write rs1 logically shifted left by the five-bit shift amount to rd."
+    },
+    {
+      "mnemonic": "srli",
+      "description": "Write rs1 logically shifted right by the five-bit shift amount to rd."
+    },
+    {
+      "mnemonic": "srai",
+      "description": "Write rs1 arithmetically shifted right by the five-bit shift amount to rd, preserving its sign."
+    },
+    {
+      "mnemonic": "add",
+      "description": "Write rs1 plus rs2 to rd, modulo 2^32."
+    },
+    {
+      "mnemonic": "sub",
+      "description": "Write rs1 minus rs2 to rd, modulo 2^32."
+    },
+    {
+      "mnemonic": "sll",
+      "description": "Write rs1 logically shifted left by rs2[4:0] to rd."
+    },
+    {
+      "mnemonic": "slt",
+      "description": "Write 1 to rd if signed rs1 is less than signed rs2; otherwise write 0."
+    },
+    {
+      "mnemonic": "sltu",
+      "description": "Write 1 to rd if unsigned rs1 is less than unsigned rs2; otherwise write 0."
+    },
+    {
+      "mnemonic": "xor",
+      "description": "Write rs1 XOR rs2 to rd."
+    },
+    {
+      "mnemonic": "srl",
+      "description": "Write rs1 logically shifted right by rs2[4:0] to rd."
+    },
+    {
+      "mnemonic": "sra",
+      "description": "Write rs1 arithmetically shifted right by rs2[4:0] to rd, preserving its sign."
+    },
+    {
+      "mnemonic": "or",
+      "description": "Write rs1 OR rs2 to rd."
+    },
+    {
+      "mnemonic": "and",
+      "description": "Write rs1 AND rs2 to rd."
+    },
+    {
+      "mnemonic": "mul",
+      "description": "Write the low 32 bits of the rs1-by-rs2 product to rd."
+    },
+    {
+      "mnemonic": "mulh",
+      "description": "Write the high 32 bits of the signed rs1-by-signed rs2 product to rd."
+    },
+    {
+      "mnemonic": "mulhsu",
+      "description": "Write the high 32 bits of the signed rs1-by-unsigned rs2 product to rd."
+    },
+    {
+      "mnemonic": "mulhu",
+      "description": "Write the high 32 bits of the unsigned rs1-by-rs2 product to rd."
+    },
+    {
+      "mnemonic": "div",
+      "description": "Write signed rs1 divided by signed rs2, truncating toward zero; return -1 for divisor zero and preserve rs1 for signed overflow."
+    },
+    {
+      "mnemonic": "divu",
+      "description": "Write unsigned rs1 divided by unsigned rs2; return all ones for divisor zero."
+    },
+    {
+      "mnemonic": "rem",
+      "description": "Write the signed remainder of rs1 divided by rs2, with the dividend's sign; return rs1 for divisor zero and zero for signed overflow."
+    },
+    {
+      "mnemonic": "remu",
+      "description": "Write the unsigned remainder of rs1 divided by rs2; return rs1 for divisor zero."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "it-001",
+  "nome": "RV32IM monociclo",
+  "criada_em": "2026-11-06T09:50:11",
+  "origem": "specs",
+  "notas": "Mesmas specs de specs/ (06/11/2026), so a linha de declaracao trocada para RV32IM. Usada no experimento luna6_im_1.",
+  "experimentos": []
+}

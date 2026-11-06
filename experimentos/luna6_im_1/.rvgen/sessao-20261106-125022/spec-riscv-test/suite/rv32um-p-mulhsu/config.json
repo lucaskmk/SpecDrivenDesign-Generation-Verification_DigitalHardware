@@ -1,0 +1,7 @@
+{
+  "elf": "/repo/experimentos/luna6_im_1/.rvgen/sessao-20261106-125022/spec-riscv-test/suite/programs/rv32um-p-mulhsu",
+  "max_cycles": 20000,
+  "report": "/repo/experimentos/luna6_im_1/.rvgen/sessao-20261106-125022/spec-riscv-test/suite/rv32um-p-mulhsu/report.json",
+  "test": "rv32um-p-mulhsu",
+  "trace": null
+}
