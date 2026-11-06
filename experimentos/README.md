@@ -10,6 +10,7 @@ resultados estão em [`docs/artigo.md`](../docs/artigo.md).
 | Pasta | Modelo | Alvo | Fluxo | `spec-riscv-test` | `rvverify` | Chamadas | Tokens (entrada / saída) | Custo | Commit |
 |---|---|---|---|---|---|---|---|---|---|
 | [`luna6_prof_3`](luna6_prof_3/) | `openai/gpt-6-luna` (OpenRouter) | RV32I monociclo | completo, `--max-casos-teste 4` | 40/40 | 24/24 na etapa RV32I (veredito `parcial`) | 78 | 743.978 / 124.821 | cerca de US$ 0,137 | `5068458` |
+| [`luna6_im_1`](luna6_im_1/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM monociclo | completo, `--max-casos-teste 4`, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado (a etapa RV32M exige generic) | 68 | 740.595 / 115.218 | cerca de US$ 0,132 | este commit |
 
 "Fluxo completo" é `--testes-componentes --gates-componentes
 --regressoes-componentes`. Os números são da sessão aprovada
@@ -27,6 +28,21 @@ RV32M exige um generic que o contrato atual não tem). A IA dividiu a CPU em `im
 escrito depois da geração, só para rodar o `rvverify`; ele não
 faz parte do que o `rvgen` produz. A sessão foi retomada 3 vezes (eventos
 `retomada` no `sessao.jsonl`).
+
+### `luna6_im_1`
+
+Primeira CPU RV32IM gerada pela IA (06/11/2026), com as specs da iteração
+[`iteracoes/it-001`](../iteracoes/it-001/): iguais a `specs/`, só com a linha
+de declaração `- RV32IM single cycle`, o que junta
+[`riscv-rv32m.md`](../specs/riscv-rv32m.md) ao prompt. A IA dividiu a CPU em
+`immediate_generator`, `register_file`, `execution_unit` (ALU e M juntos),
+`load_store_unit` e `cpu` (598 linhas de VHDL). Passou em 48/48 programas
+(40 `rv32ui` + 8 `rv32um`) com 0 iterações de correção do VHDL, numa
+execução só, sem retomada. Rodando de novo por fora, só os 8 programas do M:
+8/8. Desta vez 2 dos 49 testes de componente falharam e a triagem culpou o
+testbench nas duas vezes (2 chamadas `triagem_componente` e 2
+`correcao_testbench`). A revisão recusou uma vez a especificação do `cpu`.
+40 das 68 chamadas foram na expansão de testes.
 
 ## O que tem numa pasta de experimento
 

@@ -22,6 +22,10 @@ RV32I monociclo gerada passou em 40/40 programas `rv32ui` e em 24/24 casos da
 etapa RV32I do `rvverify`, com 78 chamadas ao modelo, cerca de US$ 0,14 e
 nenhuma iteração de correção. A maior parte das chamadas (56%) foi gasta expandindo testes de
 componente, e os defeitos encontrados estavam na orquestração, não no modelo.
+Com a referência da extensão M num arquivo próprio (`specs/riscv-rv32m.md`),
+o mesmo modelo gerou uma CPU RV32IM que passou em 48/48 programas (40
+`rv32ui` + 8 `rv32um`), com 68 chamadas, cerca de US$ 0,13 e nenhuma correção
+do VHDL.
 
 ## 1 Introdução
 
@@ -153,6 +157,7 @@ as duas ALUs compilaram no GHDL. O `gpt-6-luna` foi usado no experimento.
 | CPU | Origem | `spec-riscv-test` | `rvverify` |
 |---|---|---|---|
 | `cpus/rv32i_gabarito` | escrita à mão, 1 arquivo, contrato virtual | 40/40 `rv32ui` | 24/24 RV32I |
+| `cpus/rv32im_gabarito` | o gabarito acima mais a extensão M | 48/48 (`rv32ui` + `rv32um`); 8/8 só no M | 24/24 RV32I (etapa M pulada) |
 
 A CPU de referência passa em todos os casos dos dois juízes, o que é condição
 para que uma reprovação de CPU gerada aponte para a CPU e não para o juiz. O
@@ -160,6 +165,11 @@ para que uma reprovação de CPU gerada aponte para a CPU e não para o juiz. O
 (`--etapa rv32i`), e o veredito dele é `parcial`, porque só a suíte completa
 aprova e a etapa RV32M exige um generic que o contrato atual não tem. O mesmo
 vale para a CPU gerada (seção 4.2).
+
+Para o M, o controle negativo também foi medido: o `rv32i_gabarito`, que não
+tem M, passa em 0/8 programas `rv32um`, e o `rv32im_gabarito` em 8/8. Os
+programas do M de fato exercitam o M. Não existe CPU "só M": o M é uma
+extensão da base inteira, e os programas `rv32um` usam instruções do I.
 
 ### 4.2 Experimento `luna6_prof_3`
 
@@ -232,6 +242,27 @@ Na mesma semana, fora do `rvgen`:
   corrigido em `644cba9`.
 - App de iterações: uma revisão independente apontou 12 problemas, todos
   corrigidos (`3473084`, `34e34d5`).
+
+### 4.5 Experimento `luna6_im_1` (RV32IM)
+
+Mesmo modelo e mesma configuração da seção 4.2, mais `--max-chamadas 150`,
+com as specs da iteração `iteracoes/it-001`: idênticas a `specs/` exceto pela
+linha de declaração `- RV32IM single cycle`. Com ela, o `rvgen` junta
+`specs/riscv-rv32m.md` ao prompt e o juiz roda 48 programas.
+
+| Medida | Valor |
+|---|---|
+| `spec-riscv-test --isa rv32im` | 48/48; 8/8 rodando só os programas `rv32um` |
+| Chamadas | 68, numa execução só (sem retomada) |
+| Tokens | 740.595 de entrada, 115.218 de saída (cerca de US$ 0,132) |
+| CPU | 5 blocos, 598 linhas; ALU e M no mesmo bloco (`execution_unit`) |
+| Correções | 0 no VHDL; 2 de 49 testes de componente falharam e a triagem culpou o testbench nas duas |
+| Expansão de testes | 40 das 68 chamadas (59%) |
+
+Ao preparar a rodada apareceu mais um defeito de orquestração: o `cpu.md`
+cita "RV32I" numa frase fora da declaração, e trocar a declaração para RV32IM
+deixava a ISA ambígua, de modo que o `rvgen` se recusava a gerar. O leitor
+passou a ler a ISA só da linha de declaração.
 
 ## 5 Discussão
 

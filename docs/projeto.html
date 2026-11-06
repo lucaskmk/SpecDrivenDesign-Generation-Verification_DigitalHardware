@@ -133,7 +133,7 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 <div class="wrap">
 <header>
   <h1>Gerar e verificar CPUs RISC-V com IA</h1>
-  <p class="lead">Documento único do projeto: como funciona, onde está, o que mudou desde o código do professor, o que fazer a seguir e o histórico. Atualizado em 05/11/2026, estado do repositório no commit <code>0f75780</code>.</p>
+  <p class="lead">Documento único do projeto: como funciona, onde está, o que mudou desde o código do professor, o que fazer a seguir e o histórico. Atualizado em 06/11/2026. A parte 2 compara o código do professor (<code>a3d29d6</code>) com <code>0f75780</code>; o que veio depois está no registro de atualizações.</p>
 </header>
 <nav><a href="#parte-1">Parte 1</a><a href="#parte-2">Parte 2</a><a href="#parte-3">Parte 3</a><a href="#parte-4">Parte 4</a><a href="#resumo">Resumo</a><a href="#cpus">CPUs</a><a href="#modelos">Modelos</a><a href="#passos">Próximos passos</a><a href="#perguntas">Perguntas</a><a href="#registro">Registro</a></nav>
 <div class="toc"><div><b>Parte 1</b><ol><li><a href="#resumo">1 · Resumo</a></li><li><a href="#ideia">2 · A ideia do paper e o que já está provado</a></li><li><a href="#f-professor">3 · O que o professor descreveu × o que o código faz</a></li><li><a href="#f-geral">4 · Visão geral</a></li><li><a href="#f-pilha">5 · A pilha, componente por componente</a></li><li><a href="#f-falha">6 · Quando um teste falha: quem errou?</a></li><li><a href="#f-integrada">7 · CPU integrada, correção e veredito</a></li><li><a href="#f-certificacao">8 · Quem testa o quê: spec-riscv-test × rvverify</a></li><li><a href="#cpus">9 · CPUs possíveis: RV32I, RV32IM e outras</a></li><li><a href="#modelos">10 · Modelos de IA: qual usar e com qual esforço</a></li><li><a href="#f-modelo">11 · Como uma chamada ao modelo funciona</a></li><li><a href="#f-papeis">12 · Os papéis de IA (26 chamadas, 1 modelo)</a></li><li><a href="#m-numeros">13 · Resultados: experimento e testes</a></li></ol></div><div><b>Parte 2</b><ol><li><a href="#veredito">14 · Ficou melhor que antes?</a></li><li><a href="#m-fluxo">15 · O fluxo antes e depois</a></li><li><a href="#m-antesdepois">16 · Antes → depois, por área</a></li><li><a href="#m-bugs">17 · Bugs achados rodando de verdade</a></li><li><a href="#m-commits">18 · Linha do tempo dos 16 commits</a></li></ol></div><div><b>Parte 3</b><ol><li><a href="#passos">19 · Próximos passos</a></li><li><a href="#m-aberto">20 · O que continua aberto</a></li><li><a href="#perguntas">21 · Perguntas para o professor</a></li></ol></div><div><b>Parte 4</b><ol><li><a href="#f-codigo">22 · Mapa do código</a></li><li><a href="#f-artefatos">23 · O que uma geração deixa no disco</a></li><li><a href="#f-comandos">24 · Comandos e flags</a></li><li><a href="#glossario">25 · Glossário</a></li><li><a href="#historico">26 · Histórico: a revisão de 29/10</a></li><li><a href="#registro">27 · Registro de atualizações</a></li></ol></div></div>
@@ -141,15 +141,16 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 
 <h2 id="resumo">1 · Resumo</h2>
 <div class="tldr" style="border-left-color:var(--ok)">
-  <b>Onde estamos (05/11/2026, commit <code>0f75780</code>):</b> a ideia do professor fecha o ciclo completo pela primeira vez. As specs em Markdown viraram prompt, a IA gerou a CPU bloco a bloco e um juiz sem IA aprovou.
+  <b>Onde estamos (06/11/2026):</b> a ideia do professor fecha o ciclo completo, para RV32I e para RV32IM. As specs em Markdown viraram prompt, a IA gerou a CPU bloco a bloco e um juiz sem IA aprovou.
   <ul>
     <li><b>Resultado principal:</b> a CPU <code>experimentos/luna6_prof_3</code> (RV32I monociclo, gerada pelo <code>openai/gpt-6-luna</code>) passou <b>40/40</b> programas do <code>riscv-tests</code> no <code>spec-riscv-test</code>, o juiz do <code>rvgen</code>, sem nenhuma iteração de correção do VHDL. Antes disso o <code>spec-riscv-test</code> nunca tinha rodado numa CPU gerada.</li>
+    <li><b>RV32IM também funciona (06/11):</b> com a referência do M em <code>specs/riscv-rv32m.md</code>, o mesmo modelo gerou a <code>experimentos/luna6_im_1</code>, que passou <b>48/48</b> (40 do I + 8 do M; <b>8/8</b> rodando só o M), sem correção de VHDL, numa execução só e por cerca de US$ 0,13. Antes, uma CPU IM escrita à mão (<code>cpus/rv32im_gabarito</code>) provou o caminho do M no juiz: 48/48, enquanto a CPU sem M tira 0/8 nos programas do M.</li>
     <li><b>Segunda opinião:</b> no <code>rvverify</code> a mesma CPU passa os 24 casos RV32I, mas o veredito dele é <b>“parcial”</b> (só a etapa RV32I foi pedida). Esse 24/24 vem de uma execução manual cujo relatório não está versionado.</li>
     <li><b>Custo:</b> cerca de US$ 0,14 na sessão aprovada (78 chamadas). Somando as 2 rodadas anteriores, que pararam em defeitos do <code>rvgen</code>, foram 105 chamadas e cerca de US$ 0,19. É estimativa pelo preço do OpenRouter, não valor de fatura.</li>
     <li><b>Testes do repositório:</b> de 21 falhas para 0. Das 21, 19 foram corrigidas e 2 (binutils RISC-V) agora são puladas. Hoje: 330 ok / 26 pulados no Windows e 338 ok / 20 pulados no Linux (Docker).</li>
     <li><b>Ferramentas novas:</b> uma CPU gabarito escrita à mão para provar os juízes, um app para iterar nas specs a partir de uma base congelada e uma imagem Docker que refaz o veredito com versões fixas.</li>
   </ul>
-  <b>A principal ressalva:</b> é <b>um único experimento</b> (n = 1), com um modelo, só RV32I, e numa sessão retomada 3 vezes com o gerador mudando entre as retomadas. Provamos que <i>funcionou uma vez</i>, não que <i>funciona</i>. Os <a href="#passos">próximos passos</a> atacam isso.
+  <b>A principal ressalva:</b> é <b>um experimento por ISA</b> (n = 1 para RV32I e n = 1 para RV32IM), com um modelo só. A rodada I foi retomada 3 vezes com o gerador mudando entre as retomadas; a rodada IM não foi retomada. Provamos que <i>funcionou uma vez</i>, não que <i>funciona</i>. Os <a href="#passos">próximos passos</a> atacam isso.
 </div>
 <div class="note"><b>Este é o documento único do projeto.</b> Ele substitui <code>fluxo-rvgen.html</code>, <code>fluxo-rvgen.md</code>, <code>projeto-completo.html</code> e <code>mudancas.html</code>, que estão no histórico do git. A exceção é o <code>docs/artigo.md</code>, que é o texto do paper. Todo resultado novo entra aqui; o que mudou no documento fica no <a href="#registro">registro de atualizações</a> no fim.</div>
 
@@ -163,7 +164,8 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <tr><td>Veredito reproduzível por outra pessoa</td><td><span class="st pa">parcial</span></td><td>O veredito pode ser refeito com a imagem <code>docker/veredito</code>. A geração não: a sessão foi retomada com o código mudando.</td></tr>
   <tr><td>Mostrar que funciona de forma consistente</td><td><span class="st di">falta</span></td><td>n = 1. Ver <a href="#passos">próximos passos</a>.</td></tr>
   <tr><td>Medir o efeito das specs no resultado</td><td><span class="st di">falta</span></td><td>O app <code>iteracoes</code> já guarda cada variação de spec, mas nenhuma foi usada num experimento.</td></tr>
-  <tr><td>RV32IM e outras microarquiteturas</td><td><span class="st di">falta</span></td><td>O código aceita; nada foi gerado. Ver <a href="#cpus">CPUs possíveis</a>.</td></tr>
+  <tr><td>RV32IM</td><td><span class="st ok">feito</span></td><td><code>luna6_im_1</code>: 48/48 gerada por IA; <code>rv32im_gabarito</code>: 48/48 à mão. Ver <a href="#cpus">CPUs possíveis</a>.</td></tr>
+  <tr><td>Outras microarquiteturas (multiciclo, pipeline)</td><td><span class="st di">falta</span></td><td>O código aceita a palavra; a spec ainda tem a regra de monociclo.</td></tr>
   <tr><td>Síntese em FPGA (Quartus)</td><td><span class="st di">falta</span></td><td><code>quartus_testing</code> existe, mas não rodou na CPU gerada.</td></tr>
 </table></div>
 
@@ -421,13 +423,22 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 <div class="tblwrap"><table>
   <tr><th>Variante</th><th>Linha em <code>cpu.md</code></th><th>O juiz roda</th><th>Situação</th></tr>
   <tr><td><b>RV32I monociclo</b></td><td><code>RV32I single cycle</code></td><td>40 programas <code>rv32ui</code></td><td><span class="st ok">feito</span> gerada por IA (40/40) e gabarito à mão (40/40)</td></tr>
-  <tr><td><b>RV32IM monociclo</b></td><td><code>RV32IM single cycle</code></td><td>48 programas (40 + 8 <code>rv32um</code>: mul, mulh, mulhsu, mulhu, div, divu, rem, remu)</td><td><span class="st pa">pronto para tentar</span> o código e o juiz aceitam. A referência do M fica em <code>specs/riscv-rv32m.md</code>; ainda não foi gerada nenhuma CPU IM.</td></tr>
+  <tr><td><b>RV32IM monociclo</b></td><td><code>RV32IM single cycle</code></td><td>48 programas (40 + 8 <code>rv32um</code>: mul, mulh, mulhsu, mulhu, div, divu, rem, remu)</td><td><span class="st ok">feito</span> gerada por IA (<code>luna6_im_1</code>, 48/48) e gabarito à mão (<code>rv32im_gabarito</code>, 48/48). A referência do M fica em <code>specs/riscv-rv32m.md</code>.</td></tr>
   <tr><td><b>RV32I multiciclo</b></td><td><code>RV32I multicycle</code></td><td>os mesmos 40</td><td><span class="st pa">precisa ajustar a spec</span> o <code>cpu.md</code> diz “uma instrução por borda de subida”, regra de monociclo. O juiz só espera a escrita em <code>tohost</code>, então em princípio serve.</td></tr>
   <tr><td><b>RV32I pipeline</b></td><td><code>RV32I pipeline</code></td><td>os mesmos 40</td><td><span class="st pa">precisa ajustar a spec</span> mesma regra do multiciclo. É o caso que mais deve forçar o laço de correção (hazards).</td></tr>
   <tr><td>RV32IMC, F, CSR, interrupções</td><td>—</td><td>não suportado</td><td><span class="st di">fora do escopo</span> o <code>spec-riscv-test</code> só conhece os perfis <code>rv32i</code> e <code>rv32im</code>.</td></tr>
 </table></div>
 <p><b>Um arquivo por parte da ISA.</b> <code>specs/riscv-rv32i.md</code> é a base I e vai sempre para a IA. <code>specs/riscv-rv32m.md</code> é a extensão M (as 8 instruções, a codificação, os casos de divisão por zero e overflow e exemplos conferidos por teste) e só vai para a IA quando o <code>cpu.md</code> declara RV32IM. Com RV32IM e sem esse arquivo, o <code>rvgen</code> para com erro antes de chamar a IA. O terminal mostra a ISA no início e em cada fase de teste, por exemplo <code>ISA: RV32IM = RV32I (riscv-rv32i.md) + M (riscv-rv32m.md); o juiz roda 48 programas riscv-tests (rv32ui + rv32um)</code>.</p>
-<p>Referências que já existem em <code>cpus/</code>: <code>rv32i_gabarito</code> (contrato atual, monociclo à mão), <code>rv32i_monociclo</code> e <code>rv32i_pipeline</code> (contrato antigo, com memórias dentro da CPU). As duas antigas servem de exemplo de arquitetura, mas não passam no juiz atual sem adaptar as portas.</p>
+<p><b>E “só M”?</b> Não existe CPU só M: pelo manual oficial da ISA (<code>riscv-isa-manual</code>, capítulo da extensão M), o M é uma <i>extensão</i> de uma base inteira. Os 8 programas <code>rv32um</code> do <code>riscv-tests</code> usam instruções do I para montar os valores e conferir o resultado. “Testar só o M” é rodar só esses 8 programas numa CPU IM: <code>spec-riscv-test --isa rv32im --tests div,divu,mul,mulh,mulhsu,mulhu,rem,remu</code>.</p>
+<div class="tblwrap"><table>
+  <tr><th>CPU</th><th>I (40)</th><th>só M (8)</th><th>IM (48)</th></tr>
+  <tr><td><code>cpus/rv32i_gabarito</code> (à mão, sem M)</td><td>40/40</td><td>0/8 (esperado: controle)</td><td>—</td></tr>
+  <tr><td><code>cpus/rv32im_gabarito</code> (à mão)</td><td>40/40</td><td>8/8</td><td>48/48</td></tr>
+  <tr><td><code>experimentos/luna6_prof_3</code> (IA, RV32I)</td><td>40/40</td><td>—</td><td>—</td></tr>
+  <tr><td><code>experimentos/luna6_im_1</code> (IA, RV32IM)</td><td>(dentro dos 48)</td><td>8/8</td><td>48/48</td></tr>
+</table></div>
+<p>Para pedir uma CPU IM: crie uma iteração no app e troque só a linha <code>- RV32I single cycle</code> por <code>- RV32IM single cycle</code>. O <code>rvgen</code> lê a ISA só dessa linha (antes, a palavra “RV32I” em outra frase do <code>cpu.md</code> deixava a ISA ambígua e o <code>rvgen</code> recusava gerar).</p>
+<p>Referências que já existem em <code>cpus/</code>: <code>rv32i_gabarito</code> e <code>rv32im_gabarito</code> (contrato atual, monociclo à mão), <code>rv32i_monociclo</code> e <code>rv32i_pipeline</code> (contrato antigo, com memórias dentro da CPU). As duas antigas servem de exemplo de arquitetura, mas não passam no juiz atual sem adaptar as portas.</p>
 <div class="note"><b>Sugestão simples para o paper:</b> rodar as três primeiras linhas (RV32I monociclo, RV32IM monociclo e RV32I pipeline) com o mesmo modelo, 3 vezes cada. É pouco dinheiro (cerca de US$ 0,15 por rodada com o luna 6) e já mostra até onde o método escala.</div>
 
 <h2 id="modelos">10 · Modelos de IA: qual usar e com qual esforço</h2>
@@ -516,6 +527,24 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <div class="bar"><span><b>total Linux (Docker)</b></span><div class="track"><div class="p" style="width:94%"></div><div class="s" style="width:6%"></div></div><span>338 ok · 20 pulados · 0 falhas</span></div>
 </div>
 <div class="note"><b>Pular não é passar.</b> No Windows a simulação não roda: o <code>rvverify</code> continua com os mesmos 84 ok. A simulação só roda no Linux: lá são coletados 2 testes a mais (358 contra 356) e 6 testes do <code>rvverify</code> pulados no Windows por falta de GHDL/cocotb passam, entre eles os do <code>tb_virtual</code> consertado (330 + 6 + 2 = 338). O oráculo do montador (17 testes) e os 2 testes de binutils não rodam em nenhum ambiente medido.</div>
+
+<h3>Experimento <code>luna6_im_1</code> (RV32IM, 06/11/2026)</h3>
+<p>Conferido no <code>sessao.jsonl</code> e rodando o juiz de novo, por fora, na imagem <code>docker/veredito</code>.</p>
+<div class="kpis">
+  <div class="card"><div class="big">48/48</div><small><code>spec-riscv-test --isa rv32im</code></small></div>
+  <div class="card"><div class="big">8/8</div><small>só os programas do M</small></div>
+  <div class="card"><div class="big">68</div><small>chamadas, sem retomada</small></div>
+  <div class="card"><div class="big">~US$ 0,132</div><small>estimativa pelo preço do OpenRouter</small></div>
+</div>
+<div class="tblwrap"><table>
+  <tr><th>Medida</th><th>Valor</th></tr>
+  <tr><td>Specs</td><td><code>iteracoes/it-001</code>: <code>specs/</code> com a linha <code>- RV32IM single cycle</code></td></tr>
+  <tr><td>Tokens</td><td>740.595 de entrada · 115.218 de saída</td></tr>
+  <tr><td>CPU gerada</td><td>5 blocos, 598 linhas: <code>cpu</code> 223, <code>execution_unit</code> 204 (ALU e M), <code>load_store_unit</code> 95, <code>register_file</code> 53, <code>immediate_generator</code> 23</td></tr>
+  <tr><td>Correções</td><td>0 no VHDL; 2 de 49 testes de componente falharam e a triagem culpou o testbench as 2 vezes; a revisão recusou 1 vez a especificação do <code>cpu</code></td></tr>
+  <tr><td>Expansão de testes</td><td>40 de 68 chamadas (59%)</td></tr>
+  <tr><td>Configuração</td><td>a mesma da <code>luna6_prof_3</code> (fluxo completo, <code>--max-casos-teste 4</code>) mais <code>--max-chamadas 150</code></td></tr>
+</table></div>
 
 <h3>Experimento <code>luna6_prof_3</code></h3>
 <p>O 40/40 e os números de chamadas e tokens foram conferidos no <code>sessao.jsonl</code> e no <code>report.json</code>. O 24/24 do <code>rvverify</code> vem de uma execução manual cujo relatório não está versionado.</p>
@@ -728,8 +757,8 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <p>A pergunta central de <i>spec-driven</i> é: <b>specs melhores geram hardware melhor?</b> Criar variações no app <code>iteracoes</code>: com e sem <code>vhdl.md</code>, <code>cpu.md</code> curto ou detalhado, com e sem a decomposição fixa. Rodar cada uma algumas vezes e comparar aprovação e custo. Pode virar a tabela principal do paper.</p></div>
 <div class="find alta"><h3>3 · Comparar modelos</h3>
   <p>Os modelos baratos da <a href="#modelos">tabela de modelos</a> com a mesma spec, e um modelo forte como teto. Separa o que é mérito do método do que é mérito do modelo.</p></div>
-<div class="find media"><h3>4 · Subir a complexidade: RV32IM e pipeline</h3>
-  <p>Ver <a href="#cpus">CPUs possíveis</a>. Também testa o laço de correção, que nesta rodada nunca foi usado (nenhum teste de componente falhou).</p></div>
+<div class="find media"><h3>4 · Subir a complexidade: pipeline <span class="st ok">RV32IM feito</span></h3>
+  <p>O RV32IM já foi gerado e aprovado (48/48). Falta o pipeline: ajustar a regra de monociclo do <code>cpu.md</code> e gerar. Deve forçar o laço de correção, que até agora só foi usado para corrigir testbenches (2 vezes na rodada IM).</p></div>
 <div class="find media"><h3>5 · Sintetizar no Quartus</h3>
   <p>Rodar o <code>quartus_testing</code> na CPU gerada e no gabarito: área, Fmax e potência. Mostra que o resultado é hardware de verdade, não só simulação.</p></div>
 <div class="find baixa"><h3>6 · Reduzir custo e limpar</h3>
@@ -1222,6 +1251,7 @@ python -m rvgen preparar --verificar</code></pre>
 <p>Ao mudar este documento, acrescente uma linha aqui e atualize o resumo do topo.</p>
 <div class="tblwrap"><table>
   <tr><th>Data</th><th>O que mudou</th></tr>
+  <tr><td>06/11/2026</td><td>RV32IM: gabarito à mão <code>cpus/rv32im_gabarito</code> (48/48, 8/8 só no M) e primeira CPU IM gerada por IA (<code>luna6_im_1</code>, 48/48). O <code>rvgen</code> lê a ISA só da linha de declaração do <code>cpu.md</code>. O app <code>iteracoes</code> conhece o <code>riscv-rv32m.md</code>.</td></tr>
   <tr><td>05/11/2026</td><td><code>specs/riscv-rv32m.md</code> (referência da extensão M); o <code>rvgen</code> só a usa com RV32IM e mostra a ISA e o número de programas do juiz no terminal. Seção “CPUs possíveis” atualizada.</td></tr>
   <tr><td>05/11/2026</td><td>Documento único: junta <code>fluxo-rvgen.html</code>, <code>fluxo-rvgen.md</code>, <code>projeto-completo.html</code> e <code>mudancas.html</code>. Novas seções de CPUs possíveis, modelos de IA e próximos passos. A parte de mudanças foi corrigida conforme uma verificação independente dos números (retomadas, testes pulados, custo total, IDs mortos que restam).</td></tr>
   <tr><td>04/11/2026</td><td>Primeira CPU gerada aprovada (<code>luna6_prof_3</code>), CPU gabarito, app de iterações e imagem do veredito (commits <code>644cba9</code> a <code>0f75780</code>).</td></tr>
