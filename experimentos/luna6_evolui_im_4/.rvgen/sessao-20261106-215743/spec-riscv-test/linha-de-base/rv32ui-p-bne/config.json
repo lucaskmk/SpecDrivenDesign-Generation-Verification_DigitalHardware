@@ -1,0 +1,7 @@
+{
+  "elf": "/repo/experimentos/luna6_evolui_im_4/.rvgen/sessao-20261106-215743/spec-riscv-test/linha-de-base/programs/rv32ui-p-bne",
+  "max_cycles": 20000,
+  "report": "/repo/experimentos/luna6_evolui_im_4/.rvgen/sessao-20261106-215743/spec-riscv-test/linha-de-base/rv32ui-p-bne/report.json",
+  "test": "rv32ui-p-bne",
+  "trace": null
+}

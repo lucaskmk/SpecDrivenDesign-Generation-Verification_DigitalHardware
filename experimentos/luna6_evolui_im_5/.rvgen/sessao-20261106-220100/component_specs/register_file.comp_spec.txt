@@ -1,0 +1,84 @@
+# Component semantic contract: register_file
+
+## Public interface
+```vhdl
+entity register_file is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        rs1_addr : in std_logic_vector(4 downto 0);
+        rs2_addr : in std_logic_vector(4 downto 0);
+        rs1_data : out std_logic_vector(31 downto 0);
+        rs2_data : out std_logic_vector(31 downto 0);
+        rd_addr : in std_logic_vector(4 downto 0);
+        rd_data : in std_logic_vector(31 downto 0);
+        rd_write : in std_logic
+    );
+end register_file;
+```
+
+## Responsibility
+Provide 32 32-bit integer registers with two asynchronous read ports, one rising-edge write port, asynchronous active-high reset, and hardwired-zero x0.
+
+## Timing
+
+- `rs1_data` and `rs2_data` are asynchronous outputs. Each reflects the value selected by its corresponding address without waiting for a clock edge.
+- A write takes effect on a rising edge of `clk` when `rst = '0'` and `rd_write = '1'`. The write uses `rd_addr` and `rd_data` sampled at that edge.
+- After a qualifying write edge, asynchronous reads reflect the updated value. A write does not change a register before that edge.
+- Asserting reset takes effect asynchronously and does not require a clock edge.
+
+## Reset
+
+- `rst` is active high and asynchronous.
+- While `rst = '1'`, every register reads as zero and writes do not take effect, whether or not a clock edge occurs.
+- Deasserting reset does not itself modify register values. After reset has been asserted, all registers remain zero until written.
+- If reset is asserted at a rising clock edge, reset takes priority over a write.
+
+## Behavior
+
+- The component provides 32 architectural registers, each 32 bits wide. A 5-bit binary address selects the register with that unsigned index.
+- `rs1_addr` selects the value presented on `rs1_data`; `rs2_addr` independently selects the value presented on `rs2_data`.
+- Address zero always reads as `0x00000000`. Writes to address zero have no effect, regardless of `rd_write` or `rd_data`.
+- For addresses 1 through 31, a qualifying write stores the full 32-bit `rd_data` value in the register selected by `rd_addr`.
+- `rd_write = '0'` prevents a write. With reset inactive, only a qualifying rising edge can write a register.
+- All 5-bit binary addresses from `00000` through `11111` are valid. Behavior for non-binary `std_logic` values on inputs is unspecified.
+
+## Operations
+
+None.
+
+## Edge cases
+
+- Reads of address zero return zero at all times, including during reset and after attempted writes to address zero.
+- Reset asserted between clock edges clears all registers without waiting for a clock.
+- A write with `rd_write = '0'` does not change a register, even when `rd_addr` and `rd_data` change across rising edges.
+- A write to a nonzero address changes only that register; all other registers retain their values.
+- There are no invalid binary register addresses or partial-width reads or writes.
+
+## Test strategy
+
+Use representative cases rather than exhaustively enumerating register addresses or write destinations. Use `x0` to check hardwired-zero behavior, a representative nonzero register such as `x5`, and the boundary register `x31`. Exercise both read ports with these selections.
+
+1. **Reset and reset priority**
+   - Write nonzero values to `x5` and `x31`. Assert reset between clock edges and check that reads of `x0`, `x5`, and `x31` on both ports return zero without a clock edge.
+   - While reset is asserted, attempt a write to `x5` on a rising edge. Deassert reset and check that the representative registers still read zero.
+   - Also assert reset at a rising edge with a write enabled and check that reset takes priority.
+
+2. **Asynchronous reads and independent ports**
+   - Write distinct values to `x5` and `x31`. With no clock edge, change one read address at a time among `x0`, `x5`, and `x31`.
+   - Check that the selected port updates asynchronously and that the other port continues to return the value selected by its unchanged address.
+
+3. **Write data, destination, and preservation**
+   - Set distinct values in `x5` and `x31`. Write a new value to `x5` and check that `x5` changes while `x31` retains its prior value; repeat with `x31` as the destination.
+   - Use representative data patterns such as `0x00000000`, `0xFFFFFFFF`, `0xAAAAAAAA`, `0x55555555`, and `0x80000001` to check full-width data routing.
+
+4. **Write enable and edge qualification**
+   - With known values in `x5` and `x31`, set `rd_write = '0'`, vary `rd_addr` and `rd_data`, and generate rising edges. Check that the representative register values do not change.
+   - For a write to `x5`, check that its value remains unchanged before the rising edge, changes after the edge, and remains unchanged when `rd_data` changes without another rising edge.
+
+5. **Hardwired zero**
+   - Attempt writes to `x0` with `rd_write = '1'` and representative values including all zeros and all ones.
+   - Check that both read ports return zero for `x0` and that the values in `x5` and `x31` remain unchanged.
+
+6. **Post-reset operation**
+   - After reset, write a nonzero value to `x5` on a rising edge. Check that both read ports return the written value for `x5`, while `x0` and `x31` return zero.

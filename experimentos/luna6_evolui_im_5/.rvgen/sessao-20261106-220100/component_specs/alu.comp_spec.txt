@@ -1,0 +1,91 @@
+# Component semantic contract: alu
+
+## Public interface
+```vhdl
+entity alu is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        alu_control : in std_logic_vector(3 downto 0);
+        result : out std_logic_vector(31 downto 0);
+        equal : out std_logic;
+        signed_less : out std_logic;
+        unsigned_less : out std_logic
+    );
+end alu;
+```
+
+## Responsibility
+Perform RV32I arithmetic, logic, shifts, and signed and unsigned comparisons selected by an operation control input.
+
+## Timing
+
+`alu` is purely combinational. After input changes propagate, `result`, `equal`, `signed_less`, and `unsigned_less` must reflect the current inputs. There is no clock, stored state, or latency.
+
+## Reset
+
+None. The component has no reset input or reset behavior.
+
+## Behavior
+
+`operand_a` and `operand_b` are 32-bit bit vectors. For binary inputs, `alu_control` selects the operation that determines `result`, as specified below.
+
+The three comparison outputs are independent of `alu_control` and are always computed from the current operands:
+
+- `equal` is `'1'` exactly when `operand_a` and `operand_b` are bit-for-bit equal.
+- `signed_less` is `'1'` exactly when `operand_a` is less than `operand_b` interpreted as 32-bit two’s-complement signed integers.
+- `unsigned_less` is `'1'` exactly when `operand_a` is less than `operand_b` interpreted as unsigned integers.
+
+These outputs are defined for every binary operand pair, including when `alu_control` is reserved.
+
+## Operations
+
+The `alu_control` encoding is:
+
+| `alu_control` | Operation | `result` |
+|---|---|---|
+| `0000` | ADD | `(operand_a + operand_b) mod 2^32` |
+| `0001` | SUB | `(operand_a - operand_b) mod 2^32` |
+| `0010` | AND | Bitwise `operand_a AND operand_b` |
+| `0011` | OR | Bitwise `operand_a OR operand_b` |
+| `0100` | XOR | Bitwise `operand_a XOR operand_b` |
+| `0101` | SLL | `operand_a` shifted logically left by `operand_b[4:0]` places |
+| `0110` | SRL | `operand_a` shifted logically right by `operand_b[4:0]` places |
+| `0111` | SRA | `operand_a` shifted arithmetically right by `operand_b[4:0]` places, preserving its sign bit |
+| `1000` | SLT | `00000000` with bit 0 set to `1` if `signed_less` is `'1'`; otherwise all zero |
+| `1001` | SLTU | `00000000` with bit 0 set to `1` if `unsigned_less` is `'1'`; otherwise all zero |
+| `1010`–`1111` | Reserved | `00000000` |
+
+For shifts, only the low five bits of `operand_b` determine the shift amount. Vacated bits are zero for SLL and SRL. For SRA, vacated bits are copies of `operand_a[31]`.
+
+## Edge cases
+
+- ADD and SUB wrap modulo `2^32`; overflow does not raise an exception or alter any output other than the arithmetic result.
+- A shift amount is always in the range 0–31 because it is taken from `operand_b[4:0]`. In particular, `operand_b` values whose low five bits are zero request a shift by zero, regardless of their other bits.
+- Shifting by zero leaves `operand_a` unchanged for SLL, SRL, and SRA.
+- SRA of a negative signed operand fills vacated high bits with ones; SRA of a nonnegative operand fills them with zeros.
+- SLT and SLTU produce only `0x00000000` or `0x00000001`.
+- Reserved selector values produce a zero result. The comparison outputs remain defined from the operands and are not forced to zero by a reserved selector.
+- The contract defines behavior for binary inputs. Behavior for inputs containing unknown or high-impedance values is unspecified.
+
+## Test strategy
+
+Run each test by driving all inputs, allowing combinational propagation to settle, then checking all four outputs. Use binary vectors. In each comparison below, change only the stated semantic factor while holding the other inputs fixed.
+
+1. **Selector decoding and operation results.** For each selector in `0000`–`1001`, apply the same asymmetric operands `operand_a = 0x81234567` and `operand_b = 0x10203005`, then check `result` against the operation table. These operands have distinct bits and values so selecting the wrong operand, operation, or shift amount is observable. Change only `alu_control` between cases. For each reserved selector `1010`–`1111`, keep those operands fixed, change only `alu_control`, and require a zero result.
+
+2. **ADD and SUB arithmetic boundaries.** With the selector fixed to ADD, test `(0xFFFFFFFF, 0x00000001) → 0x00000000`, `(0x7FFFFFFF, 0x00000001) → 0x80000000`, and `(0x00000005, 0x00000003) → 0x00000008`. With the selector fixed to SUB, test `(0x00000000, 0x00000001) → 0xFFFFFFFF`, `(0x80000000, 0x00000001) → 0x7FFFFFFF`, and `(0x00000005, 0x00000003) → 0x00000002`. Within each pair of tests, change one operand at a time.
+
+3. **Bitwise transformations.** For AND, OR, and XOR, hold operands at `0xA55A3CC3` and `0x3C969669`, and select each operation in turn. Check the bitwise result exactly. The differing, mixed-bit patterns make the three results distinguishable; change only the selector between cases.
+
+4. **Shift direction and fill behavior.** Hold `operand_a = 0x81234567` and set the shift amount to 4. Check SLL gives `0x12345670`, SRL gives `0x08123456`, and SRA gives `0xF8123456`; change only the selector between cases. Repeat the three operations with `operand_a = 0x71234567` and the same shift amount, checking the corresponding results with zero-fill for right shifts. Change only `operand_a` for that repeat.
+
+5. **Shift amount selection and boundaries.** For each shift selector, hold `operand_a` fixed and test `operand_b` values `0`, `1`, `31`, `32`, and `63`. Check that the effective amounts are respectively `0`, `1`, `31`, `0`, and `31`, including the appropriate shift direction and fill behavior. Change only `operand_b` between cases. Also compare `operand_b = 1` with `operand_b = 0xFFFFFFE1`: the results must match because both have low five bits equal to one; change only the upper bits of `operand_b`.
+
+6. **Signed comparison result and flag.** With SLT selected, test `(0x80000000, 0x7FFFFFFF)` and its operand-reversed pair; require `signed_less` and the SLT result to change from true to false. Test `(0xFFFFFFFF, 0x00000000)` and its reversed pair to distinguish signed interpretation from unsigned interpretation. Test equal operands to require `signed_less = 0` and SLT result zero. Change only the operand order or the single operand needed for each pair.
+
+7. **Unsigned comparison result and flag.** With SLTU selected, test `(0xFFFFFFFF, 0x00000000)` and its operand-reversed pair; require `unsigned_less` and the SLTU result to change from false to true. Test `(0x80000000, 0x7FFFFFFF)` and its reversed pair to distinguish unsigned from signed interpretation. Test equal operands to require `unsigned_less = 0` and SLTU result zero. Change only the operand order or the single operand needed for each pair.
+
+8. **Equality flag.** Apply equal operands such as `(0xA55A3CC3, 0xA55A3CC3)` and require `equal = 1`; change one operand by one bit and require `equal = 0`. Repeat with several operand patterns, including zero and `0xFFFFFFFF`. Change only one operand between equal and unequal cases.
+
+9. **Flag independence from operation selection.** For each of these operand pairs—equal operands, signed-less-only operands `(0xFFFFFFFF, 0x00000000)`, unsigned-less-only operands `(0x7FFFFFFF, 0x80000000)`, and operands with neither strict less-than relation `(0x00000001, 0x00000001)`—hold both operands fixed and apply every selector from `0000` through `1111`. Require `equal`, `signed_less`, and `unsigned_less` to remain equal to their operand-defined values for every selector. Change only `alu_control` within each pair.

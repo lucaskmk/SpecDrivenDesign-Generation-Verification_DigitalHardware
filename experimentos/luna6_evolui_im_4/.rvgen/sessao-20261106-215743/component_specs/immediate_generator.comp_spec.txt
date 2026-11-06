@@ -1,0 +1,62 @@
+# Component semantic contract: immediate_generator
+
+## Public interface
+```vhdl
+entity immediate_generator is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0)
+    );
+end immediate_generator;
+```
+
+## Responsibility
+Generate sign-extended I-, S-, B-, and J-type immediates, and the zero-extended U-type immediate from the instruction word.
+
+## Timing
+
+`immediate_generator` is purely combinational. Each output must reflect the current `instr` value after combinational propagation settles. No clock or handshake is involved, and changes to `instr` must not require a clock edge.
+
+## Reset
+
+None. The component has no reset input and no reset behavior.
+
+## Behavior
+
+For every 32-bit `instr` value, produce all five immediates concurrently, independent of the opcode or any other instruction field not specified in these formulas. `sext(x)` denotes sign extension of `x` to 32 bits; `||` denotes concatenation.
+
+- `imm_i = sext(instr[31:20])`
+- `imm_s = sext(instr[31:25] || instr[11:7])`
+- `imm_b = sext(instr[31] || instr[7] || instr[30:25] || instr[11:8] || 0)`
+- `imm_u = instr[31:12] || 0x000`
+- `imm_j = sext(instr[31] || instr[19:12] || instr[20] || instr[30:21] || 0)`
+
+For B-type, `imm_b[0]=0`, `imm_b[4:1]=instr[11:8]`, `imm_b[10:5]=instr[30:25]`, `imm_b[11]=instr[7]`, and `imm_b[12]=instr[31]`; `imm_b[31:13]` are the sign extension of `instr[31]`.
+
+For J-type, `imm_j[0]=0`, `imm_j[10:1]=instr[30:21]`, `imm_j[11]=instr[20]`, `imm_j[19:12]=instr[19:12]`, and `imm_j[20]=instr[31]`; `imm_j[31:21]` are the sign extension of `instr[31]`.
+
+## Operations
+
+None. There is no encoded selector. All five outputs are generated for every input word.
+
+## Edge cases
+
+- When `instr[31]=0`, the I-, S-, B-, and J-type outputs have zero-filled sign-extension bits.
+- When `instr[31]=1`, the I-, S-, B-, and J-type outputs have one-filled sign-extension bits in their respective upper ranges.
+- The low bit of `imm_b` and `imm_j` is always zero, regardless of `instr`.
+- The low 12 bits of `imm_u` are always zero. Its upper 20 bits are exactly `instr[31:12]`; this is not sign extension.
+- Opcode values, including unsupported or otherwise invalid instruction encodings, do not suppress or alter any output.
+
+## Test strategy
+
+Use a combinational Cocotb test: drive `instr`, allow combinational propagation to settle, and compare all five outputs against the formulas in **Behavior**. Do not use clock edges or reset.
+
+1. **Bit mapping, packing, and slicing:** For each `k` from 0 through 31, compare the outputs for `instr=0` with those for `instr = 1 << k`; then, separately, compare the outputs for `instr=0xFFFFFFFF` with those for `instr = 0xFFFFFFFF ^ (1 << k)`. Each comparison pair differs only in bit `k`. Check every output against the formulas after each drive. These tests exercise every source bit, detect omitted or incorrectly included bits, and check constant-zero positions.
+2. **Sign extension:** With all bits other than bit 31 held at zero, test `instr=0` and `instr=0x80000000`. Then, separately for each `k` from 0 through 30, compare `instr = 1 << k` with `instr = (1 << k) | 0x80000000`; each pair differs only in bit 31. Check the effects prescribed by the formulas, including the mapped bit and sign-filled upper bits of `imm_i`, `imm_s`, `imm_b`, and `imm_j`. Check that `imm_u[31:12]` includes bit 31 directly and that `imm_u[11:0]` remains zero.
+3. **Distinguishable source fields:** Drive fixed nonuniform words, including `0xD5A69B3C` and `0x2B59E6A7`, and check every output. Also construct cases with distinct, nonzero patterns in the input slices used by each immediate formula; check that each output follows its specified slice and ordering, rather than another slice or a reversed ordering. For each comparison, change only the slice or bit under examination while holding all other input bits fixed.
+4. **Opcode independence:** For each fixed nonuniform word, vary only `instr[6:0]` across all 128 opcode values. Require all five outputs to match the formulas for the complete current `instr` word. This confirms that no opcode class selects or suppresses an immediate.
+5. **Boundary patterns:** Check `instr=0`, `instr=0xFFFFFFFF`, `instr=0x7FFFF000`, and `instr=0x80000000`. These cases must confirm zero and all-one sign extension, the B/J implicit low zero bits, and the U-type zero low 12 bits.
