@@ -1,0 +1,8 @@
+{
+  "bloco": "cpu",
+  "arquivo": "src/cpu.vhd",
+  "hash_vhdl": "0af3e402f45c465db331f8d5d82743d4d5fe83c9509807b30cb597186f4c5a86",
+  "testes": [
+    "testes/test_cpu.py"
+  ]
+}

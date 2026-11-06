@@ -1,0 +1,318 @@
+You write VHDL for a RISC-V CPU that an automatic conformance suite
+    (GHDL + cocotb, the `spec-riscv-test` validator) will judge by running
+    official real RISC-V programs. Follow this
+contract exactly: a CPU that deviates from it cannot be observed and fails.
+
+# CPU Specification
+# Especificação da CPU RISC-V
+
+- RV32I single cycle
+
+Nota: Não são exigidos: FENCE, ECALL, EBREAK, CSRs, interrupções ou acessos
+desalinhados.
+
+O arquivo obrigatório é `src/cpu.vhd`, com esta entidade exata:
+
+```vhdl
+entity cpu is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        instr_addr : out std_logic_vector(31 downto 0);
+        instr_data : in std_logic_vector(31 downto 0);
+        data_addr : out std_logic_vector(31 downto 0);
+        data_write : out std_logic;
+        data_width : out std_logic_vector(1 downto 0);
+        data_write_data : out std_logic_vector(31 downto 0);
+        data_read_data : in std_logic_vector(31 downto 0)
+    );
+end cpu;
+```
+
+## Contrato do top-level
+
+Esta é a única interface externa da CPU. Não crie `cpu_top`, generics de ROM,
+nem instancie ROM ou RAM dentro da CPU. Blocos internos, seus nomes e suas
+portas são livres, desde que `src/cpu.vhd` implemente exatamente esta entidade.
+
+O validador (`spec-riscv-test` no `rvgen`, `rvverify` nas entregas) fornece ROM
+e RAM virtuais pelas portas acima.
+
+### Busca e PC
+
+- `instr_addr` deve expor sempre o PC da instrução corrente.
+- `instr_data` é uma leitura assíncrona da ROM virtual nesse endereço. A CPU
+  usa essa instrução para calcular os resultados que são confirmados na borda
+  de subida de `clk`.
+- Fora de reset, uma instrução RV32I completa por borda de subida. O próximo
+  PC é `pc + 4`, exceto para `JAL`, `JALR` ou uma branch tomada.
+- A prioridade do próximo PC é: `JAL`/`JALR`, branch tomada, `pc + 4`.
+- `JAL x0, 0` deve manter o mesmo PC em bordas sucessivas; esse é o laço de
+  parada que o validador detecta.
+
+### Dados
+
+- `data_width` é `"00"` para byte, `"01"` para meia palavra e `"10"` para
+  palavra.
+- `data_addr` é sempre o endereço efetivo em **bytes**, sem mascarar seus bits
+  baixos. Para loads ele é `rs1 + I`; para stores é `rs1 + S`.
+- Leituras são assíncronas. `data_read_data` contém a palavra de 32 bits cujo
+  endereço-base é `data_addr & 0xFFFFFFFC`.
+- A palavra é little-endian: offsets `00`, `01`, `10`, `11` selecionam,
+  respectivamente, os bits `7:0`, `15:8`, `23:16`, `31:24` de
+  `data_read_data`. Para meia palavra, offset `00` usa bits `15:0` e offset
+  `10` usa bits `31:16`.
+- A CPU seleciona a parte lida e faz extensão de sinal para `LB` e `LH`; `LBU`
+  e `LHU` fazem extensão com zero.
+- Para `SB`, `SH` e `SW`, `data_write` deve ser `'1'` no ciclo da instrução e
+  `data_write_data` deve conter `rs2` (o validador usa os 8, 16 ou 32 bits
+  baixos conforme `data_width`). A RAM virtual confirma a escrita na borda de
+  subida.
+- Para qualquer instrução que não seja store, `data_write` deve ser `'0'`.
+
+
+## Reset e execução
+
+`rst` é assíncrono e ativo em nível alto. Enquanto `rst = '1'`, o PC deve ser
+`0x00000000` e todos os registradores devem ler como zero, sem esperar uma
+borda de clock.
+
+Programas terminam em `halt: j halt` (`JAL x0, 0`).
+
+# Requirements derived from the CPU declaration
+ISA base: RV32I (lui auipc jal jalr beq bne blt bge bltu bgeu lb lh lw lbu lhu sb sh sw addi slti sltiu xori ori andi slli srli srai add sub sll slt sltu xor srl sra or and).
+RV32M is NOT required, and the entity `cpu` has no generics: do not add one.
+Microarchitecture declared in specs/cpu.md: monociclo.
+
+
+# RV32I Implementation Reference
+# RV32I — referência de implementação
+
+Fonte: RISC-V Unprivileged ISA, RV32I v2.1. Derivada de
+`specs/upstream/riscv-rv32i.adoc` (RISC-V International, CC-BY-4.0).
+
+Este perfil é deliberadamente limitado ao contrato deste projeto: não inclui
+FENCE, ECALL, EBREAK, CSRs, interrupções nem acessos desalinhados.
+
+## Estado e regras gerais
+
+- `XLEN = 32`; todo resultado aritmético é reduzido a 32 bits. Não há exceção
+  de overflow para aritmética inteira.
+- Há 32 registradores `x0` a `x31`; `x0` sempre lê como zero e toda escrita em
+  `x0` é ignorada.
+- `pc` é o endereço da instrução atual. Instruções são palavras de 32 bits,
+  alinhadas em quatro bytes. A instrução sequencial seguinte fica em `pc + 4`.
+- Imediatos I, S, B e J são sign-extended a 32 bits a partir de `instr(31)`.
+- A memória é endereçada por byte e little-endian. A CPU pode assumir que todo
+  acesso de byte, meia palavra ou palavra recebido pelo validador é alinhado.
+
+## Campos e imediatos
+
+```text
+opcode = instr[6:0]      rd = instr[11:7]
+funct3 = instr[14:12]    rs1 = instr[19:15]    rs2 = instr[24:20]
+funct7 = instr[31:25]
+
+I = sext(instr[31:20])
+S = sext(instr[31:25] || instr[11:7])
+B = sext(instr[31] || instr[7] || instr[30:25] || instr[11:8] || 0)
+U = instr[31:12] || 12'b0
+J = sext(instr[31] || instr[19:12] || instr[20] || instr[30:21] || 0)
+```
+
+### Formatos de instrução
+
+Todo formato ocupa uma palavra de 32 bits. Os nomes abaixo descrevem a posição
+dos campos na palavra; não são entidades VHDL obrigatórias nem impõem uma
+microarquitetura.
+
+| Formato | Layout de `instr[31:0]` | Usado por |
+|---|---|---|
+| R-type | `funct7 | rs2 | rs1 | funct3 | rd | opcode` | OP: `add`, `sub`, shifts, comparações e lógica entre registradores |
+| I-type | `imm[11:0] | rs1 | funct3 | rd | opcode` | OP-IMM, loads e `jalr` |
+| S-type | `imm[11:5] | rs2 | rs1 | funct3 | imm[4:0] | opcode` | stores |
+| B-type (variante de S) | `imm[12|10:5] | rs2 | rs1 | funct3 | imm[4:1|11] | opcode` | branches condicionais |
+| U-type | `imm[31:12] | rd | opcode` | `lui`, `auipc` |
+| J-type (variante de U) | `imm[20|10:1|11|19:12] | rd | opcode` | `jal` |
+
+Para eliminar dúvidas sobre campos repartidos:
+
+- R-type: `rd=instr[11:7]`, `rs1=instr[19:15]`, `rs2=instr[24:20]`.
+- I-type: `I=sext(instr[31:20])`; em shifts imediatos, `shamt=instr[24:20]`.
+- S-type: `S=sext(instr[31:25] || instr[11:7])`.
+- B-type e J-type sempre têm bit zero implícito: seus destinos são pares.
+- U-type não recebe sign-extension: `U=instr[31:12] << 12`.
+- `rd` é escrito apenas pelas instruções que o possuem. Branches e stores não
+  escrevem registrador; `x0` jamais muda, mesmo quando aparece como `rd`.
+
+### Mapeamento de bits dos imediatos
+
+Esta tabela é a fonte direta para um gerador de imediatos. `inst[y:x]` significa
+os bits da palavra de instrução original, antes de qualquer extração de campo.
+Os intervalos superiores indicados como extensão de sinal repetem `inst[31]`.
+
+| Imediato | Bits de saída | Origem exata |
+|---|---|---|
+| I | `imm[11:0]` | `inst[31:20]` |
+| I | `imm[31:12]` | sinal: cópias de `inst[31]` |
+| S | `imm[4:0]` | `inst[11:7]` |
+| S | `imm[11:5]` | `inst[31:25]` |
+| S | `imm[31:12]` | sinal: cópias de `inst[31]` |
+| B | `imm[0]` | constante `0` |
+| B | `imm[4:1]` | `inst[11:8]` |
+| B | `imm[10:5]` | `inst[30:25]` |
+| B | `imm[11]` | `inst[7]` |
+| B | `imm[12]` e `imm[31:13]` | `inst[31]` e sua extensão de sinal |
+| U | `imm[11:0]` | constantes `0` |
+| U | `imm[31:12]` | `inst[31:12]` |
+| J | `imm[0]` | constante `0` |
+| J | `imm[10:1]` | `inst[30:21]` |
+| J | `imm[11]` | `inst[20]` |
+| J | `imm[19:12]` | `inst[19:12]` |
+| J | `imm[20]` e `imm[31:21]` | `inst[31]` e sua extensão de sinal |
+
+As variantes B e J preservam os campos de registradores e `funct3` dos formatos
+S e U, respectivamente; somente redistribuem os bits do imediato para que o
+bit menos significativo seja sempre zero. Não trate B como S nem J como U ao
+montar o imediato: use as posições exatas desta tabela.
+
+### Regra crítica: bit da instrução versus índice do campo
+
+Quando um componente recebe o campo já extraído como:
+
+```vhdl
+funct7 : std_logic_vector(6 downto 0)  -- instr[31:25]
+```
+
+os índices VHDL não são os números dos bits da instrução inteira:
+
+| Bit da instrução | Índice em `funct7(6 downto 0)` |
+|---:|---:|
+| `instr[31]` | `funct7(6)` |
+| `instr[30]` | `funct7(5)` |
+| `instr[25]` | `funct7(0)` |
+
+Portanto, `instr[30]` é `funct7(5)`. Nunca escreva `funct7(30)` em VHDL:
+essa porta só possui índices de `6` até `0`.
+
+## Codificação canônica de operações inteiras
+
+As tabelas seguintes valem somente para um componente que escolha decodificar
+diretamente `opcode`, `funct3` e `funct7`. Outra decomposição interna é livre,
+mas não pode atribuir semântica RV32I diferente a esses campos.
+
+### OP (R-type), `opcode = 0x33`
+
+| Instrução | `funct3` | `funct7` | Regra |
+|---|---:|---:|---|
+| ADD | `0x0` | `0x00` | `rs1 + rs2` |
+| SUB | `0x0` | `0x20` | `rs1 - rs2` |
+| SLL | `0x1` | `0x00` | `rs1 << rs2[4:0]` |
+| SLT | `0x2` | `0x00` | signed `rs1 < rs2` |
+| SLTU | `0x3` | `0x00` | unsigned `rs1 < rs2` |
+| XOR | `0x4` | `0x00` | `rs1 XOR rs2` |
+| SRL | `0x5` | `0x00` | logical right shift |
+| SRA | `0x5` | `0x20` | arithmetic right shift |
+| OR | `0x6` | `0x00` | `rs1 OR rs2` |
+| AND | `0x7` | `0x00` | `rs1 AND rs2` |
+
+### OP-IMM (I-type), `opcode = 0x13`
+
+| Instrução | `funct3` | Bits `instr[31:25]` | Regra |
+|---|---:|---:|---|
+| ADDI | `0x0` | não selecionam a operação | `rs1 + I` |
+| SLTI | `0x2` | não selecionam a operação | signed `rs1 < I` |
+| SLTIU | `0x3` | não selecionam a operação | unsigned `rs1 < I` |
+| XORI | `0x4` | não selecionam a operação | `rs1 XOR I` |
+| ORI | `0x6` | não selecionam a operação | `rs1 OR I` |
+| ANDI | `0x7` | não selecionam a operação | `rs1 AND I` |
+| SLLI | `0x1` | `0x00` | `rs1 << instr[24:20]` |
+| SRLI | `0x5` | `0x00` | logical right shift |
+| SRAI | `0x5` | `0x20` | arithmetic right shift |
+
+Não invente distinções extras: `funct7` não distingue SLT de SLTU, nem OR de
+AND. Em particular, `funct3=0x3` é SLTU, `0x5` é SRL/SRA, `0x6` é OR e `0x7`
+é AND.
+
+## Operações de registradores
+
+`OP` usa opcode `0110011`; `OP-IMM` usa opcode `0010011`.
+
+| Instrução | Resultado em `rd` |
+|---|---|
+| `add`, `addi` | `rs1 + rs2` ou `rs1 + I` |
+| `sub` | `rs1 - rs2` |
+| `sll`, `slli` | deslocamento lógico à esquerda por `rs2[4:0]` ou `shamt` |
+| `srl`, `srli` | deslocamento lógico à direita |
+| `sra`, `srai` | deslocamento aritmético à direita, preservando sinal |
+| `slt`, `slti` | `1` se comparação signed for verdadeira; senão `0` |
+| `sltu`, `sltiu` | `1` se comparação unsigned for verdadeira; senão `0` |
+| `xor`, `xori` | XOR bit a bit |
+| `or`, `ori` | OR bit a bit |
+| `and`, `andi` | AND bit a bit |
+
+Para shifts imediatos, `shamt = instr[24:20]`; `SRAI` é selecionado por
+`instr[30] = 1`, enquanto `SRLI` tem `instr[30] = 0`.
+
+## U e transferências de controle
+
+| Instrução | Efeito |
+|---|---|
+| `lui rd,U` | `rd = U` |
+| `auipc rd,U` | `rd = pc + U` |
+| `jal rd,J` | `rd = pc + 4`; próximo `pc = pc + J` |
+| `jalr rd,rs1,I` | `rd = pc + 4`; próximo `pc = (rs1 + I) & 0xFFFFFFFE` |
+| `beq` / `bne` | desvia por `B` se os operandos são iguais / diferentes |
+| `blt` / `bge` | desvia por `B` conforme comparação signed |
+| `bltu` / `bgeu` | desvia por `B` conforme comparação unsigned |
+
+Quando uma branch não desvia, o próximo `pc` é `pc + 4`. `jal x0, 0` é o laço
+de parada usado pelo validador.
+
+## Loads e stores
+
+Endereço efetivo: `rs1 + I` para loads e `rs1 + S` para stores.
+
+| Instrução | Efeito |
+|---|---|
+| `lb` | lê 8 bits e faz sign-extension para 32 bits |
+| `lbu` | lê 8 bits e faz zero-extension |
+| `lh` | lê 16 bits e faz sign-extension para 32 bits |
+| `lhu` | lê 16 bits e faz zero-extension |
+| `lw` | lê 32 bits |
+| `sb` | escreve os 8 bits baixos de `rs2` |
+| `sh` | escreve os 16 bits baixos de `rs2` |
+| `sw` | escreve os 32 bits de `rs2` |
+
+No barramento da CPU, `data_width` é `00` para byte, `01` para meia palavra e
+`10` para palavra. A CPU deve selecionar o byte ou meia palavra usando os bits
+baixos do endereço e aplicar extensão de sinal somente em `LB` e `LH`.
+
+# Essential VHDL Generation Specification
+You MUST follow this specification.
+# Especificação essencial de VHDL gerado
+
+Estas regras valem para todo VHDL escrito pelo `rvgen` e são verificadas por
+GHDL com VHDL-2008.
+
+1. Use somente `ieee.std_logic_1164` e `ieee.numeric_std`; não use pacotes
+   aritméticos não padronizados.
+2. Para extensão de sinal, use `resize(signed(...), largura)`. Nunca repita
+   manualmente um bit de sinal em concatenações.
+
+   ```vhdl
+   imm_i <= std_logic_vector(resize(signed(instr(31 downto 20)), 32));
+   ```
+
+3. Faça conversões explicitamente com `signed(...)`, `unsigned(...)` e
+   `std_logic_vector(...)`; mantenha as larguras compatíveis antes de operar.
+4. Todo sinal deve ter um único driver. Em processos combinacionais, atribua
+   valores padrão a todas as saídas para não inferir latches.
+5. Uma função que lê sinal ou estado declarado na arquitetura deve ser
+   `impure`; prefira processo combinacional quando isso não for necessário.
+6. Entregue um arquivo completo: uma entidade por arquivo, sem placeholders,
+   elipses ou trechos omitidos.
+7. Arrays observados pelo testbench devem ser arrays 1-D de palavras de 32
+   bits. Mantenha a guarda de faixa e o índice de um array na mesma expressão
+   condicional.
+8. Use identificadores e comentários em inglês.
