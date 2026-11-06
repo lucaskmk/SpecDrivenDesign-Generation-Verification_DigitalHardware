@@ -19,7 +19,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from iteracoes.nucleo import (PAPEL_DOC, PAPEL_SISTEMA, PAPEL_TESTES, ErroIteracoes,
+from iteracoes.nucleo import (PAPEL_DOC, PAPEL_SISTEMA, PAPEL_SISTEMA_IM, PAPEL_TESTES, ErroIteracoes,
                               ErroNaoEncontrado, ErroPermissao, Repositorio)
 from iteracoes.servidor import LIMITE_CORPO, criar_servidor
 from rvgen.config import REPO_ROOT
@@ -270,6 +270,27 @@ class TestAnalise(BaseRepo):
         arq = next(a for a in self.repo.analisar("base")["arquivos"] if a["rel"] == "cpu.md")
         self.assertEqual(arq["tokens"], round(arq["chars"] / 4))
 
+    def test_referencia_do_m_so_conta_com_rv32im(self):
+        papeis = {a["rel"]: a["papel"] for a in self.repo.analisar("base")["arquivos"]}
+        self.assertEqual(papeis["riscv-rv32m.md"], PAPEL_SISTEMA_IM)
+        # RV32I: o arquivo do M nao e obrigatorio e nao entra no prompt
+        it = self.repo.criar_iteracao("base")
+        (self.repo.pasta_da_versao(it) / "riscv-rv32m.md").unlink()
+        self.assertEqual(self.repo.analisar(it)["contagem"]["erro"], 0)
+        self.assertNotIn("RV32M Implementation Reference", self.repo.prompt(it)["sistema"])
+        # RV32IM sem o arquivo: erro na analise e ele aparece como ausente
+        self.escrever(it, "cpu.md", self.ler(it, "cpu.md").replace(
+            "- RV32I single cycle", "- RV32IM single cycle", 1))
+        a = self.repo.analisar(it)
+        self.assertEqual(a["prompt"]["isa"], "rv32im")
+        self.assertTrue(any(c["nivel"] == "erro" and c["arquivo"] == "riscv-rv32m.md"
+                            for c in a["checagens"]), a["checagens"])
+        self.assertIn("riscv-rv32m.md", self.repo.obrigatorios_ausentes(it))
+        # o app pode recriar o arquivo; com ele, o prompt traz o M
+        self.repo.salvar_arquivo(it, "riscv-rv32m.md", self.ler("base", "riscv-rv32m.md"))
+        self.assertEqual(self.repo.analisar(it)["contagem"]["erro"], 0)
+        self.assertIn("RV32M Implementation Reference", self.repo.prompt(it)["sistema"])
+
     def test_generic_na_entidade_e_erro(self):
         it = self.repo.criar_iteracao("base")
         cpu = self.ler(it, "cpu.md").replace(
@@ -292,7 +313,8 @@ class TestAnalise(BaseRepo):
 
     def test_isa_ambigua_e_erro(self):
         it = self.repo.criar_iteracao("base")
-        self.repo.salvar_arquivo(it, "cpu.md", self.ler(it, "cpu.md") + "\nTambem RV32IM e RV32I.\n")
+        # duas linhas de declaracao com ISAs diferentes: o rvgen recusa
+        self.repo.salvar_arquivo(it, "cpu.md", self.ler(it, "cpu.md") + "\n- RV32IM pipeline\n")
         self.assertIn("erro", self._niveis(it, "ISA/microarquitetura"))
         p = self.repo.prompt(it)
         self.assertTrue(p["ok"])
