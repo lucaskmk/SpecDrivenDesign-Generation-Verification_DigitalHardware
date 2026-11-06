@@ -296,6 +296,13 @@ mudar, criar, dividir, juntar, renomear ou remover blocos; o limite virou
 `--max-blocos`; e um topo com `*`, `/`, `rem` ou `mod` é recusado. A IA então
 criou um bloco próprio para o M e manteve os outros quatro intactos.
 
+Para separar as duas mudanças, a mesma evolução rodou só com a decomposição
+livre, sem a proibição de conta no topo (`luna6_evolui_im_5`,
+`--permitir-conta-no-topo`): a IA também criou um bloco próprio (`muldiv`),
+mudou o `decoder` e deixou o `cpu` sem multiplicação, divisão ou resto. 48/48
+(8/8 só no M), 38 chamadas, cerca de US$ 0,079. Com uma rodada de cada, o
+efeito veio de liberar a decomposição; a proibição não foi necessária.
+
 A linha de base deu 25/25 testes de componente e 40/40 no RV32I. Os três
 blocos congelados ficaram byte a byte iguais aos da origem. A primeira
 tentativa (`luna6_evolui_im_1`) parou no teto de 150 chamadas por um defeito
