@@ -55,6 +55,24 @@ RVGEN_GEMINI_MODEL=gemini-2.5-flash
 Depois, use `python -m rvgen gerar entregas/minha_cpu --provedor google`.
 `--modelo` substitui `RVGEN_GEMINI_MODEL` apenas nessa execução.
 
+## Evoluir uma CPU aprovada
+
+Em vez de gerar do zero, `--evoluir-de` parte de uma CPU que já passou no
+juiz e a muda para as specs atuais (por exemplo de RV32I para RV32IM):
+
+```bash
+RVGEN_SPECS_DIR=iteracoes/it-001/specs python -m rvgen gerar luna6_evolui_im \
+    --evoluir-de experimentos/luna6_prof_3 --provedor openrouter \
+    --testes-componentes --gates-componentes --regressoes-componentes --max-casos-teste 4
+```
+
+Primeiro roda, sem IA, todos os testes de componente da CPU de origem e o juiz
+na ISA antiga; depois a IA lê o diff entre o contrato antigo e o novo e planeja
+quais blocos mudam (`.rvgen/sessao-*/evolucao/plano.md`). Só esses blocos têm
+contrato e VHDL atualizados (os testes antigos deles viram regressão); os
+outros ficam congelados e rodam os próprios testes de novo. O juiz final roda
+na ISA nova, com o laço de correção de sempre. Código em `rvgen/evolucao.py`.
+
 ## Artefatos
 
 Cada geração preserva prompts, respostas, logs e resultados em
