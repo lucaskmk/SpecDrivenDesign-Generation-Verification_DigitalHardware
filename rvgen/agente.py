@@ -746,6 +746,15 @@ class Agente:
         """Nome da capacidade Cocotb correspondente à ISA da CPU atual."""
         return f"assemble_{self.isa}"
 
+    def _montadores_aceitos(self) -> dict[str, str]:
+        """{montador: ISA com que a fonte é conferida}.
+
+        Uma CPU RV32IM também executa RV32I; um teste que só usa instruções do
+        I pode chamar ``assemble_rv32i`` (testes herdados de uma CPU RV32I,
+        ``rvgen evoluir``). Cada chamada é conferida na ISA do montador usado.
+        """
+        return {"assemble_rv32i": "rv32i", self._montador_de_estimulos(): self.isa}
+
     def _capacidade_assembly_rv32i(self, bloco: dict) -> str:
         portas = self._portas_de_instrucao_rv32i(bloco)
         if not portas:
@@ -777,7 +786,7 @@ class Agente:
                     and no.name in nomes]
         chamadas = [no for funcao in funcoes for no in ast.walk(funcao)
                     if isinstance(no, ast.Call) and isinstance(no.func, ast.Name) and
-                    no.func.id == self._montador_de_estimulos()]
+                    no.func.id in self._montadores_aceitos()]
         if not chamadas:
             return False
         try:
@@ -787,7 +796,7 @@ class Agente:
                 fonte = ast.literal_eval(chamada.args[0])
                 if not isinstance(fonte, str):
                     return False
-                validar_assembly_riscv(fonte, isa=self.isa,
+                validar_assembly_riscv(fonte, isa=self._montadores_aceitos()[chamada.func.id],
                                        exigir_labels_controle=exigir_labels_controle)
         except (ValueError, TypeError, ErroAssemblyRV32I):
             return False
@@ -817,7 +826,7 @@ class Agente:
         motivos: list[dict[str, Any]] = []
         chamadas = [no for funcao in funcoes for no in ast.walk(funcao)
                     if isinstance(no, ast.Call) and isinstance(no.func, ast.Name) and
-                    no.func.id == self._montador_de_estimulos()]
+                    no.func.id in self._montadores_aceitos()]
         if not chamadas:
             motivos.append({"kind": "missing_riscv_assembler_call",
                             "required": self._montador_de_estimulos()})
@@ -829,7 +838,7 @@ class Agente:
                 fonte = ast.literal_eval(chamada.args[0])
                 if not isinstance(fonte, str):
                     raise ValueError("assembly source is not a literal string")
-                validar_assembly_riscv(fonte, isa=self.isa,
+                validar_assembly_riscv(fonte, isa=self._montadores_aceitos()[chamada.func.id],
                                        exigir_labels_controle=exigir_labels_controle)
             except (ValueError, TypeError, ErroAssemblyRV32I) as erro:
                 motivos.append({"kind": "invalid_riscv_assembly_source", "detail": str(erro)})
@@ -1853,7 +1862,14 @@ class Agente:
         self._log({"evento": "decomposicao_invalida", "motivo": motivo})
         raise ErroGeracao(f"o modelo nao produziu uma decomposicao valida: {motivo}")
 
-    def _escrever_bloco(self, bloco: dict, arq: dict, k: int = 1, n: int = 1) -> None:
+    def _escrever_bloco(self, bloco: dict, arq: dict, k: int = 1, n: int = 1,
+                        anterior: str | None = None) -> None:
+        """Escreve o VHDL do bloco. ``anterior``: VHDL aprovado a evoluir (rvgen evoluir)."""
+        base_anterior = (
+            "\n\nCurrent implementation of this file, APPROVED for the previous specification. "
+            "Modify it to satisfy the updated contract; keep every behavior the updated "
+            "contract still requires:\n"
+            f"```vhdl\n{anterior}\n```\n" if anterior else "")
         plano = "\n".join(
             f"- {b['file']}: entity {b['name']} -- {b['responsibility']}\n"
             f"  ports: {'; '.join(b['ports']) or '(see contract)'}\n"
@@ -1874,7 +1890,7 @@ class Agente:
                 f"{self._especificacoes_dependencias(bloco, arq)}\n\n"
                 f"Write the complete file {bloco['file']} implementing entity "
                 f"{bloco['name']}.\nResponsibility: {bloco['responsibility']}\n"
-                f"Ports: {'; '.join(bloco['ports']) or '(see contract)'}{topo}\n"
+                f"Ports: {'; '.join(bloco['ports']) or '(see contract)'}{topo}{base_anterior}\n"
                 "You have NO tools and must not inspect files, plan, ask questions, or "
                 "announce future work. The architecture and declarations above are all the "
                 "information available. Respond immediately with the complete compilable "
@@ -2017,8 +2033,8 @@ class Agente:
                               "Send one complete syntactically valid Python module "
                               "that preserves every existing test unchanged and adds exactly one new "
                               "@cocotb.test() function implementing only the structured plan. For an "
-                              "RV32I instruction input, it must call `assemble_rv32i` and must not "
-                              "drive a nonzero instruction literal directly."}]
+                              f"RV32I instruction input, it must call `{self._montador_de_estimulos()}` "
+                              "and must not drive a nonzero instruction literal directly."}]
         raise ErroPlanoTeste(
             f"candidato Cocotb recusado: nao preservou a suite ou violou o portao de assembly RV32I "
             f"em {bloco['file']}. Candidato rejeitado:\n```python\n{ultimo_candidato}\n```")
@@ -2039,7 +2055,7 @@ class Agente:
                 "by this one test. Use only declared public DUT ports. The test must be independently "
                 "reset/initialized and deterministic. It has one focal causal behavior; support "
                 "instructions are not separate coverage. For RV32I instruction inputs, use legal "
-                "source with `assemble_rv32i`; never hand-encode a nonzero instruction and use labels "
+                f"source with `{self._montador_de_estimulos()}`; never hand-encode a nonzero instruction and use labels "
                 "for branches or JAL. Return one complete Python module in a ```python block.\n\n"
                 f"One new-case plan:\n{plano}\n\n"
                 f"Normative contract:\n{self._ler_especificacao(bloco)}\n\n"
@@ -2074,7 +2090,8 @@ class Agente:
             mensagens += [{"role": "assistant", "content": r.texto},
                            {"role": "user", "content":
                             "Send exactly one syntactically valid, standalone Cocotb test module. "
-                            "It must contain one @cocotb.test() and valid RV32I assembly."}]
+                            "It must contain one @cocotb.test() and valid assembly through "
+                            f"`{self._montador_de_estimulos()}`."}]
         raise ErroPlanoTeste(
             f"candidato Cocotb isolado recusado: exige um unico teste e assembly RV32I valido em "
             f"{bloco['file']}. Candidato rejeitado:\n```python\n{ultimo}\n```")
@@ -3065,7 +3082,8 @@ async def inventory_visible_hierarchy(dut):
                     programa = experimento.get("program_meaning")
                     if programa:
                         experimento["assembly_requirement"] = (
-                            "Materialize program_meaning with assemble_rv32i; never use encoded words.")
+                            f"Materialize program_meaning with {self._montador_de_estimulos()}; "
+                            "never use encoded words.")
                     fronteira = str(plano.get("boundary", "")).strip()
                     plano["test_plan"] = json.dumps(
                         {"experiment": experimento, "boundary": fronteira}, ensure_ascii=False)
@@ -3593,7 +3611,8 @@ async def inventory_visible_hierarchy(dut):
                         motivo_rejeicao = "The test did not read any confirmed internal path."
                     else:
                         motivo_rejeicao = ("RV32I instruction stimulus must use valid "
-                                            "`assemble_rv32i` source with real mnemonics and labels.")
+                                           f"`{self._montador_de_estimulos()}` source with real "
+                                           "mnemonics and labels.")
             except SyntaxError as erro:
                 motivo_rejeicao = f"Python syntax error: {erro.msg} (line {erro.lineno})."
             mensagens += [{"role": "assistant", "content": r.texto},
@@ -3602,7 +3621,7 @@ async def inventory_visible_hierarchy(dut):
                              f"Reason: {motivo_rejeicao}\n"
                              f"Use only these exact internal paths: {json.dumps(internos)}\n"
                              "Correct the same diagnostic and return one complete module with exactly "
-                             "one Cocotb test. RV32I assembly must use `assemble_rv32i` with labels "
+                             f"one Cocotb test. RV32I assembly must use `{self._montador_de_estimulos()}` with labels "
                              "(never numeric JAL/branch targets) and real mnemonics (never `j` or `nop`)."}]
         raise ErroGeracao(f"o modelo nao produziu teste interno valido para {bloco['file']}")
 
@@ -3624,7 +3643,8 @@ async def inventory_visible_hierarchy(dut):
                 "test function unchanged. This is diagnostic-only and must read one or more exact "
                 "simulator-confirmed internal signals, while using public ports only to drive inputs. "
                 "It must exercise exactly one new causal dependency connection, not a public ISA "
-                "program or a broad regression. For RV32I instruction inputs, use `assemble_rv32i` "
+                "program or a broad regression. For RV32I instruction inputs, use "
+                f"`{self._montador_de_estimulos()}` "
                 "with real instructions and labels; never calculate encodings or use numeric JAL/branch "
                 "targets. Return one complete Python module.\n\n"
                 f"One new-case plan:\n{plano}\n\n"
