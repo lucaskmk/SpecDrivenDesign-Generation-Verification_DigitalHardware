@@ -70,7 +70,11 @@ Primeiro roda, sem IA, todos os testes de componente da CPU de origem e o juiz
 na ISA antiga; depois a IA lê o diff entre o contrato antigo e o novo e planeja
 quais blocos mudam (`.rvgen/sessao-*/evolucao/plano.md`). Só esses blocos têm
 contrato e VHDL atualizados (os testes antigos deles viram regressão); os
-outros ficam congelados e rodam os próprios testes de novo. O juiz final roda
+outros ficam congelados e rodam os próprios testes de novo. O plano devolve a
+decomposição-alvo inteira e pode manter, mudar, criar, dividir, juntar,
+renomear e remover blocos (`--max-blocos`, padrão 16 na evolução e 8 no
+`gerar`); o topo `cpu` só integra e é recusado se tiver `*`, `/`, `rem` ou
+`mod`. O juiz final roda
 na ISA nova, com o laço de correção de sempre. Código em `rvgen/evolucao.py`.
 
 ## Artefatos

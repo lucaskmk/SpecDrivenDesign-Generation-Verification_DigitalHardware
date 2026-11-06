@@ -281,7 +281,11 @@ _SCHEMA_LOTE_EXPANSAO = {
 # pecas puras (testadas isoladamente)
 # --------------------------------------------------------------------------
 
-def validar_arquitetura(bruta: Any) -> tuple[list[dict] | None, str]:
+MAX_BLOCOS_PADRAO = 8
+
+
+def validar_arquitetura(bruta: Any, max_blocos: int = MAX_BLOCOS_PADRAO
+                        ) -> tuple[list[dict] | None, str]:
     """Blocos normalizados, com o top por ultimo; ou None e o motivo.
 
     O nome do arquivo NUNCA vem do modelo: e sempre `src/<name>.vhd`.
@@ -310,8 +314,8 @@ def validar_arquitetura(bruta: Any) -> tuple[list[dict] | None, str]:
             "design_rationale": str(b.get("design_rationale", "")).strip(),
             "depends_on": [str(d).strip().lower() for d in (b.get("depends_on") or [])],
         })
-    if not 2 <= len(blocos) <= 8:
-        return None, f"{len(blocos)} blocos; o aceito e de 2 a 8"
+    if not 2 <= len(blocos) <= max_blocos:
+        return None, f"{len(blocos)} blocos; o aceito e de 2 a {max_blocos}"
     if ct.TOP not in vistos:
         return None, f"falta o bloco {ct.TOP}"
     if any(not b["responsibility"] for b in blocos):
@@ -351,6 +355,25 @@ def validar_arquitetura(bruta: Any) -> tuple[list[dict] | None, str]:
                 else:
                     ordenados.append(b)
     return ordenados, ""
+
+
+def operacoes_aritmeticas_no_topo(vhdl: str) -> list[str]:
+    """Multiplicação, divisão ou resto escritos no topo (fora de comentários).
+
+    O topo `cpu` só liga blocos. Uma evolução RV32I -> RV32IM real (06/11/2026)
+    pôs MUL/DIV/REM inteiros no `cpu`: passava no juiz, mas a conta ficava num
+    bloco que não tem teste próprio de unidade.
+    """
+    codigo = "\n".join(linha.split("--", 1)[0] for linha in vhdl.splitlines())
+    achados = []
+    if re.search(r"(?<![*])\*(?![*])", codigo):
+        achados.append("`*`")
+    if re.search(r"(?<![/=])/(?![=/])", codigo):
+        achados.append("`/`")
+    for palavra in ("rem", "mod"):
+        if re.search(rf"\b{palavra}\b", codigo, re.IGNORECASE):
+            achados.append(f"`{palavra}`")
+    return achados
 
 
 def validar_instrucoes(bruta: Any, isa: str) -> tuple[list[dict] | None, str]:
@@ -601,6 +624,7 @@ class Agente:
                  sessao_existente: Path | None = None,
                  max_chamadas: int | None = None,
                  max_tokens: int | None = None,
+                 max_blocos: int = MAX_BLOCOS_PADRAO,
                  relatar: Callable[[str], None] = print,
                  protegidos: Callable[[], str] | None = None,
                  caso_de_fumaca: Callable[[], str] = _caso_de_fumaca) -> None:
@@ -617,6 +641,7 @@ class Agente:
         # tetos desta execucao (None = sem teto); `retomar` comeca a contar de novo
         self.max_chamadas = max_chamadas if max_chamadas and max_chamadas > 0 else None
         self.max_tokens = max_tokens if max_tokens and max_tokens > 0 else None
+        self.max_blocos = max(2, max_blocos)
         self.exemplo = Path(exemplo).resolve() if exemplo else None
         self.descricao = (descricao or "").strip() or None
         self.forcar = forcar
@@ -1680,12 +1705,18 @@ class Agente:
             "for a functional output. Do NOT reimplement decoder, register-file, ALU, branch, "
             "next-PC, or load/store behavior inside `cpu`: compose these entities instead. "
             "The only logic permitted directly in `cpu` is integration wiring and state not owned "
-            "by a generated component. The generated VHDL is rejected unless every entity below "
+            "by a generated component; multiplication, division and remainder (`*`, `/`, `rem`, "
+            "`mod`) are never allowed in `cpu`. The generated VHDL is rejected unless every entity below "
             "appears as an `entity work.<name> ... port map` instance:\n"
             f"{exemplos}")
 
     def _integracao_top_valida(self, vhdl: str, arq: dict) -> tuple[bool, str]:
         faltantes = componentes_nao_integrados(vhdl, arq["blocks"])
+        conta = operacoes_aritmeticas_no_topo(vhdl)
+        if conta:
+            return False, (f"The top `{ct.TOP}` only instantiates and connects the generated blocks. "
+                           f"It contains {', '.join(conta)}: multiplication, division and remainder "
+                           "belong in a generated block, never in the top.")
         if not faltantes:
             return True, ""
         return False, ("CPU structural integration is incomplete. Missing required direct VHDL "
@@ -1826,7 +1857,7 @@ class Agente:
                 f"Decompose this {self.microarquitetura} {self.isa.upper()} CPU into hardware "
                 f"blocks. Answer ONLY with JSON: {{\"blocks\": [{{\"name\", "
                 f"\"responsibility\", \"ports\", \"depends_on\", \"design_rationale\"}}], "
-                f"\"notes\"}}.\nRules: 2 to 8 blocks; each block becomes "
+                f"\"notes\"}}.\nRules: 2 to {self.max_blocos} blocks; each block becomes "
                 f"src/<name>.vhd with `entity <name>`; lowercase names; never "
                 f"reuse a provided entity ({', '.join(sorted(ct.ENTIDADES_RESERVADAS))}); "
                   f"the LAST block is `{ct.TOP}`, the top level that instantiates the "
@@ -1845,7 +1876,8 @@ class Agente:
                 bruta = extrair_json(r.texto)
             except ErroLLM as e:
                 bruta, motivo = None, str(e)
-            blocos, motivo = validar_arquitetura(bruta) if bruta is not None else (None, motivo)
+            blocos, motivo = (validar_arquitetura(bruta, self.max_blocos) if bruta is not None
+                              else (None, motivo))
             if blocos:
                 arq = dict(base, origem="modelo", blocks=blocos,
                            notes=str((bruta or {}).get("notes", "")))
@@ -5450,7 +5482,9 @@ async def inventory_visible_hierarchy(dut):
             raise ErroGeracao("a sessao ja possui resultado final; inicie uma nova geracao")
         try:
             arq = json.loads(arq_path.read_text(encoding="utf-8"))
-            blocos, motivo = validar_arquitetura(arq)
+            # a sessao pode ter nascido com --max-blocos maior (ou de uma evolucao)
+            blocos, motivo = validar_arquitetura(
+                arq, max(self.max_blocos, len(arq.get("blocks") or [])))
         except (OSError, json.JSONDecodeError) as e:
             raise ErroGeracao(f"architecture.json invalido para retomada: {e}") from e
         if not blocos:

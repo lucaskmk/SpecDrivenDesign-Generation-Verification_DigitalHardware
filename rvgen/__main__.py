@@ -467,6 +467,11 @@ def cmd_gerar(args: argparse.Namespace) -> int:
     except ValueError:
         return erro(f"{pasta} esta fora do repositorio; use entregas/<nome>.")
     evoluir_de = getattr(args, "evoluir_de", None)
+    max_blocos = getattr(args, "max_blocos", None)
+    if max_blocos is not None and max_blocos < 2:
+        return erro("--max-blocos deve ser pelo menos 2 (um bloco e o topo cpu).")
+    if max_blocos is None:
+        max_blocos = 16 if evoluir_de else 8
     if evoluir_de:
         if sessao_existente:
             return erro("--evoluir-de nao combina com --retomar.")
@@ -600,6 +605,7 @@ def cmd_gerar(args: argparse.Namespace) -> int:
                        gates_componentes=args.gates_componentes,
                        sessao_existente=sessao_existente,
                        max_chamadas=max_chamadas, max_tokens=max_tokens,
+                       max_blocos=max_blocos,
                        relatar=relator.linha)
     try:
         if sessao_existente:
@@ -705,6 +711,9 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--max-tokens", type=int, default=None, metavar="N",
                    help="para quando entrada+saida somarem N tokens (padrao: sem teto); "
                         "pode passar do teto por uma chamada")
+    g.add_argument("--max-blocos", type=int, default=None, metavar="N",
+                   help="maximo de blocos da decomposicao (padrao: 8 no gerar, 16 com "
+                        "--evoluir-de)")
     g.add_argument("--max-casos-teste", type=int, default=32,
                     help="maximo de casos Cocotb incrementais por componente (padrao: 32)")
     g.add_argument("--max-casos-internos", type=int, default=8,
