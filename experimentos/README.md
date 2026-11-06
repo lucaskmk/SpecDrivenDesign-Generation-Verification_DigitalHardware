@@ -10,7 +10,9 @@ resultados estão em [`docs/artigo.md`](../docs/artigo.md).
 | Pasta | Modelo | Alvo | Fluxo | `spec-riscv-test` | `rvverify` | Chamadas | Tokens (entrada / saída) | Custo | Commit |
 |---|---|---|---|---|---|---|---|---|---|
 | [`luna6_prof_3`](luna6_prof_3/) | `openai/gpt-6-luna` (OpenRouter) | RV32I monociclo | completo, `--max-casos-teste 4` | 40/40 | 24/24 na etapa RV32I (veredito `parcial`) | 78 | 743.978 / 124.821 | cerca de US$ 0,137 | `5068458` |
-| [`luna6_im_1`](luna6_im_1/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM monociclo | completo, `--max-casos-teste 4`, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado (a etapa RV32M exige generic) | 68 | 740.595 / 115.218 | cerca de US$ 0,132 | este commit |
+| [`luna6_im_1`](luna6_im_1/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM monociclo | completo, `--max-casos-teste 4`, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado (a etapa RV32M exige generic) | 68 | 740.595 / 115.218 | cerca de US$ 0,132 | `068cc7b` |
+| [`luna6_evolui_im_2`](luna6_evolui_im_2/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM, **evoluindo** a `luna6_prof_3` | `--evoluir-de`, mesmas flags, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado | 26 | 388.021 / 41.988 | cerca de US$ 0,060 | este commit |
+| [`luna6_evolui_im_1`](luna6_evolui_im_1/) | `openai/gpt-6-luna` (OpenRouter) | idem | idem | não chegou ao juiz final (teto de 150 chamadas) | — | 150 | 1.940.538 / 131.307 | cerca de US$ 0,26 | este commit |
 
 "Fluxo completo" é `--testes-componentes --gates-componentes
 --regressoes-componentes`. Os números são da sessão aprovada
@@ -43,6 +45,25 @@ execução só, sem retomada. Rodando de novo por fora, só os 8 programas do M:
 testbench nas duas vezes (2 chamadas `triagem_componente` e 2
 `correcao_testbench`). A revisão recusou uma vez a especificação do `cpu`.
 40 das 68 chamadas foram na expansão de testes.
+
+### `luna6_evolui_im_2` (e `luna6_evolui_im_1`)
+
+A mesma mudança de RV32I para RV32IM, mas **evoluindo** a CPU aprovada
+`luna6_prof_3` em vez de gerar do zero (`rvgen gerar --evoluir-de`, specs de
+`iteracoes/it-001`). Antes de mudar, a linha de base deu 25/25 testes de
+componente e 40/40 no juiz RV32I. O plano da IA
+(`.rvgen/sessao-*/evolucao/plano.md`) mudou o `decoder` e o `cpu`; `alu`,
+`register_file` e `immediate_generator` ficaram byte a byte iguais. Passou em
+48/48 (8/8 só no M) com 26 chamadas, 0 correções de VHDL e 43 de 43 testes de
+componente, contra 68 chamadas gerando do zero (`luna6_im_1`).
+
+A primeira tentativa (`luna6_evolui_im_1`) parou no teto de 150 chamadas: o
+pedido de caso de teste mandava usar `assemble_rv32i` e o validador de uma
+CPU RV32IM só aceitava `assemble_rv32im`, e 30 casos do `decoder` foram
+recusados em sequência. O defeito valia para qualquer geração RV32IM com um
+bloco que recebe a instrução; foi corrigido antes da segunda tentativa. A
+pasta fica como evidência; o plano dela (que criava um bloco `rv32m`) está em
+`.rvgen/sessao-*/evolucao/plano.md`.
 
 ## O que tem numa pasta de experimento
 

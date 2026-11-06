@@ -21,6 +21,7 @@ foram testados antes com uma CPU escrita à mão.
 | [`cpus/rv32i_gabarito`](cpus/rv32i_gabarito/) | escrita à mão, 1 arquivo, contrato virtual | 40/40 `rv32ui` | 24/24 RV32I | (não se aplica) |
 | [`experimentos/luna6_prof_3`](experimentos/luna6_prof_3/) | gerada por `openai/gpt-6-luna`, RV32I monociclo, fluxo completo | 40/40 `rv32ui` | 24/24 RV32I | 78 chamadas, 743.978 + 124.821 tokens, cerca de US$ 0,137 |
 | [`cpus/rv32im_gabarito`](cpus/rv32im_gabarito/) | escrita à mão, gabarito I + extensão M | 48/48 (`rv32ui` + `rv32um`); 8/8 só no M | 24/24 RV32I (etapa M pulada) | (não se aplica) |
+| [`experimentos/luna6_evolui_im_2`](experimentos/luna6_evolui_im_2/) | **evoluída** da `luna6_prof_3` (RV32I → RV32IM) com `--evoluir-de`; só `decoder` e `cpu` mudaram | 48/48; 8/8 só no M | não rodado | 26 chamadas, 388.021 + 41.988 tokens, cerca de US$ 0,060 |
 | [`experimentos/luna6_im_1`](experimentos/luna6_im_1/) | gerada por `openai/gpt-6-luna`, RV32IM monociclo, fluxo completo | 48/48; 8/8 só no M | não rodado | 68 chamadas, 740.595 + 115.218 tokens, cerca de US$ 0,132 |
 
 Na coluna `rvverify`, 24/24 é a etapa RV32I (`--etapa rv32i`); o veredito do

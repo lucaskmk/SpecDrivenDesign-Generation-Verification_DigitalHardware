@@ -25,7 +25,10 @@ componente, e os defeitos encontrados estavam na orquestração, não no modelo.
 Com a referência da extensão M num arquivo próprio (`specs/riscv-rv32m.md`),
 o mesmo modelo gerou uma CPU RV32IM que passou em 48/48 programas (40
 `rv32ui` + 8 `rv32um`), com 68 chamadas, cerca de US$ 0,13 e nenhuma correção
-do VHDL.
+do VHDL. Evoluindo a CPU RV32I aprovada em vez de gerar do zero (o gerador
+roda os testes existentes, planeja a mudança pelo diff das specs e altera só
+os blocos necessários), a CPU RV32IM passou em 48/48 com 26 chamadas e cerca
+de US$ 0,06, reescrevendo 2 dos 5 blocos.
 
 ## 1 Introdução
 
@@ -263,6 +266,33 @@ Ao preparar a rodada apareceu mais um defeito de orquestração: o `cpu.md`
 cita "RV32I" numa frase fora da declaração, e trocar a declaração para RV32IM
 deixava a ISA ambígua, de modo que o `rvgen` se recusava a gerar. O leitor
 passou a ler a ISA só da linha de declaração.
+
+### 4.6 Evoluir em vez de gerar do zero (`luna6_evolui_im_2`)
+
+`rvgen gerar --evoluir-de experimentos/luna6_prof_3`, com as specs de
+`iteracoes/it-001` e a mesma configuração. O fluxo: (0) copia a CPU aprovada e
+roda, sem IA, todos os testes de componente e o juiz na ISA antiga; (1) uma
+chamada lê o diff entre o contrato antigo e o novo, as instruções novas, a
+arquitetura, os contratos dos blocos e essa linha de base, e devolve um plano
+de mudança; (2) só os blocos do plano têm contrato e VHDL atualizados, a
+partir do VHDL aprovado, com os testes antigos como regressão; (3) os demais
+rodam os próprios testes de novo; (4) o juiz roda na ISA nova.
+
+| Medida | do zero (`luna6_im_1`) | evoluindo (`luna6_evolui_im_2`) |
+|---|---|---|
+| `spec-riscv-test --isa rv32im` | 48/48 (8/8 só no M) | 48/48 (8/8 só no M) |
+| Chamadas | 68 | 26 |
+| Tokens | 740.595 / 115.218 | 388.021 / 41.988 |
+| Custo estimado | US$ 0,132 | US$ 0,060 |
+| Blocos reescritos | 5 de 5 | 2 de 5 (`decoder`, `cpu`) |
+| Testes de componente | 47 de 49 | 43 de 43 |
+
+A linha de base deu 25/25 testes de componente e 40/40 no RV32I. Os três
+blocos congelados ficaram byte a byte iguais aos da origem. A primeira
+tentativa (`luna6_evolui_im_1`) parou no teto de 150 chamadas por um defeito
+do gerador, não do modelo: o pedido de caso de teste citava `assemble_rv32i`
+e o validador de uma CPU RV32IM só aceitava `assemble_rv32im`. Com uma rodada
+de cada lado, a diferença de custo é um indício, não uma medida.
 
 ## 5 Discussão
 
