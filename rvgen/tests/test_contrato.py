@@ -36,6 +36,21 @@ class TestConfiguracao(unittest.TestCase):
             self.assertEqual(ct.ler_configuracao_cpu(p),
                               {"microarquitetura": "monociclo", "isa": "rv32im", "descricao": None})
 
+    def test_trocar_so_a_linha_de_declaracao_vira_rv32im(self):
+        # specs/cpu.md cita "RV32I" fora da declaracao; trocar so a linha
+        # "- RV32I single cycle" precisa bastar para pedir uma CPU IM
+        texto = ct.CPU_SPEC.read_text(encoding="utf-8")
+        self.assertIn("- RV32I single cycle", texto)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "cpu.md"
+            for linha, isa, micro in (("- RV32I single cycle", "rv32i", "monociclo"),
+                                      ("- RV32IM single cycle", "rv32im", "monociclo"),
+                                      ("- RV32IM pipeline", "rv32im", "pipeline")):
+                with self.subTest(linha=linha):
+                    p.write_text(texto.replace("- RV32I single cycle", linha, 1), encoding="utf-8")
+                    cfg = ct.ler_configuracao_cpu(p)
+                    self.assertEqual((cfg["isa"], cfg["microarquitetura"]), (isa, micro))
+
     def test_rv32m_nao_e_fonte_fornecida(self):
         self.assertNotIn("mul_div_unit.vhd", ct.FORNECIDOS)
         self.assertNotIn("mul_div_unit", ct.ENTIDADES_RESERVADAS)
