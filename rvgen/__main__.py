@@ -30,6 +30,7 @@ from pathlib import Path
 
 from . import comparar as cmp
 from . import contrato as ct
+from . import evolucao as evo
 from . import executor as ex
 from . import ollama as ol
 from .agente import Agente, ErroGeracao, ErroIntegridade
@@ -465,6 +466,20 @@ def cmd_gerar(args: argparse.Namespace) -> int:
         pasta.relative_to(REPO_ROOT)
     except ValueError:
         return erro(f"{pasta} esta fora do repositorio; use entregas/<nome>.")
+    evoluir_de = getattr(args, "evoluir_de", None)
+    if evoluir_de:
+        if sessao_existente:
+            return erro("--evoluir-de nao combina com --retomar.")
+        if not (args.testes_componentes and args.gates_componentes):
+            return erro("--evoluir-de exige --testes-componentes e --gates-componentes.")
+        origem = Path(evoluir_de)
+        origem = (origem if origem.is_absolute() else REPO_ROOT / origem).resolve()
+        if not (origem / "architecture.json").is_file() or not any(origem.glob("src/*.vhd")):
+            return erro(f"--evoluir-de {evoluir_de}: falta architecture.json ou src/*.vhd.")
+        try:
+            sessao_origem = evo.sessao_aprovada(origem)
+        except ErroGeracao as e:
+            return erro(str(e))
     if args.exemplo and not any(Path(args.exemplo).glob("src/*.vhd")):
         return erro(f"--exemplo {args.exemplo}: nenhum src/*.vhd ali.")
     descricao = (inicio_sessao.get("descricao") if sessao_existente else
@@ -525,6 +540,9 @@ def cmd_gerar(args: argparse.Namespace) -> int:
                   else "specs/cpu.md")
     print(f"rvgen {acao} -> {rel_pasta}  ({cpu['microarquitetura']}, {cpu['isa']}, de {origem_cpu})")
     print(f"  ISA     : {ct.descrever_isa(cpu['isa'])}")
+    if evoluir_de:
+        print(f"  evoluir : a partir de {evoluir_de} ({sessao_origem.name}); roda os testes "
+              "dela, planeja a mudanca e altera so os blocos necessarios")
     if ct.pasta_specs_alterada():
         print(f"  specs   : {ct.descrever_pasta_specs()}  ({ct.VAR_SPECS})")
     print(f"  modelo  : {onde}")
@@ -584,7 +602,12 @@ def cmd_gerar(args: argparse.Namespace) -> int:
                        max_chamadas=max_chamadas, max_tokens=max_tokens,
                        relatar=relator.linha)
     try:
-        r = agente.retomar() if sessao_existente else agente.gerar()
+        if sessao_existente:
+            r = agente.retomar()
+        elif evoluir_de:
+            r = evo.evoluir(agente, origem)
+        else:
+            r = agente.gerar()
     except KeyboardInterrupt:
         relator.fechar()
         if agente.sessao.exists():
@@ -706,6 +729,11 @@ def main(argv: list[str] | None = None) -> int:
                         "(ex.: cpus/rv32i_monociclo); fica registrado na sessao")
     g.add_argument("--forcar", action="store_true",
                     help="sobrescreve os arquivos gerados numa pasta que ja existe")
+    g.add_argument("--evoluir-de", metavar="DIR", dest="evoluir_de",
+                   help="em vez de gerar do zero, evolui a CPU aprovada em DIR para as specs "
+                        "atuais (ex.: experimentos/luna6_prof_3 de RV32I para RV32IM): roda os "
+                        "testes dela, planeja a mudanca e altera so os blocos necessarios; "
+                        "exige --testes-componentes e --gates-componentes")
     g.add_argument("--retomar", metavar="SESSAO",
                    help="retoma sessao interrompida (ex.: 20261002-152036); reutiliza blocos aprovados")
     d = g.add_mutually_exclusive_group()
