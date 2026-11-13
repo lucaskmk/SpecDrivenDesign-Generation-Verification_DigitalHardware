@@ -11,6 +11,8 @@ resultados estão em [`docs/artigo.md`](../docs/artigo.md).
 |---|---|---|---|---|---|---|---|---|---|
 | [`luna6_prof_3`](luna6_prof_3/) | `openai/gpt-6-luna` (OpenRouter) | RV32I monociclo | completo, `--max-casos-teste 4` | 40/40 | 24/24 na etapa RV32I (veredito `parcial`) | 78 | 743.978 / 124.821 | cerca de US$ 0,137 | `5068458` |
 | [`luna6_im_1`](luna6_im_1/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM monociclo | completo, `--max-casos-teste 4`, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado (a etapa RV32M exige generic) | 68 | 740.595 / 115.218 | cerca de US$ 0,132 | `068cc7b` |
+| [`qwen38_cluster_prof_1`](qwen38_cluster_prof_1/) | `nvidia/Qwen3.8-Flash-Next-FP4-Local` (vLLM no cluster) | RV32I monociclo | completo | não chegou ao juiz (servidor vLLM deu timeout) | — | 2 | — | US$ 0 (local) | este commit |
+| [`qwen38_cluster_prof_2`](qwen38_cluster_prof_2/) | idem | RV32I monociclo | completo | não chegou ao juiz (servidor vLLM recusou a conexão) | — | 3 | — | US$ 0 (local) | este commit |
 | [`sol6_evolui_im_1`](sol6_evolui_im_1/) | `openai/gpt-6-sol` | RV32IM, evoluindo a `luna6_prof_3` | idem `_5` (código de 13/11) | 48/48 (8/8 só no M) | não rodado | 55 | 642.594 / 50.811 | US$ 1,79 | este commit |
 | [`carbon4_evolui_im_1`](carbon4_evolui_im_1/) | `google/gemini-4-carbon` | idem | idem | 48/48 (8/8 só no M) | não rodado | 38 | 637.481 / 153.150 | US$ 2,81 | este commit |
 | [`sonnet55_evolui_im_2`](sonnet55_evolui_im_2/) | `anthropic/claude-sonnet-5.5` | idem | idem | 48/48 (8/8 só no M) | não rodado | 116 | 2.830.786 / 267.544 | US$ 8,34 | este commit |
@@ -52,6 +54,18 @@ execução só, sem retomada. Rodando de novo por fora, só os 8 programas do M:
 testbench nas duas vezes (2 chamadas `triagem_componente` e 2
 `correcao_testbench`). A revisão recusou uma vez a especificação do `cpu`.
 40 das 68 chamadas foram na expansão de testes.
+
+### `qwen38_cluster_prof_1` e `_2` (interrompidas)
+
+Duas tentativas de 12/11/2026 com um modelo local, o
+`nvidia/Qwen3.8-Flash-Next-FP4-Local`, servido por vLLM num servidor do
+cluster (`--provedor vllm`). As duas pararam por falha do servidor, não do
+`rvgen` nem do modelo, ainda escrevendo o contrato do primeiro bloco (nenhum
+VHDL foi escrito): a `_1` depois de 2 chamadas, por tempo esgotado na
+resposta; a `_2` depois de 3 chamadas, com o servidor recusando a conexão
+mesmo após as 3 tentativas automáticas. Com o servidor no ar, continuam com
+`python -m rvgen retomar`. Esforço de raciocínio do vLLM:
+`RVGEN_VLLM_REASONING_EFFORT` (`low`, `medium` ou `high`) no `.env`.
 
 ### `luna6_evolui_im_5` (e `luna6_evolui_im_4`)
 

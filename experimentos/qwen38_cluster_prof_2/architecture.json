@@ -1,0 +1,276 @@
+{
+  "design": "qwen38_cluster_prof_2",
+  "microarquitetura": "monociclo",
+  "isa": "rv32i",
+  "top": "cpu",
+  "origem": "modelo",
+  "blocks": [
+    {
+      "name": "control_unit",
+      "file": "src/control_unit.vhd",
+      "responsibility": "Decode opcode, funct3, and funct7 fields to produce all control signals: ALU operation selector, ALU source mux select, memory read/write enable, memory width, register write enable, memory-to-register select, branch/jump/jump-register enables, and immediate type selector.",
+      "ports": [
+        "opcode : in std_logic_vector(6 downto 0)",
+        "funct3 : in std_logic_vector(2 downto 0)",
+        "funct7 : in std_logic_vector(6 downto 0)",
+        "alu_op : out std_logic_vector(3 downto 0)",
+        "alu_src : out std_logic",
+        "mem_read : out std_logic",
+        "mem_write : out std_logic",
+        "mem_width : out std_logic_vector(1 downto 0)",
+        "mem_to_reg : out std_logic",
+        "reg_write : out std_logic",
+        "branch : out std_logic",
+        "jump : out std_logic",
+        "jump_reg : out std_logic",
+        "imm_sel : out std_logic_vector(2 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Centralizing decode in a single combinational block minimizes wiring complexity at the top level and makes the control truth table easy to verify against the ISA specification. A 4-bit alu_op encoding covers all 11 ALU operations with spare encodings for future extension.",
+      "depends_on": []
+    },
+    {
+      "name": "alu",
+      "file": "src/alu.vhd",
+      "responsibility": "Perform the selected arithmetic or logic operation on two 32-bit operands and produce a result plus a zero flag used for branch decisions.",
+      "ports": [
+        "operand_a : in std_logic_vector(31 downto 0)",
+        "operand_b : in std_logic_vector(31 downto 0)",
+        "alu_op : in std_logic_vector(3 downto 0)",
+        "result : out std_logic_vector(31 downto 0)",
+        "zero : out std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "A pure combinational ALU with a single operation selector keeps the critical path short for single-cycle operation. The zero flag is generated internally to avoid an extra comparator at the top level.",
+      "depends_on": []
+    },
+    {
+      "name": "register_file",
+      "file": "src/register_file.vhd",
+      "responsibility": "Store 32 general-purpose registers with two asynchronous read ports and one synchronous write port. Register x0 always reads as zero and ignores writes.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "rs1_addr : in std_logic_vector(4 downto 0)",
+        "rs2_addr : in std_logic_vector(4 downto 0)",
+        "rd_addr : in std_logic_vector(4 downto 0)",
+        "write_data : in std_logic_vector(31 downto 0)",
+        "reg_write : in std_logic",
+        "rs1_data : out std_logic_vector(31 downto 0)",
+        "rs2_data : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Asynchronous read ports are required for single-cycle operation so that register data is available combinationally within the same cycle. The x0 guard is implemented as a simple address check, avoiding a separate mux on the read path.",
+      "depends_on": []
+    },
+    {
+      "name": "imm_gen",
+      "file": "src/imm_gen.vhd",
+      "responsibility": "Extract and sign-extend the immediate field from the instruction word according to the selected immediate type (I, S, B, U, or J).",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "imm_sel : in std_logic_vector(2 downto 0)",
+        "imm : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Isolating immediate generation into a dedicated block keeps the top-level wiring clean and allows independent verification of each immediate format against the ISA bit-mapping table. A 3-bit selector covers all five types with spare encodings.",
+      "depends_on": []
+    },
+    {
+      "name": "pc_next",
+      "file": "src/pc_next.vhd",
+      "responsibility": "Compute the next program counter value based on jump, jump-register, branch-taken, or sequential increment. Evaluates branch conditions (beq, bne, blt, bge, bltu, bgeu) using register operands and funct3.",
+      "ports": [
+        "pc : in std_logic_vector(31 downto 0)",
+        "branch : in std_logic",
+        "jump : in std_logic",
+        "jump_reg : in std_logic",
+        "funct3 : in std_logic_vector(2 downto 0)",
+        "rs1_data : in std_logic_vector(31 downto 0)",
+        "rs2_data : in std_logic_vector(31 downto 0)",
+        "imm : in std_logic_vector(31 downto 0)",
+        "alu_result : in std_logic_vector(31 downto 0)",
+        "next_pc : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Encapsulating next-PC logic with branch condition evaluation in one block makes the priority chain (jump > jump_reg > branch > pc+4) explicit and easy to audit. The branch comparison logic is kept here rather than in the ALU to avoid overloading the ALU with signed/unsigned comparison modes.",
+      "depends_on": []
+    },
+    {
+      "name": "cpu",
+      "file": "src/cpu.vhd",
+      "responsibility": "Top-level single-cycle RV32I CPU. Instantiates control_unit, alu, register_file, imm_gen, and pc_next. Maintains the PC register, drives the instruction and data bus ports, and wires all internal blocks together.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "instr_addr : out std_logic_vector(31 downto 0)",
+        "instr_data : in std_logic_vector(31 downto 0)",
+        "data_addr : out std_logic_vector(31 downto 0)",
+        "data_write : out std_logic",
+        "data_width : out std_logic_vector(1 downto 0)",
+        "data_write_data : out std_logic_vector(31 downto 0)",
+        "data_read_data : in std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "The top level is kept minimal: it only holds the PC register, instantiates sub-blocks, and performs the load-extension mux and ALU operand mux. This separation ensures each sub-block is independently testable and the top-level wiring is straightforward to review against the bus contract.",
+      "depends_on": [
+        "control_unit",
+        "alu",
+        "register_file",
+        "imm_gen",
+        "pc_next"
+      ]
+    }
+  ],
+  "notes": "Single-cycle design: all sub-blocks are combinational except register_file (synchronous write) and the PC register in cpu. The load-extension logic (selecting byte/halfword/word from data_read_data and applying sign or zero extension) is placed in the cpu top level as a small mux driven by mem_width and funct3, keeping it close to the bus interface. The ALU operand mux (rs2 vs immediate) is also in the top level, controlled by alu_src from control_unit.",
+  "instructions": [
+    {
+      "mnemonic": "lui",
+      "description": "Load upper immediate: rd = instr[31:12] << 12"
+    },
+    {
+      "mnemonic": "auipc",
+      "description": "Add upper immediate to PC: rd = pc + (instr[31:12] << 12)"
+    },
+    {
+      "mnemonic": "jal",
+      "description": "Jump and link: rd = pc + 4, pc = pc + J-type immediate"
+    },
+    {
+      "mnemonic": "jalr",
+      "description": "Jump and link register: rd = pc + 4, pc = (rs1 + I) & 0xFFFFFFFE"
+    },
+    {
+      "mnemonic": "beq",
+      "description": "Branch if equal: if rs1 == rs2 then pc = pc + B-type immediate"
+    },
+    {
+      "mnemonic": "bne",
+      "description": "Branch if not equal: if rs1 != rs2 then pc = pc + B-type immediate"
+    },
+    {
+      "mnemonic": "blt",
+      "description": "Branch if less than (signed): if signed(rs1) < signed(rs2) then pc = pc + B-type immediate"
+    },
+    {
+      "mnemonic": "bge",
+      "description": "Branch if greater or equal (signed): if signed(rs1) >= signed(rs2) then pc = pc + B-type immediate"
+    },
+    {
+      "mnemonic": "bltu",
+      "description": "Branch if less than (unsigned): if unsigned(rs1) < unsigned(rs2) then pc = pc + B-type immediate"
+    },
+    {
+      "mnemonic": "bgeu",
+      "description": "Branch if greater or equal (unsigned): if unsigned(rs1) >= unsigned(rs2) then pc = pc + B-type immediate"
+    },
+    {
+      "mnemonic": "lb",
+      "description": "Load byte: rd = sign_extend(mem8[rs1 + I])"
+    },
+    {
+      "mnemonic": "lh",
+      "description": "Load halfword: rd = sign_extend(mem16[rs1 + I])"
+    },
+    {
+      "mnemonic": "lw",
+      "description": "Load word: rd = mem32[rs1 + I]"
+    },
+    {
+      "mnemonic": "lbu",
+      "description": "Load byte unsigned: rd = zero_extend(mem8[rs1 + I])"
+    },
+    {
+      "mnemonic": "lhu",
+      "description": "Load halfword unsigned: rd = zero_extend(mem16[rs1 + I])"
+    },
+    {
+      "mnemonic": "sb",
+      "description": "Store byte: mem8[rs1 + S] = rs2[7:0]"
+    },
+    {
+      "mnemonic": "sh",
+      "description": "Store halfword: mem16[rs1 + S] = rs2[15:0]"
+    },
+    {
+      "mnemonic": "sw",
+      "description": "Store word: mem32[rs1 + S] = rs2[31:0]"
+    },
+    {
+      "mnemonic": "addi",
+      "description": "Add immediate: rd = rs1 + sign_extend(instr[31:20])"
+    },
+    {
+      "mnemonic": "slti",
+      "description": "Set less than immediate (signed): rd = 1 if signed(rs1) < signed(I) else 0"
+    },
+    {
+      "mnemonic": "sltiu",
+      "description": "Set less than immediate unsigned: rd = 1 if unsigned(rs1) < unsigned(I) else 0"
+    },
+    {
+      "mnemonic": "xori",
+      "description": "XOR immediate: rd = rs1 XOR sign_extend(instr[31:20])"
+    },
+    {
+      "mnemonic": "ori",
+      "description": "OR immediate: rd = rs1 OR sign_extend(instr[31:20])"
+    },
+    {
+      "mnemonic": "andi",
+      "description": "AND immediate: rd = rs1 AND sign_extend(instr[31:20])"
+    },
+    {
+      "mnemonic": "slli",
+      "description": "Shift left logical immediate: rd = rs1 << instr[24:20]"
+    },
+    {
+      "mnemonic": "srli",
+      "description": "Shift right logical immediate: rd = rs1 >> instr[24:20] (zero-fill)"
+    },
+    {
+      "mnemonic": "srai",
+      "description": "Shift right arithmetic immediate: rd = rs1 >> instr[24:20] (sign-fill)"
+    },
+    {
+      "mnemonic": "add",
+      "description": "Add: rd = rs1 + rs2"
+    },
+    {
+      "mnemonic": "sub",
+      "description": "Subtract: rd = rs1 - rs2"
+    },
+    {
+      "mnemonic": "sll",
+      "description": "Shift left logical: rd = rs1 << rs2[4:0]"
+    },
+    {
+      "mnemonic": "slt",
+      "description": "Set less than (signed): rd = 1 if signed(rs1) < signed(rs2) else 0"
+    },
+    {
+      "mnemonic": "sltu",
+      "description": "Set less than unsigned: rd = 1 if unsigned(rs1) < unsigned(rs2) else 0"
+    },
+    {
+      "mnemonic": "xor",
+      "description": "XOR: rd = rs1 XOR rs2"
+    },
+    {
+      "mnemonic": "srl",
+      "description": "Shift right logical: rd = rs1 >> rs2[4:0] (zero-fill)"
+    },
+    {
+      "mnemonic": "sra",
+      "description": "Shift right arithmetic: rd = rs1 >> rs2[4:0] (sign-fill)"
+    },
+    {
+      "mnemonic": "or",
+      "description": "OR: rd = rs1 OR rs2"
+    },
+    {
+      "mnemonic": "and",
+      "description": "AND: rd = rs1 AND rs2"
+    }
+  ]
+}

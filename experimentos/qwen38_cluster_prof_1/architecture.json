@@ -1,0 +1,287 @@
+{
+  "design": "qwen38_cluster_prof_1",
+  "microarquitetura": "monociclo",
+  "isa": "rv32i",
+  "top": "cpu",
+  "origem": "modelo",
+  "blocks": [
+    {
+      "name": "register_file",
+      "file": "src/register_file.vhd",
+      "responsibility": "32x32 register file with asynchronous reset, x0 hardwired to zero, asynchronous reads, and synchronous write on rising clock when write_en is asserted.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "write_en : in std_logic",
+        "rs1_addr : in std_logic_vector(4 downto 0)",
+        "rs2_addr : in std_logic_vector(4 downto 0)",
+        "rd_addr : in std_logic_vector(4 downto 0)",
+        "rd_data : in std_logic_vector(31 downto 0)",
+        "rs1_data : out std_logic_vector(31 downto 0)",
+        "rs2_data : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Isolates the only architectural register state, simplifies x0 and reset handling, and makes register write behavior independently verifiable.",
+      "depends_on": []
+    },
+    {
+      "name": "immediate_gen",
+      "file": "src/immediate_gen.vhd",
+      "responsibility": "Generate sign-extended I, S, B, U, and J immediates from the 32-bit instruction word according to the RV32I field mapping.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "imm_i : out std_logic_vector(31 downto 0)",
+        "imm_s : out std_logic_vector(31 downto 0)",
+        "imm_b : out std_logic_vector(31 downto 0)",
+        "imm_u : out std_logic_vector(31 downto 0)",
+        "imm_j : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "A dedicated combinational immediate generator avoids duplicated bit manipulations, reduces top-level wiring, and makes ISA immediate mapping directly auditable.",
+      "depends_on": []
+    },
+    {
+      "name": "control_decoder",
+      "file": "src/control_decoder.vhd",
+      "responsibility": "Decode RV32I opcode, funct3, and funct7 into control signals for ALU operation, immediate selection, register write, memory access, branch evaluation, and jump handling.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "alu_a_src : out std_logic",
+        "alu_src : out std_logic",
+        "alu_op : out std_logic_vector(3 downto 0)",
+        "imm_sel : out std_logic_vector(2 downto 0)",
+        "reg_write : out std_logic",
+        "mem_read : out std_logic",
+        "mem_write : out std_logic",
+        "mem_width : out std_logic_vector(1 downto 0)",
+        "branch : out std_logic",
+        "branch_type : out std_logic_vector(2 downto 0)",
+        "jump : out std_logic",
+        "jalr : out std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "Centralizes ISA semantics in one small combinational block, reducing top-level complexity and improving verifiability of instruction behavior.",
+      "depends_on": []
+    },
+    {
+      "name": "alu",
+      "file": "src/alu.vhd",
+      "responsibility": "Compute 32-bit arithmetic, logical, shift, comparison, and pass-through results used by ALU instructions, address generation, target generation, and LUI.",
+      "ports": [
+        "a : in std_logic_vector(31 downto 0)",
+        "b : in std_logic_vector(31 downto 0)",
+        "alu_op : in std_logic_vector(3 downto 0)",
+        "result : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "A single shared datapath minimizes area and keeps the critical path short; a fixed operation encoding simplifies verification.",
+      "depends_on": []
+    },
+    {
+      "name": "branch_unit",
+      "file": "src/branch_unit.vhd",
+      "responsibility": "Evaluate branch conditions for BEQ, BNE, BLT, BGE, BLTU, and BGEU using rs1, rs2, branch_type, and branch_en.",
+      "ports": [
+        "rs1_data : in std_logic_vector(31 downto 0)",
+        "rs2_data : in std_logic_vector(31 downto 0)",
+        "branch_type : in std_logic_vector(2 downto 0)",
+        "branch_en : in std_logic",
+        "branch_taken : out std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "Isolates signed and unsigned branch comparisons from the ALU, avoids unnecessary ALU side effects, and makes branch semantics easy to test.",
+      "depends_on": []
+    },
+    {
+      "name": "load_extend",
+      "file": "src/load_extend.vhd",
+      "responsibility": "Select byte, halfword, or word data from the asynchronous 32-bit memory read word and apply sign or zero extension according to funct3 and address low bits.",
+      "ports": [
+        "data_read_data : in std_logic_vector(31 downto 0)",
+        "addr_low : in std_logic_vector(1 downto 0)",
+        "funct3 : in std_logic_vector(2 downto 0)",
+        "load_data : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Separates little-endian byte/half selection and load extension rules into a small combinational block, improving clarity and verification of load instructions.",
+      "depends_on": []
+    },
+    {
+      "name": "cpu",
+      "file": "src/cpu.vhd",
+      "responsibility": "Top-level single-cycle RV32I CPU: owns the PC register, instantiates the generated blocks, muxes operands and writeback data, computes next PC priority, and drives the required external bus contract.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "instr_addr : out std_logic_vector(31 downto 0)",
+        "instr_data : in std_logic_vector(31 downto 0)",
+        "data_addr : out std_logic_vector(31 downto 0)",
+        "data_write : out std_logic",
+        "data_width : out std_logic_vector(1 downto 0)",
+        "data_write_data : out std_logic_vector(31 downto 0)",
+        "data_read_data : in std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Keeps the externally visible entity stable and minimal while delegating ISA-specific logic to independently testable blocks, reducing top-level area and verification risk.",
+      "depends_on": [
+        "register_file",
+        "immediate_gen",
+        "control_decoder",
+        "alu",
+        "branch_unit",
+        "load_extend"
+      ]
+    }
+  ],
+  "notes": "All generated blocks except register_file and cpu are purely combinational. The cpu block owns the PC register and implements next-PC priority: JAL/JALR, taken branch, pc+4. During asynchronous reset, cpu forces PC and memory-write outputs to safe values. Suggested encodings: imm_sel 000=I, 001=S, 010=B, 011=U, 100=J; alu_op 0000=ADD, 0001=SUB, 0010=SLL, 0011=SLT, 0100=SLTU, 0101=XOR, 0110=SRL, 0111=SRA, 1000=OR, 1001=AND, 1010=PASS_B; branch_type 000=BEQ, 001=BNE, 010=BLT, 011=BGE, 100=BLTU, 101=BGEU.",
+  "instructions": [
+    {
+      "mnemonic": "lui",
+      "description": "U-type: rd = instr[31:12] << 12."
+    },
+    {
+      "mnemonic": "auipc",
+      "description": "U-type: rd = pc + (instr[31:12] << 12)."
+    },
+    {
+      "mnemonic": "jal",
+      "description": "J-type: rd = pc + 4; pc = pc + sign-extended J immediate."
+    },
+    {
+      "mnemonic": "jalr",
+      "description": "I-type: rd = pc + 4; pc = (rs1 + sign-extended I immediate) & 0xFFFFFFFE."
+    },
+    {
+      "mnemonic": "beq",
+      "description": "B-type: if rs1 == rs2 then pc = pc + sign-extended B immediate else pc = pc + 4."
+    },
+    {
+      "mnemonic": "bne",
+      "description": "B-type: if rs1 != rs2 then pc = pc + sign-extended B immediate else pc = pc + 4."
+    },
+    {
+      "mnemonic": "blt",
+      "description": "B-type: if signed(rs1) < signed(rs2) then pc = pc + sign-extended B immediate else pc = pc + 4."
+    },
+    {
+      "mnemonic": "bge",
+      "description": "B-type: if signed(rs1) >= signed(rs2) then pc = pc + sign-extended B immediate else pc = pc + 4."
+    },
+    {
+      "mnemonic": "bltu",
+      "description": "B-type: if unsigned(rs1) < unsigned(rs2) then pc = pc + sign-extended B immediate else pc = pc + 4."
+    },
+    {
+      "mnemonic": "bgeu",
+      "description": "B-type: if unsigned(rs1) >= unsigned(rs2) then pc = pc + sign-extended B immediate else pc = pc + 4."
+    },
+    {
+      "mnemonic": "lb",
+      "description": "Load byte: read 8 bits at rs1 + sign-extended I immediate and sign-extend to 32 bits into rd."
+    },
+    {
+      "mnemonic": "lh",
+      "description": "Load halfword: read 16 bits at rs1 + sign-extended I immediate and sign-extend to 32 bits into rd."
+    },
+    {
+      "mnemonic": "lw",
+      "description": "Load word: read 32 bits at rs1 + sign-extended I immediate into rd."
+    },
+    {
+      "mnemonic": "lbu",
+      "description": "Load byte unsigned: read 8 bits at rs1 + sign-extended I immediate and zero-extend to 32 bits into rd."
+    },
+    {
+      "mnemonic": "lhu",
+      "description": "Load halfword unsigned: read 16 bits at rs1 + sign-extended I immediate and zero-extend to 32 bits into rd."
+    },
+    {
+      "mnemonic": "sb",
+      "description": "Store byte: write rs2[7:0] to rs1 + sign-extended S immediate."
+    },
+    {
+      "mnemonic": "sh",
+      "description": "Store halfword: write rs2[15:0] to rs1 + sign-extended S immediate."
+    },
+    {
+      "mnemonic": "sw",
+      "description": "Store word: write rs2[31:0] to rs1 + sign-extended S immediate."
+    },
+    {
+      "mnemonic": "addi",
+      "description": "OP-IMM: rd = rs1 + sign-extended I immediate."
+    },
+    {
+      "mnemonic": "slti",
+      "description": "OP-IMM: rd = 1 if signed(rs1) < signed(I immediate) else 0."
+    },
+    {
+      "mnemonic": "sltiu",
+      "description": "OP-IMM: rd = 1 if unsigned(rs1) < unsigned(I immediate) else 0."
+    },
+    {
+      "mnemonic": "xori",
+      "description": "OP-IMM: rd = rs1 XOR sign-extended I immediate."
+    },
+    {
+      "mnemonic": "ori",
+      "description": "OP-IMM: rd = rs1 OR sign-extended I immediate."
+    },
+    {
+      "mnemonic": "andi",
+      "description": "OP-IMM: rd = rs1 AND sign-extended I immediate."
+    },
+    {
+      "mnemonic": "slli",
+      "description": "OP-IMM: rd = rs1 logical left shift by instr[24:20]."
+    },
+    {
+      "mnemonic": "srli",
+      "description": "OP-IMM: rd = rs1 logical right shift by instr[24:20]."
+    },
+    {
+      "mnemonic": "srai",
+      "description": "OP-IMM: rd = rs1 arithmetic right shift by instr[24:20]."
+    },
+    {
+      "mnemonic": "add",
+      "description": "OP: rd = rs1 + rs2."
+    },
+    {
+      "mnemonic": "sub",
+      "description": "OP: rd = rs1 - rs2."
+    },
+    {
+      "mnemonic": "sll",
+      "description": "OP: rd = rs1 logical left shift by rs2[4:0]."
+    },
+    {
+      "mnemonic": "slt",
+      "description": "OP: rd = 1 if signed(rs1) < signed(rs2) else 0."
+    },
+    {
+      "mnemonic": "sltu",
+      "description": "OP: rd = 1 if unsigned(rs1) < unsigned(rs2) else 0."
+    },
+    {
+      "mnemonic": "xor",
+      "description": "OP: rd = rs1 XOR rs2."
+    },
+    {
+      "mnemonic": "srl",
+      "description": "OP: rd = rs1 logical right shift by rs2[4:0]."
+    },
+    {
+      "mnemonic": "sra",
+      "description": "OP: rd = rs1 arithmetic right shift by rs2[4:0]."
+    },
+    {
+      "mnemonic": "or",
+      "description": "OP: rd = rs1 OR rs2."
+    },
+    {
+      "mnemonic": "and",
+      "description": "OP: rd = rs1 AND rs2."
+    }
+  ]
+}
