@@ -276,13 +276,15 @@ class ClienteOpenAI:
 
     def __init__(self, base_url: str, chave: str | None, modelo: str, *,
                  provedor: str = "openrouter",
-                 temperatura: float = 0.2, timeout: float = 900.0) -> None:
+                 temperatura: float = 0.2, timeout: float = 900.0,
+                 reasoning_effort: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.chave = chave
         self.modelo = modelo
         self.provedor = provedor
         self.temperatura = temperatura
         self.timeout = timeout
+        self.reasoning_effort = reasoning_effort
 
     def conversar(self, mensagens: Mensagens, *, schema: dict | None = None,
                    temperatura: float | None = None) -> Resposta:
@@ -301,6 +303,8 @@ class ClienteOpenAI:
                 )
         corpo = {"model": self.modelo, "messages": mensagens,
                   "temperature": self.temperatura if temperatura is None else temperatura}
+        if self.reasoning_effort:
+            corpo["reasoning_effort"] = self.reasoning_effort
         inicio = time.monotonic()
         dados = post_json(f"{self.base_url}/chat/completions", corpo,
                           headers=headers, timeout=self.timeout)
