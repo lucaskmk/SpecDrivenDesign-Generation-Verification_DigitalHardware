@@ -11,6 +11,10 @@ resultados estão em [`docs/artigo.md`](../docs/artigo.md).
 |---|---|---|---|---|---|---|---|---|---|
 | [`luna6_prof_3`](luna6_prof_3/) | `openai/gpt-6-luna` (OpenRouter) | RV32I monociclo | completo, `--max-casos-teste 4` | 40/40 | 24/24 na etapa RV32I (veredito `parcial`) | 78 | 743.978 / 124.821 | cerca de US$ 0,137 | `5068458` |
 | [`luna6_im_1`](luna6_im_1/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM monociclo | completo, `--max-casos-teste 4`, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado (a etapa RV32M exige generic) | 68 | 740.595 / 115.218 | cerca de US$ 0,132 | `068cc7b` |
+| [`sol6_evolui_im_1`](sol6_evolui_im_1/) | `openai/gpt-6-sol` | RV32IM, evoluindo a `luna6_prof_3` | idem `_5` (código de 13/11) | 48/48 (8/8 só no M) | não rodado | 55 | 642.594 / 50.811 | US$ 1,79 | este commit |
+| [`carbon4_evolui_im_1`](carbon4_evolui_im_1/) | `google/gemini-4-carbon` | idem | idem | 48/48 (8/8 só no M) | não rodado | 38 | 637.481 / 153.150 | US$ 2,81 | este commit |
+| [`sonnet55_evolui_im_2`](sonnet55_evolui_im_2/) | `anthropic/claude-sonnet-5.5` | idem | idem | 48/48 (8/8 só no M) | não rodado | 116 | 2.830.786 / 267.544 | US$ 8,34 | este commit |
+| [`sonnet55_evolui_im_1`](sonnet55_evolui_im_1/) | `anthropic/claude-sonnet-5.5` | idem | idem | parou na revisão do contrato (defeito do leitor, corrigido) | — | 10 | 246.244 / 60.958 | US$ 1,10 | este commit |
 | [`luna6_evolui_im_5`](luna6_evolui_im_5/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM, **evoluindo** a `luna6_prof_3`, decomposição livre **sem** a regra do topo | idem `_3` + `--permitir-conta-no-topo` | 48/48 (8/8 só no M) | não rodado | 38 | 501.848 / 56.953 | cerca de US$ 0,079 | este commit |
 | [`luna6_evolui_im_4`](luna6_evolui_im_4/) | idem | idem | idem | não passou do plano (validador recusou portas em texto) | — | 2 | — | — | este commit |
 | [`luna6_evolui_im_3`](luna6_evolui_im_3/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM, **evoluindo** a `luna6_prof_3`, decomposição livre | `--evoluir-de`, mesmas flags, `--max-chamadas 150`, `--max-blocos` 16 | 48/48 (8/8 só no M) | não rodado | 28 | 380.089 / 52.818 | cerca de US$ 0,064 | este commit |

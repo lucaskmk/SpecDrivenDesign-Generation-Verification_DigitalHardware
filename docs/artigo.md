@@ -311,6 +311,26 @@ do gerador, não do modelo: o pedido de caso de teste citava `assemble_rv32i`
 e o validador de uma CPU RV32IM só aceitava `assemble_rv32im`. Com uma rodada
 de cada lado, a diferença de custo é um indício, não uma medida.
 
+### 4.7 Mesma evolução com quatro modelos
+
+A evolução da seção 4.6 (decomposição livre, sem a regra do topo) com outros
+três modelos do OpenRouter, mesmas specs e flags, teto de 150 chamadas. Custo
+= tokens registrados × preço público do OpenRouter em 13/11/2026
+(`rvgen comparar`).
+
+| Modelo | `spec-riscv-test` | Chamadas | Tokens | Custo | Tempo | Correções | Bloco do M |
+|---|---|---|---|---|---|---|---|
+| `openai/gpt-6-luna` | 48/48 | 38 | 501.848 / 56.953 | US$ 0,079 | 14 min | 0 | `muldiv` |
+| `openai/gpt-6-sol` | 48/48 | 55 | 642.594 / 50.811 | US$ 1,79 | 12 min | 0 | `m_unit` |
+| `google/gemini-4-carbon` | 48/48 | 38 | 637.481 / 153.150 | US$ 2,81 | 42 min | 0 | `muldiv_unit` |
+| `anthropic/claude-sonnet-5.5` | 48/48 | 116 | 2.830.786 / 267.544 | US$ 8,34 | 35 min | 2 | `multiplier` + `divider` |
+
+Todos passaram e todos puseram o M num bloco próprio, sem tocar `alu` e
+`register_file`. Para esta tarefa, o modelo mais barato teve o mesmo
+resultado do juiz por uma fração do custo. A primeira rodada do Sonnet parou
+por um defeito do gerador, não do modelo: o leitor de contrato contava
+menções a `## Edge cases` no meio do texto como títulos repetidos.
+
 ## 5 Discussão
 
 **O custo está na expansão de testes.** Mais da metade das chamadas (44 de
