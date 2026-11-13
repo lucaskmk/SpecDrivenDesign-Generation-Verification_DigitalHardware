@@ -1321,6 +1321,16 @@ class Agente:
         raise ErroGeracao(f"o modelo nao produziu a especificacao de {bloco['file']}")
 
     @staticmethod
+    def _titulos(texto: str, titulo: str) -> int:
+        """Quantas vezes ``titulo`` (ex.: "## Timing") aparece como título, no começo da linha.
+
+        Uma menção no meio do texto ("ver `## Edge cases`") não é título: uma
+        rodada real com claude-sonnet-5.5 (13/11/2026) teve 6 revisões de
+        contrato recusadas por isso, com cada título presente uma vez só.
+        """
+        return len(re.findall(rf"(?m)^{re.escape(titulo)}[ \t]*$", texto))
+
+    @staticmethod
     def _corpo_especificacao_markdown(texto: str) -> str:
         """Extrai e valida a parte variável de uma spec Markdown da LLM."""
         corpo = texto.strip()
@@ -1330,7 +1340,7 @@ class Agente:
             corpo = cerca.group(1).strip()
         secoes = ("## Timing", "## Reset", "## Behavior", "## Operations", "## Edge cases",
                   "## Test strategy")
-        if any(corpo.count(secao) != 1 for secao in secoes):
+        if any(Agente._titulos(corpo, secao) != 1 for secao in secoes):
             # Revisores externos frequentemente devolvem conteúdo correto com
             # títulos combinados como "Responsibility and timing". Normalize
             # apenas quando cada seção canônica puder ser identificada; assim
@@ -1365,7 +1375,7 @@ class Agente:
         # incluindo cabeçalho, interface e responsabilidade. Essas partes
         # pertencem ao agente; retemos o contrato a partir de Timing, incluindo
         # a estratégia de teste que agora é parte normativa da spec.
-        inicio = corpo.index("## Timing")
+        inicio = re.search(r"(?m)^## Timing[ \t]*$", corpo).start()
         return corpo[inicio:].strip()
 
     def _salvar_especificacao(self, bloco: dict, corpo: str) -> None:
@@ -1397,11 +1407,11 @@ class Agente:
         candidato = sem_cerca(texto)
         secoes = ("Timing", "Reset", "Behavior", "Operations", "Edge cases", "Test strategy")
         obrigatorias_na_revisao = ("Timing", "Reset", "Behavior", "Test strategy")
-        if any(candidato.count(f"## {secao}") > 1 for secao in secoes):
+        if any(Agente._titulos(candidato, f"## {secao}") > 1 for secao in secoes):
             raise ErroLLM("revisao Markdown repete secao obrigatoria")
-        if any(candidato.count(f"## {secao}") != 1 for secao in obrigatorias_na_revisao):
+        if any(Agente._titulos(candidato, f"## {secao}") != 1 for secao in obrigatorias_na_revisao):
             raise ErroLLM("revisao Markdown sem secoes semanticas essenciais")
-        faltantes = tuple(secao for secao in secoes if f"## {secao}" not in candidato)
+        faltantes = tuple(secao for secao in secoes if not Agente._titulos(candidato, f"## {secao}"))
         if not faltantes:
             return Agente._corpo_especificacao_markdown(candidato), ()
 
