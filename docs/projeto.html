@@ -482,6 +482,22 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <div class="card"><h3>Para trabalhar no repositório</h3><p>Isto é sobre o assistente de código, não o <code>rvgen</code>. Mudanças em vários arquivos, depuração e revisão rendem mais com um modelo forte em esforço alto, como Claude Opus. Edição de documentos e mudanças pequenas podem ir com um modelo intermediário, como Claude Sonnet, em esforço médio, o que gasta menos do limite de uso.</p></div>
 </div>
 
+<h3 id="comparacao-modelos">Comparação medida: evolução RV32I → RV32IM com 4 modelos (13/11/2026)</h3>
+<p>Mesma tarefa para todos: evoluir a <code>luna6_prof_3</code> (RV32I aprovada) para RV32IM com as specs de <code>iteracoes/it-001</code>, código atual (decomposição livre, regra do topo desligada), <code>--max-casos-teste 4</code> e teto de 150 chamadas. Tabela do <code>python -m rvgen comparar</code>; o custo é tokens registrados × preço público do OpenRouter no dia. Cada CPU foi julgada de novo por fora: todas 48/48 e 8/8 só no M, e nenhuma com conta no <code>cpu</code>.</p>
+<div class="tblwrap"><table>
+  <tr><th>Modelo</th><th>Juiz</th><th>Chamadas</th><th>Tokens (entrada / saída)</th><th>Custo</th><th>Tempo</th><th>Correções</th><th>Onde ficou o M</th><th>Blocos mudados</th></tr>
+  <tr><td><code>openai/gpt-6-luna</code> (<code>luna6_evolui_im_5</code>)</td><td>48/48</td><td>38</td><td>501.848 / 56.953</td><td><b>US$ 0,079</b></td><td>14 min</td><td>0</td><td><code>muldiv</code></td><td><code>decoder</code>, <code>cpu</code></td></tr>
+  <tr><td><code>openai/gpt-6-sol</code> (<code>sol6_evolui_im_1</code>)</td><td>48/48</td><td>55</td><td>642.594 / 50.811</td><td>US$ 1,79</td><td><b>12 min</b></td><td>0</td><td><code>m_unit</code></td><td><code>decoder</code>, <code>cpu</code>, <code>immediate_generator</code></td></tr>
+  <tr><td><code>google/gemini-4-carbon</code> (<code>carbon4_evolui_im_1</code>)</td><td>48/48</td><td>38</td><td>637.481 / 153.150</td><td>US$ 2,81</td><td>42 min</td><td>0</td><td><code>muldiv_unit</code></td><td><code>decoder</code>, <code>cpu</code></td></tr>
+  <tr><td><code>anthropic/claude-sonnet-5.5</code> (<code>sonnet55_evolui_im_2</code>)</td><td>48/48</td><td>116</td><td>2.830.786 / 267.544</td><td>US$ 8,34</td><td>35 min</td><td>2</td><td><code>multiplier</code> + <code>divider</code> sob <code>muldiv_unit</code></td><td><code>decoder</code>, <code>cpu</code></td></tr>
+</table></div>
+<ul>
+  <li><b>Todos acertaram.</b> Com esta tarefa, o modelo mais barato (luna 6) chegou ao mesmo 48/48 que os três modelos de ponta, por 1/20 a 1/100 do custo.</li>
+  <li><b>Todos criaram um bloco próprio para o M</b> sem a regra do topo, e nenhum mexeu na <code>alu</code> nem no <code>register_file</code>. O Sonnet foi o que mais dividiu (multiplicador e divisor separados), e também o que mais gastou e o único que precisou de correção.</li>
+  <li><b>Defeito do <code>rvgen</code> achado nesta bateria:</b> a primeira rodada do Sonnet (<code>sonnet55_evolui_im_1</code>, 10 chamadas, ~US$ 1,10) parou porque o leitor de contrato contava menções no texto (“ver <code>## Edge cases</code>”) como títulos repetidos e recusou 6 respostas válidas. Corrigido: só conta título no começo da linha.</li>
+  <li>Uma rodada por modelo: é comparação de um caso, não medida de taxa de sucesso.</li>
+</ul>
+
 <h2 id="f-modelo">11 · Como uma chamada ao modelo funciona</h2>
 <p>O modelo externo padrão do <code>rvgen</code> é o <code>openai/gpt-6-luna</code> (<code>config.MODELO_EXTERNO_PADRAO</code>), via OpenRouter. <code>SPECHDL_LLM_MODEL</code> no <code>.env</code> ou <code>--modelo</code> trocam o modelo. Qual modelo usar está em <a href="#modelos">Modelos de IA</a>; aqui está o caminho de uma chamada.</p>
 <div class="note"><b>Desde 29/10:</b> com <code>OPENROUTER_API_KEY</code> no <code>.env</code>, o provedor padrão é o <code>openrouter</code> (antes era sempre <code>ollama</code>). <code>--provedor</code> ou <code>RVGEN_PROVEDOR</code> ainda vencem. Falhas transitórias da API (429, 5xx, conexão) são repetidas até 3 vezes, e <code>--max-chamadas</code> / <code>--max-tokens</code> param a geração com a sessão preservada.</div>
@@ -1273,6 +1289,7 @@ python -m rvgen preparar --verificar</code></pre>
 <p>Ao mudar este documento, acrescente uma linha aqui e atualize o resumo do topo.</p>
 <div class="tblwrap"><table>
   <tr><th>Data</th><th>O que mudou</th></tr>
+  <tr><td>13/11/2026</td><td>Comparação medida de 4 modelos na evolução RV32I → RV32IM (luna 6, gpt-6-sol, gemini-4-carbon, claude-sonnet-5.5): todos 48/48; custo de US$ 0,08 a US$ 8,34. Corrigido o leitor de contrato que contava menções no texto como títulos.</td></tr>
   <tr><td>06/11/2026</td><td>Regra do topo virou opção e ficou desligada por padrão (<code>--proibir-conta-no-topo</code> liga). Sem ela, a evolução também pôs o M num bloco próprio (<code>luna6_evolui_im_5</code>, 48/48, 38 chamadas): o efeito veio de liberar a decomposição.</td></tr>
   <tr><td>06/11/2026</td><td>Evolução com decomposição livre (manter, mudar, criar, dividir, juntar, renomear, remover), <code>--max-blocos</code> no lugar do limite fixo de 8 e topo sem conta: <code>luna6_evolui_im_3</code>, 48/48, M num bloco próprio, 28 chamadas.</td></tr>
   <tr><td>06/11/2026</td><td>Modo evoluir (<code>--evoluir-de</code>): RV32I aprovada → RV32IM em 26 chamadas, 48/48. Corrigido o conflito <code>assemble_rv32i</code> × <code>assemble_rv32im</code> nos casos de teste de CPU IM.</td></tr>
