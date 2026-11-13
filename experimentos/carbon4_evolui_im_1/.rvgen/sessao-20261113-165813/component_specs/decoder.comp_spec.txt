@@ -1,0 +1,194 @@
+# Component semantic contract: decoder
+
+## Public interface
+```vhdl
+entity decoder is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        reg_write : out std_logic;
+        mem_write : out std_logic;
+        alu_src_a_pc : out std_logic;
+        alu_src_b_imm : out std_logic;
+        alu_control : out std_logic_vector(3 downto 0);
+        muldiv_op : out std_logic_vector(2 downto 0);
+        branch_enable : out std_logic;
+        jump : out std_logic;
+        jalr : out std_logic;
+        wb_select : out std_logic_vector(1 downto 0)
+    );
+end decoder;
+```
+
+## Responsibility
+Decode RV32IM instruction opcode and function fields into register-write, memory-write, operand-source, ALU-operation, M-unit-operation, branch, jump, and writeback-selection controls.
+
+## Timing
+
+`decoder` is purely combinational. After `instr` changes, every output shall settle to the value specified below without requiring a clock edge. The decoder has no state, handshake, or latency.
+
+## Reset
+
+None. The decoder has no reset input. Its outputs are determined solely by `instr`.
+
+## Behavior
+
+`instr` is a 32-bit RV32IM instruction. The decoder uses `instr[6:0]` as the opcode, `instr[14:12]` as `funct3`, and, where specified, `instr[31:25]` as `funct7`.
+
+For every recognized instruction encoding, outputs shall match the instruction-class definitions below. For any unsupported opcode or unsupported function encoding, the instruction shall have no architectural side effects: `reg_write`, `mem_write`, `branch_enable`, `jump`, and `jalr` shall be `'0'`; `alu_src_a_pc` and `alu_src_b_imm` shall be `'0'`; `alu_control` shall be `"0000"`; `muldiv_op` shall be `"000"`; and `wb_select` shall be `"00"`.
+
+For valid instructions, `reg_write` indicates that the instruction produces a register result. It is asserted for register-writing instruction classes (including RV32M instructions) even when `rd` is `x0`; suppression of writes to `x0` is the responsibility of the register-file component. `mem_write` is asserted only for valid stores. `branch_enable` is asserted only for valid conditional branches. `jump` is asserted for `JAL` and `JALR`; `jalr` is asserted only for `JALR`.
+
+`alu_src_a_pc` selects the PC as ALU operand A when `'1'`, and `rs1` otherwise. `alu_src_b_imm` selects the instruction’s applicable immediate as ALU operand B when `'1'`, and `rs2` otherwise. For instructions whose ALU or multiply/divide operands do not affect their architectural result, `alu_src_a_pc`, `alu_src_b_imm`, `alu_control`, and `muldiv_op` are nevertheless deterministically specified below.
+
+Valid instruction classes and their controls:
+
+| Instruction class | `reg_write` | `mem_write` | `alu_src_a_pc` | `alu_src_b_imm` | `branch_enable` | `jump` | `jalr` | `wb_select` |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| OP (`0x33`, RV32I: `funct7` in `"0000000"`, `"0100000"` per `Operations`) | 1 | 0 | 0 | 0 | 0 | 0 | 0 | `"00"` |
+| OP-M (`0x33`, RV32M: `funct7="0000001"`) | 1 | 0 | 0 | 0 | 0 | 0 | 0 | `"11"` |
+| OP-IMM (`0x13`) | 1 | 0 | 0 | 1 | 0 | 0 | 0 | `"00"` |
+| Loads (`0x03`) | 1 | 0 | 0 | 1 | 0 | 0 | 0 | `"01"` |
+| Stores (`0x23`) | 0 | 1 | 0 | 1 | 0 | 0 | 0 | `"00"` |
+| Conditional branches (`0x63`) | 0 | 0 | 0 | 0 | 1 | 0 | 0 | `"00"` |
+| LUI (`0x37`) | 1 | 0 | 0 | 1 | 0 | 0 | 0 | `"00"` |
+| AUIPC (`0x17`) | 1 | 0 | 1 | 1 | 0 | 0 | 0 | `"00"` |
+| JAL (`0x6F`) | 1 | 0 | 1 | 1 | 0 | 1 | 0 | `"10"` |
+| JALR (`0x67`, `funct3="000"`) | 1 | 0 | 0 | 1 | 0 | 1 | 1 | `"10"` |
+
+The `alu_control` and `muldiv_op` encodings for each valid class are specified in `Operations`. For JAL, JALR, and RV32M (`OP-M`) instructions, `alu_control` is `"0000"`; jump-target generation and M-unit execution are not selected by `alu_control`. For all valid non-RV32M instructions, `muldiv_op` is `"000"`.
+
+## Operations
+
+`alu_control` is a four-bit selector. Its meaning for non-branch instructions is:
+
+| `alu_control` | Operation |
+|---|---|
+| `"0000"` | ADD |
+| `"0001"` | SUB |
+| `"0010"` | SLL |
+| `"0011"` | SLT (signed) |
+| `"0100"` | SLTU (unsigned) |
+| `"0101"` | XOR |
+| `"0110"` | SRL |
+| `"0111"` | SRA |
+| `"1000"` | OR |
+| `"1001"` | AND |
+| `"1010"` | PASS_B: the result is operand B |
+| `"1011"`–`"1111"` | Not selected for non-branch instructions |
+
+When `branch_enable='1'`, `alu_control` instead selects the branch condition:
+
+| `alu_control` | Branch condition |
+|---|---|
+| `"0000"` | BEQ |
+| `"0001"` | BNE |
+| `"0010"` | BLT (signed) |
+| `"0011"` | BGE (signed) |
+| `"0100"` | BLTU (unsigned) |
+| `"0101"` | BGEU (unsigned) |
+
+The branch-specific meanings apply only when `branch_enable='1'`.
+
+`muldiv_op` is a three-bit selector for the multiply/divide unit (`muldiv_unit`):
+
+| `muldiv_op` | Operation |
+|---|---|
+| `"000"` | MUL (low 32 bits of `rs1 * rs2`) |
+| `"001"` | MULH (high 32 bits of `signed(rs1) * signed(rs2)`) |
+| `"010"` | MULHSU (high 32 bits of `signed(rs1) * unsigned(rs2)`) |
+| `"011"` | MULHU (high 32 bits of `unsigned(rs1) * unsigned(rs2)`) |
+| `"100"` | DIV (signed quotient) |
+| `"101"` | DIVU (unsigned quotient) |
+| `"110"` | REM (signed remainder) |
+| `"111"` | REMU (unsigned remainder) |
+
+`wb_select` is a two-bit selector:
+
+| `wb_select` | Writeback source |
+|---|---|
+| `"00"` | ALU result |
+| `"01"` | Data-memory read result |
+| `"10"` | `PC + 4` |
+| `"11"` | Multiply/divide unit (`muldiv_unit`) result |
+
+Opcode and function decoding:
+
+| Opcode | Required function encoding | `alu_control` | `muldiv_op` |
+|---|---|---|---|
+| `0x33` OP | `funct3="000"`, `funct7="0000000"` | `"0000"` ADD | `"000"` |
+| `0x33` OP | `funct3="000"`, `funct7="0100000"` | `"0001"` SUB | `"000"` |
+| `0x33` OP | `funct3="001"`, `funct7="0000000"` | `"0010"` SLL | `"000"` |
+| `0x33` OP | `funct3="010"`, `funct7="0000000"` | `"0011"` SLT | `"000"` |
+| `0x33` OP | `funct3="011"`, `funct7="0000000"` | `"0100"` SLTU | `"000"` |
+| `0x33` OP | `funct3="100"`, `funct7="0000000"` | `"0101"` XOR | `"000"` |
+| `0x33` OP | `funct3="101"`, `funct7="0000000"` | `"0110"` SRL | `"000"` |
+| `0x33` OP | `funct3="101"`, `funct7="0100000"` | `"0111"` SRA | `"000"` |
+| `0x33` OP | `funct3="110"`, `funct7="0000000"` | `"1000"` OR | `"000"` |
+| `0x33` OP | `funct3="111"`, `funct7="0000000"` | `"1001"` AND | `"000"` |
+| `0x33` OP-M | `funct3="000"`, `funct7="0000001"` | `"0000"` | `"000"` MUL |
+| `0x33` OP-M | `funct3="001"`, `funct7="0000001"` | `"0000"` | `"001"` MULH |
+| `0x33` OP-M | `funct3="010"`, `funct7="0000001"` | `"0000"` | `"010"` MULHSU |
+| `0x33` OP-M | `funct3="011"`, `funct7="0000001"` | `"0000"` | `"011"` MULHU |
+| `0x33` OP-M | `funct3="100"`, `funct7="0000001"` | `"0000"` | `"100"` DIV |
+| `0x33` OP-M | `funct3="101"`, `funct7="0000001"` | `"0000"` | `"101"` DIVU |
+| `0x33` OP-M | `funct3="110"`, `funct7="0000001"` | `"0000"` | `"110"` REM |
+| `0x33` OP-M | `funct3="111"`, `funct7="0000001"` | `"0000"` | `"111"` REMU |
+| `0x13` OP-IMM | `funct3="000"` | `"0000"` ADD | `"000"` |
+| `0x13` OP-IMM | `funct3="001"`, `instr[31:25]="0000000"` | `"0010"` SLL | `"000"` |
+| `0x13` OP-IMM | `funct3="010"` | `"0011"` SLT | `"000"` |
+| `0x13` OP-IMM | `funct3="011"` | `"0100"` SLTU | `"000"` |
+| `0x13` OP-IMM | `funct3="100"` | `"0101"` XOR | `"000"` |
+| `0x13` OP-IMM | `funct3="101"`, `instr[31:25]="0000000"` | `"0110"` SRL | `"000"` |
+| `0x13` OP-IMM | `funct3="101"`, `instr[31:25]="0100000"` | `"0111"` SRA | `"000"` |
+| `0x13` OP-IMM | `funct3="110"` | `"1000"` OR | `"000"` |
+| `0x13` OP-IMM | `funct3="111"` | `"1001"` AND | `"000"` |
+| `0x03` Load | `funct3` in `"000"`, `"001"`, `"010"`, `"100"`, `"101"` | `"0000"` ADD | `"000"` |
+| `0x23` Store | `funct3` in `"000"`, `"001"`, `"010"` | `"0000"` ADD | `"000"` |
+| `0x63` Branch | `funct3="000"` | `"0000"` BEQ | `"000"` |
+| `0x63` Branch | `funct3="001"` | `"0001"` BNE | `"000"` |
+| `0x63` Branch | `funct3="100"` | `"0010"` BLT | `"000"` |
+| `0x63` Branch | `funct3="101"` | `"0011"` BGE | `"000"` |
+| `0x63` Branch | `funct3="110"` | `"0100"` BLTU | `"000"` |
+| `0x63` Branch | `funct3="111"` | `"0101"` BGEU | `"000"` |
+| `0x37` LUI | Any `funct3` and `funct7` | `"1010"` PASS_B | `"000"` |
+| `0x17` AUIPC | Any `funct3` and `funct7` | `"0000"` ADD | `"000"` |
+| `0x6F` JAL | Any `funct3` and `funct7` | `"0000"` | `"000"` |
+| `0x67` JALR | `funct3="000"` | `"0000"` ADD | `"000"` |
+
+For `0x33` (OP and OP-M) and `0x13` (OP-IMM), all function encodings not listed above are unsupported. For loads, stores, branches, and JALR, function encodings not listed above are unsupported. LUI, AUIPC, and JAL do not have function-field restrictions in this contract.
+
+## Edge cases
+
+- Opcode `0x33` encodings are valid only for the exact `(funct3, funct7)` pairs shown: `funct7="0000000"` (all eight `funct3` values as RV32I OP), `funct7="0100000"` (`SUB` with `funct3="000"` and `SRA` with `funct3="101"` only), and `funct7="0000001"` (all eight `funct3` values as RV32M OP-M). Every other `funct7` pattern (for example `"0100001"` or `"0000010"`) or disallowed `(funct3, funct7)` pair under `0x33` is unsupported and produces the no-side-effect outputs.
+- RV32M decoding applies exclusively to opcode `0x33` with `funct7="0000001"`. In particular, `instr[31:25]="0000001"` on `0x13` (OP-IMM) is treated as an ordinary immediate bit pattern for non-shift OP-IMM (`wb_select="00"`, `muldiv_op="000"`) and as an unsupported shift encoding for `SLLI`/`SRLI`/`SRAI`.
+- For all valid non-RV32M instructions (including RV32I `OP`, `OP-IMM`, loads, stores, branches, `LUI`, `AUIPC`, `JAL`, and `JALR`), `muldiv_op` is `"000"` regardless of `funct3`, and `wb_select` is never `"11"`.
+- For all RV32M instructions (`opcode=0x33`, `funct7="0000001"`), `alu_control` is `"0000"`, `alu_src_a_pc` and `alu_src_b_imm` are `'0'`, `wb_select` is `"11"`, and `reg_write` is `'1'` (including when `rd` is `x0`).
+- SLLI, SRLI, and SRAI are valid only for the exact upper-bit patterns shown (`"0000000"` for SLLI/SRLI and `"0100000"` for SRAI). Their shift amount (`instr[24:20]`) is not decoded as a selector by this component.
+- For non-shift OP-IMM instructions, `instr[31:25]` does not restrict validity or change the selected operation.
+- `rd`, `rs1`, `rs2`, and immediate bits do not change the controls except where explicitly used as function bits above.
+- Any unsupported function combination, including an otherwise recognized opcode with an invalid `funct3` or required `funct7`, produces the no-side-effect outputs defined in `Behavior` (`reg_write='0'`, `mem_write='0'`, `alu_src_a_pc='0'`, `alu_src_b_imm='0'`, `alu_control="0000"`, `muldiv_op="000"`, `branch_enable='0'`, `jump='0'`, `jalr='0'`, `wb_select="00"`).
+- All outputs have defined values for every possible 32-bit `instr`; there are no don’t-care outputs.
+
+## Test strategy
+
+Use a combinational Cocotb test that drives a complete 32-bit instruction, allows outputs to settle, and checks every output (including `muldiv_op` and `wb_select`) against the contract. Run each case without a clock or reset stimulus.
+
+1. **Opcode-class controls and writeback selection:** For each valid class in the `Behavior` table (including both RV32I `OP` and RV32M `OP-M`), drive a canonical instruction and check the complete output tuple: `reg_write`, `mem_write`, both operand selectors, branch/jump controls, `alu_control`, `muldiv_op`, and `wb_select`. Use different values for `rd`, `rs1`, `rs2`, and immediate fields between cases so field changes cannot accidentally conceal opcode-class selection errors. Include `rd=x0` for at least one RV32I register-writing instruction and at least one RV32M instruction, requiring `reg_write='1'` in both cases.
+
+2. **RV32I OP operations:** Exercise every valid RV32I OP `funct3`/`funct7` pair (`funct7="0000000"` and `"0100000"`) in `Operations`. Hold opcode and register fields constant, vary only `funct3` or `funct7`, and check the exact `alu_control`, `muldiv_op="000"`, `wb_select="00"`, and full output tuple. Also exercise invalid `funct7` values for each `funct3`, including `"0100000"` on non-SUB/non-SRA operations, `"0100001"` (combining SUB/SRA and M bits), and other unsupported `funct7` patterns; require the unsupported-instruction outputs.
+
+3. **RV32M OP-M operations:** Exercise all eight RV32M instructions (`opcode=0x33`, `funct7="0000001"`, `funct3="000"` through `"111"` for `MUL`, `MULH`, `MULHSU`, `MULHU`, `DIV`, `DIVU`, `REM`, `REMU`). Hold `opcode` and `funct7="0000001"` fixed while stepping `funct3`, and verify `reg_write='1'`, `mem_write='0'`, `alu_src_a_pc='0'`, `alu_src_b_imm='0'`, `alu_control="0000"`, `muldiv_op=funct3`, `branch_enable='0'`, `jump='0'`, `jalr='0'`, and `wb_select="11"`. Vary `rd`, `rs1`, and `rs2` across RV32M cases (including `rd=x0`) and confirm controls do not change. Verify that non-M instructions with non-zero `funct3` still drive `muldiv_op="000"`.
+
+4. **OP-IMM operations and function restrictions:** Exercise every valid OP-IMM row, changing only `funct3` or, for shift operations, only `instr[31:25]` between related cases. Check the exact `alu_control`, `muldiv_op="000"`, `wb_select="00"`, and full tuple. For SLLI, SRLI, and SRAI, test both permitted upper-bit patterns and disallowed patterns—specifically including `instr[31:25]="0000001"`—requiring the no-side-effect outputs for disallowed shifts. For each non-shift `funct3`, vary `instr[31:25]` (explicitly including `"0000001"`) while holding the other fields fixed and require that controls remain unchanged (`wb_select="00"`, `muldiv_op="000"`).
+
+5. **Loads and stores:** Exercise each valid load and store `funct3` independently, checking all outputs (including `muldiv_op="000"`) and confirming that only loads assert `reg_write` and select `wb_select="01"`, while only stores assert `mem_write`. Vary `rd`, `rs1`, `rs2`, and immediate fields independently while keeping opcode and `funct3` fixed; require that controls remain unchanged. Test every unsupported load/store `funct3` and require the no-side-effect outputs.
+
+6. **Branches:** Exercise all six valid branch `funct3` values, varying only `funct3` between cases. Check `branch_enable='1'`, the branch-specific `alu_control`, `muldiv_op="000"`, and all other outputs. Test unsupported branch `funct3` values (`"010"` and `"011"`) and require the no-side-effect outputs.
+
+7. **Unrestricted instruction fields:** For LUI, AUIPC, and JAL, vary `funct3` and `funct7` (explicitly including `funct7="0000001"` and non-zero `funct3`) while holding the opcode and other fields fixed; require their controls (including `muldiv_op="000"`) to remain unchanged. Separately vary register-index and immediate bits and confirm they do not alter the decoded controls.
+
+8. **JALR restriction and jump controls:** Check JAL and valid JALR as separate cases, requiring `jump='1'`, the specified `jalr` value, `muldiv_op="000"`, and `"10"` writeback selection. Vary JALR `funct3` across all values; require `"000"` to match the JALR row and every other value to produce the no-side-effect outputs.
+
+9. **Unknown opcodes and invalid encodings:** Drive representative unrecognized opcode values (including unrecognized opcodes paired with `funct7="0000001"`) and every invalid function combination required above. For each, check the entire no-side-effect output tuple, including `muldiv_op="000"` and `wb_select="00"`.
+
+10. **Combinational response:** Apply consecutive instructions from different classes—including transitions between RV32I OP, RV32M OP-M (`wb_select="11"`, non-zero `muldiv_op`), loads (`wb_select="01"`), jumps (`wb_select="10"`), branches, and unsupported instructions—without any intervening clock. After each input change, require all outputs to settle to that instruction’s expected tuple to detect any stale or latched output values.

@@ -1,0 +1,8 @@
+{
+  "bloco": "muldiv_unit",
+  "arquivo": "src/muldiv_unit.vhd",
+  "hash_vhdl": "ce360e66f09cba78d4703f0b38d9addd85e0bfc4b9c645eb26b5cd469f56185a",
+  "testes": [
+    "testes/test_muldiv_unit.py"
+  ]
+}

@@ -1,0 +1,191 @@
+# Component semantic contract: multiplier
+
+## Public interface
+```vhdl
+entity multiplier is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        op : in std_logic_vector(1 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end multiplier;
+```
+
+## Responsibility
+Compute the 64-bit product of rs1 and rs2 with selectable signedness, and return the low 32 bits (MUL) or the high 32 bits (MULH, MULHSU, MULHU). Selector op: 00 MUL (low word), 01 MULH (signed x signed, high), 10 MULHSU (signed rs1 x unsigned rs2, high), 11 MULHU (unsigned x unsigned, high). Implement it with numeric_std by extending both operands to 33 bits (sign- or zero-extended per op) and taking a signed 66-bit product.
+
+## Timing
+
+- `multiplier` is purely combinational. It has no clock, no state, and no memory of earlier inputs.
+- `result` depends only on the current values of `operand_a`, `operand_b`, and `op`.
+- After any input change, `result` settles to the value defined here. No settling delay is specified, so tests must sample only after the inputs have been stable for at least one simulation delta or a short fixed time.
+- Evaluation order is irrelevant. Changing `op` alone, `operand_a` alone, or `operand_b` alone must each yield the result for the new input triple.
+
+## Reset
+
+`none`. There is no reset input and no state to initialize. Every input triple has a defined result at all times.
+
+## Behavior
+
+- `operand_a` (rs1 value) and `operand_b` (rs2 value) are 32-bit vectors. Their numeric interpretation (signed two's complement or unsigned) depends on `op`.
+- `op` is a 2-bit selector (see `## Operations`).
+- `result` is a 32-bit vector.
+- Let `A` and `B` be the integer values of `operand_a` and `operand_b` under the interpretation chosen by `op`. Let `P = A × B` be the exact mathematical product.
+- The 64-bit product word is defined modulo 2^64. Let `P64 = P mod 2^64`, a 64-bit vector with value in `0 .. 2^64−1`. This definition is valid for every op.
+  - For MUL, MULH, and MULHSU, `P` fits in the signed 64-bit range, so `P64` is the ordinary 64-bit two's-complement encoding of `P`.
+    - MULH: `P` lies in `−2^62+2^31 .. 2^62`.
+    - MULHSU: `P` lies in `−2^63+2^31 .. 2^63−2^32`.
+    - MUL uses only the low word, which is the same under any interpretation.
+  - For MULHU, `P` ranges over `0 .. (2^32−1)^2 = 0xFFFFFFFE00000001`. This exceeds `2^63−1`, so it does not fit as a signed 64-bit value. It fits as an unsigned 64-bit value, and `P64 = P` exactly. Do not describe `P64` as a two's-complement encoding of `P` for MULHU.
+- Results are slices of `P64`:
+  - For MUL, `result = P64[31:0]`.
+  - For MULH, MULHSU, and MULHU, `result = P64[63:32]`.
+- The low word is identical for all signedness interpretations, so MUL has a single definition. Only the high-word operations depend on signedness.
+- The operands are not interchangeable. In MULHSU, `operand_a` is always the signed operand and `operand_b` is always the unsigned operand.
+- There are no flags, exceptions, saturation, or overflow indications. Every result is just the selected 32-bit slice of `P64`.
+- Implementation note (not a change of behavior): extend both operands to 33 bits (sign- or zero-extended per op) and take a signed 66-bit product with `numeric_std`. Its low 64 bits equal `P mod 2^64` for every op. Only those low 64 bits are used, so the 66-bit intermediate may exceed the signed 64-bit range for MULHU without affecting the result.
+- A single set bit in an operand does not imply a single set bit in the product for the signed variants. When bit 31 is the set bit, MULH and MULHSU read that operand as negative (`−2^31`), so the product is negative and `P64` has many bits set. For example, `0x80000000 × 1` gives `P64 = 0xFFFFFFFF80000000`, so MULH and MULHSU return `0xFFFFFFFF`. Verification must therefore compare against the reference model, not against a one-bit rule, for the signed variants.
+
+## Operations
+
+| `op` | Name | Interpretation of `operand_a` | Interpretation of `operand_b` | `result` |
+|------|------|-------------------------------|-------------------------------|----------|
+| `00` | MUL | signed (low word is the same for any interpretation) | signed (same) | `P64[31:0]` |
+| `01` | MULH | signed | signed | `P64[63:32]` |
+| `10` | MULHSU | signed | unsigned | `P64[63:32]` |
+| `11` | MULHU | unsigned | unsigned | `P64[63:32]` |
+
+- All four 2-bit values of `op` are defined. There are no reserved encodings.
+- This selector encoding is private to `multiplier`. It does not need to match the encoding of any other entity, and `multiplier` has no generated dependencies.
+- The parent derives `op` from the M-instruction `funct3` field. For `funct3` in `000..011` (MUL, MULH, MULHSU, MULHU), `op = funct3[1:0]`. This is an explicit parent adaptation, not a shared numeric encoding.
+- `funct3 = 100..111` (DIV/REM) never uses `multiplier`.
+- CPU public-port tests do not observe `op` directly. They see only the architectural results of the instructions.
+
+## Edge cases
+
+- **Zero operand:** if `operand_a = 0` or `operand_b = 0`, `result = 0` for all four ops.
+- **Identity:** `operand_b = 1` gives these results:
+  - MUL returns `operand_a`.
+  - MULH and MULHSU return `0xFFFFFFFF` if `operand_a[31] = 1`, else `0`.
+  - MULHU returns `0`.
+- **Most negative value:** `0x80000000 × 0x80000000` gives these results:
+  - MUL = `0x00000000`.
+  - MULH = `0x40000000` (product `+2^62`).
+  - MULHSU = `0xC0000000` (product `−2^62`).
+  - MULHU = `0x40000000` (product `+2^62`).
+- **All ones:** `0xFFFFFFFF × 0xFFFFFFFF` gives these results:
+  - MUL = `0x00000001`.
+  - MULH = `0x00000000`.
+  - MULHSU = `0xFFFFFFFF`.
+  - MULHU = `0xFFFFFFFE`. Here `P = P64 = 0xFFFFFFFE00000001`, which is above `2^63−1`.
+- **Mixed extremes:** `0x80000000 × 0xFFFFFFFF` gives these results:
+  - MUL = `0x80000000`.
+  - MULH = `0x00000000`.
+  - MULHSU = `0x80000000`.
+  - MULHU = `0x7FFFFFFF`. Here `P = P64 = 0x7FFFFFFF80000000`.
+- **Operand-bit-31 times one:** `0x80000000 × 0x00000001` gives these results:
+  - MUL = `0x80000000`.
+  - MULH = `0xFFFFFFFF`.
+  - MULHSU = `0xFFFFFFFF`, because `operand_a` is signed.
+  - MULHU = `0x00000000`.
+- **Operand-order asymmetry for MULHSU:**
+  - `a=0x00000007, b=0xFFFFFFFD` gives `0x00000006`.
+  - `a=0xFFFFFFFD, b=0x00000007` gives `0xFFFFFFFF`.
+- **ISA examples (must hold exactly):**
+  - MUL `7 × 0xFFFFFFFD` = `0xFFFFFFEB`.
+  - MULH `0x80000000 × 0x80000000` = `0x40000000`.
+  - MULHSU `0xFFFFFFFF × 0xFFFFFFFF` = `0xFFFFFFFF`.
+  - MULHU `0xFFFFFFFF × 0xFFFFFFFF` = `0xFFFFFFFE`.
+- **Metavalues:** behavior for non-`0`/`1` input bits (`U`, `X`, `Z`, `-`) is unspecified. Tests must drive only `0` and `1`.
+
+## Test strategy
+
+All expected values come from an independent arbitrary-precision integer reference written in the Cocotb test, not from the component. The reference does three things:
+1. Interprets each operand as signed or unsigned per the op table.
+2. Multiplies exactly.
+3. Reduces the product modulo 2^64 (for example `P & (2**64 - 1)`) and slices the required 32 bits.
+
+The reference must use the modulo reduction. It must not assume that the product is a signed 64-bit value, because MULHU products can exceed `2^63−1`.
+
+Every check compares the full 32-bit `result`. Inputs are driven as `0`/`1` only and sampled after settling. Hand-computed one-bit rules are used only where stated to be valid; every other expectation comes from the reference.
+
+### 1. Op selection (routing of the low word versus the three high-word variants)
+- **Control classes:** `op = 00, 01, 10, 11`.
+- **Causal relation:** for fixed operands, only `op` determines which slice and which signedness is applied.
+- **Distinguishing vectors:** for each of the following operand pairs, hold `operand_a` and `operand_b` constant and sweep all four `op` values. Expected results are listed as MUL/MULH/MULHSU/MULHU.
+  - V1 `(0x00000007, 0xFFFFFFFD)`: `FFFFFFEB / FFFFFFFF / 00000006 / 00000006`.
+  - V2 `(0xFFFFFFFD, 0x00000007)`: `FFFFFFEB / FFFFFFFF / FFFFFFFF / 00000006`.
+  - V3 `(0x80000000, 0x80000000)`: `00000000 / 40000000 / C0000000 / 40000000`.
+  - V4 `(0xFFFFFFFF, 0xFFFFFFFF)`: `00000001 / 00000000 / FFFFFFFF / FFFFFFFE`.
+  - V5 `(0x80000000, 0xFFFFFFFF)`: `80000000 / 00000000 / 80000000 / 7FFFFFFF`.
+  - V6 `(0x00000001, 0x80000000)`: `80000000 / FFFFFFFF / 00000000 / 00000000`.
+- **Why the vectors discriminate:** no single vector is claimed to separate every op, so separation is stated per pair of ops.
+  - V4 is the only vector with four distinct results, so it alone separates all four ops.
+  - V1 separates every pair except MULHSU/MULHU, which are equal (`00000006`).
+  - V2 separates MULHSU from MULHU (`FFFFFFFF` versus `00000006`) and MUL from the other three, but not MULH from MULHSU.
+  - V3 separates MULHSU from MULH and MULHU, and MUL from the other three, but not MULH from MULHU.
+  - V5 separates MULH from MULHU, but not MUL from MULHSU (both `80000000`).
+  - V6 separates MULH from MULHSU and from MULHU, but not MULHSU from MULHU.
+  - Every one of the six op pairs is separated by at least one vector. In particular, MULH/MULHU is separated by V1, V4, and V5, and MULHSU/MULHU by V2 and V4. A swapped or mis-decoded selector therefore fails.
+- The MUL low word and the high words differ in V1, V2, V4, and V6, so a wrong word selection fails.
+
+### 2. Signedness extension of `operand_a` (isolated)
+- **Control classes:** `operand_a[31] = 0` versus `1`, with `operand_b` fixed and `operand_b[31] = 0`.
+- **Method:** use `operand_b = 0x00000007` and `operand_a ∈ {0x7FFFFFFD, 0xFFFFFFFD}`. Flip only `operand_a[31]` and keep the low bits fixed.
+- **Expected relation:**
+  - MULH and MULHSU treat `operand_a` as signed, so a set bit 31 makes the high word negative.
+  - MULHU treats it as unsigned, so a set bit 31 gives a positive high word.
+- Run all three high ops and compare against the reference.
+
+### 3. Signedness extension of `operand_b` (isolated)
+- **Control classes:** `operand_b[31] = 0` versus `1`, with `operand_a` fixed and `operand_a[31] = 0`.
+- **Method:** use `operand_a = 0x00000007` and `operand_b ∈ {0x7FFFFFFD, 0xFFFFFFFD}`.
+- **Expected relation:**
+  - MULH treats `operand_b` as signed.
+  - MULHSU and MULHU treat it as unsigned.
+- Because `operand_a` is positive, MULHSU must equal MULHU in this experiment. MULH must differ from both when `operand_b[31] = 1`.
+- Repeat with `operand_a = 0xFFFFFFFD` and `operand_b = 0xFFFFFFFD` to confirm the MULHSU/MULHU split on the `operand_a` side. The expected values are MULHSU = `0xFFFFFFFD` and MULHU = `0xFFFFFFFA`.
+
+### 4. Operand-order sensitivity
+- **Method:** for each of MUL, MULH, MULHSU, MULHU, run the pairs `(x, y)` and `(y, x)` with `x ≠ y`, where `x` has bit 31 set and `y` is small positive with a distinct value.
+- **Distinguishable values:** use `x = 0xFFFFFFFD` and `y = 0x00000007`, and also `x = 0x80000001` and `y = 0x00000003`.
+- **Expected relation:** only MULHSU may give different results between the two orders, and it must differ for both listed pairs. MUL, MULH, and MULHU must be symmetric.
+
+### 5. Result slicing (low word versus high word position)
+- **Single-bit walk:** for `i, j` in `0..31`, drive `operand_a = 1<<i` and `operand_b = 1<<j`, and run all four ops. Compare every result against the reference. The closed-form expectations below are valid only where stated.
+  - **MUL (`op = 00`):** valid for all `i, j`, because the low word is interpretation-independent. If `i+j < 32`, the result is `1<<(i+j)`. Otherwise the result is `0`.
+  - **MULHU (`op = 11`):** valid for all `i, j`, because both operands are unsigned and the product is exactly `2^(i+j)`.
+    - If `i+j < 32`, the result is `0`.
+    - If `i+j ≥ 32`, the result is `1<<(i+j-32)`.
+    - `i = j = 31` gives `0x40000000`.
+  - **MULH (`op = 01`):** the one-bit rule holds only when neither `i` nor `j` is 31, giving `0` if `i+j < 32` and `1<<(i+j-32)` otherwise.
+    - When exactly one of `i, j` is 31, the operand is `−2^31`, so the product is `−2^(31+k)` with `k` the other index. `P64 = 2^64 − 2^(31+k)` has many bits set, and the high word is not a single bit. For example, `0x80000000 × 1` gives `0xFFFFFFFF`.
+    - `i = j = 31` gives `+2^62`, so the result is `0x40000000`. This value happens to equal MULHU's only because the product is positive.
+  - **MULHSU (`op = 10`):** `operand_a` is signed and `operand_b` is unsigned, so only `i = 31` is negative.
+    - If `i < 31`, the one-bit rule holds for every `j`, including `j = 31`.
+    - If `i = 31` and `j < 31`, the product is `−2^(31+j)`, which is a multi-bit high word. For example, `0x80000000 × 1` gives `0xFFFFFFFF`.
+    - `i = j = 31` gives `−2^62`, so the result is `0xC0000000`. This differs from MULH and MULHU at the same operands.
+  - For the signed variants, any implementation checking only a one-bit rule is wrong at `i = 31` or `j = 31`. The reference is the sole oracle there.
+- **Distinguishable words:** include products whose low and high words are both nonzero and different from each other, for example `0x12345678 × 0x9ABCDEF1`. This catches a high/low word swap or a shifted slice.
+
+### 6. Boundary values
+- Run all four ops on every pair from `{0x00000000, 0x00000001, 0xFFFFFFFF, 0x7FFFFFFF, 0x80000000, 0x80000001, 0x0000FFFF, 0x00010000}` in both operand orders (64 pairs × 4 ops).
+- Check each result against the reference.
+- Explicitly assert the fixed vectors listed in `## Edge cases`.
+- Include the MULHU large-product vectors whose product is `≥ 2^63`: `0xFFFFFFFF × 0xFFFFFFFF` → `0xFFFFFFFE`, and `0x80000000 × 0xFFFFFFFF` → `0x7FFFFFFF`. These confirm the modulo-2^64 (unsigned) definition of `P64`.
+
+### 7. Randomized regression
+- Run at least 2000 random `(operand_a, operand_b, op)` triples with a fixed seed.
+- Bias a third of the triples toward operands with bit 31 set, and a third toward small magnitudes.
+- Verify the full 32-bit result against the reference.
+
+### 8. Combinational behavior
+- Apply an input change, wait for settling, and check the result.
+- Then change only `op`, then only `operand_a`, then only `operand_b`, rechecking after each change.
+- Confirm that returning to a previously used triple gives the same result as before, which shows there is no hidden state.
+- No clock is driven.
+
+### 9. Parent integration (not observed through internal selectors)
+- Tests at the CPU public ports run MUL, MULH, MULHSU, and MULHU programs and check the architectural `rd` values. This checks the parent's `funct3[1:0]` → `op` adaptation indirectly, through results only.
+- Tests do not claim to observe the internal `op` signal.

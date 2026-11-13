@@ -1,0 +1,67 @@
+# Component semantic contract: immediate_generator
+
+## Public interface
+```vhdl
+entity immediate_generator is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0)
+    );
+end entity immediate_generator;
+```
+
+## Responsibility
+Generate I-, S-, B-, U-, and J-type immediates combinationally.
+
+## Timing
+
+`immediate_generator` is purely combinational. All five outputs reflect the current `instr` after combinational propagation settles; no clock edge or handshake is required.
+
+## Reset
+
+None. The component has no reset input or reset behavior.
+
+## Behavior
+
+Generate all five 32-bit outputs concurrently for every `instr` value. `sext` means sign extension to 32 bits, and `||` means concatenation:
+
+- `imm_i = sext(instr[31:20])`
+- `imm_s = sext(instr[31:25] || instr[11:7])`
+- `imm_b = sext(instr[31] || instr[7] || instr[30:25] || instr[11:8] || 0)`
+- `imm_u = instr[31:12] || 12'b0`
+- `imm_j = sext(instr[31] || instr[19:12] || instr[20] || instr[30:21] || 0)`
+
+The exact split-field mappings are:
+
+| Output | Bit mapping |
+|---|---|
+| `imm_b` | `[0]=0`, `[4:1]=instr[11:8]`, `[10:5]=instr[30:25]`, `[11]=instr[7]`, `[12]=instr[31]`, `[31:13]` sign-extended |
+| `imm_j` | `[0]=0`, `[10:1]=instr[30:21]`, `[11]=instr[20]`, `[19:12]=instr[19:12]`, `[20]=instr[31]`, `[31:21]` sign-extended |
+
+In VHDL, implement sign extension with `resize(signed(...), 32)`, not by manually repeating a sign bit.
+
+## Operations
+
+There is no encoded selector: every output is generated for every input word, independently of opcode and instruction validity. The CPU is now RV32IM, but M instructions are R-type (`opcode=0110011`, `funct7=0000001`) and introduce **no immediate format**. This component neither decodes nor executes M operations; their instruction words still produce the five outputs according to the same formulas.
+
+## Edge cases
+
+- `instr[31]=0` zero-fills the sign-extension regions of I, S, B, and J; `instr[31]=1` one-fills them.
+- `imm_b[0]` and `imm_j[0]` are always zero.
+- `imm_u[11:0]` is always zero, while `imm_u[31:12]` equals `instr[31:12]` exactly; U is not sign-extended.
+- Unsupported, invalid, and M instruction encodings do not suppress or change the formulas. In particular, M `funct7` bits remain ordinary input bits wherever an immediate formula references them.
+
+## Test strategy
+
+Use a combinational Cocotb test: drive `instr`, allow propagation to settle, and compare **all five** outputs with independent implementations of the formulas. Do not use a clock or reset.
+
+1. **Bit mapping:** For each bit `k=0..31`, test `0` versus `1 << k` and `0xFFFFFFFF` versus `0xFFFFFFFF ^ (1 << k)`. Check every output after each drive, including constant-zero positions.
+2. **Sign extension:** Test `0` and `0x80000000`. For each `k=0..30`, compare `1 << k` with `(1 << k) | 0x80000000`. Check the mapped bits, I/S/B/J sign-filled regions, and U’s directly copied bit 31 and zero low bits.
+3. **Split fields:** Test nonuniform words including `0xD5A69B3C` and `0x2B59E6A7`. Use distinct nonzero patterns in each source slice; vary only the slice or bit under examination to detect swapped, reversed, or incorrectly packed B- and J-type fields.
+4. **Opcode independence:** For each fixed nonuniform word, vary only `instr[6:0]` through all 128 values and check all outputs. Include `opcode=0110011`.
+5. **RV32M regression:** Test representative R-type words with `opcode=0110011`, `funct7=0000001`, and each `funct3=000..111`. Compare all outputs with the unchanged formulas, including the effects of `funct7` bits on outputs that reference them; require no M-specific selection or suppression.
+6. **Boundaries:** Test `0`, `0xFFFFFFFF`, `0x7FFFF000`, and `0x80000000` to check both sign values and the B/J and U constant-zero bits.

@@ -1,0 +1,62 @@
+# Component semantic contract: m_unit
+
+## Public interface
+```vhdl
+entity m_unit is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end m_unit;
+```
+
+## Responsibility
+Produce the selected 32-bit M result from two register operands and funct3, including defined division-by-zero and signed-overflow results.
+
+## Timing
+
+`m_unit` is combinational. `result` reflects the current `operand_a`, `operand_b`, and `funct3` without a clock edge. It has no state or instruction-completion handshake. Each result is a 32-bit value.
+
+## Reset
+
+none. There is no reset input, and prior input values do not affect the current result.
+
+## Behavior
+
+`operand_a` is the first register operand (the dividend for division and remainder); `operand_b` is the second register operand (the divisor). `funct3` selects exactly one RV32M operation. There is no opcode input: all eight `funct3` values select the M operations below.
+
+Operands are interpreted as signed or unsigned **separately for each selected operation**. Results are reduced to 32 bits where specified. No operation raises an exception or changes state.
+
+## Operations
+
+| `funct3` | Operation | `result` |
+|---|---|---|
+| `000` | MUL | Low 32 bits of `operand_a × operand_b` |
+| `001` | MULH | High 32 bits of signed × signed multiplication |
+| `010` | MULHSU | High 32 bits of signed `operand_a` × unsigned `operand_b` |
+| `011` | MULHU | High 32 bits of unsigned × unsigned multiplication |
+| `100` | DIV | Signed quotient, truncated toward zero |
+| `101` | DIVU | Unsigned quotient |
+| `110` | REM | Signed remainder; its sign, when nonzero, is the sign of `operand_a` |
+| `111` | REMU | Unsigned remainder |
+
+“High 32 bits” means bits 63 through 32 of the full product, including for MULHSU.
+
+## Edge cases
+
+- For a zero divisor, DIV and DIVU return `0xFFFFFFFF`; REM and REMU return `operand_a`.
+- For `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, DIV returns `0x80000000` and REM returns `0x00000000`. This is the signed-overflow case; DIVU and REMU retain their ordinary unsigned meanings.
+- Multiplication uses the full operand values. It does not saturate or signal overflow.
+- Signed remainder follows truncation toward zero: for example, `-7 / 2 = -3` and `-7 rem 2 = -1`.
+
+## Test strategy
+
+Use a Cocotb test that drives the three inputs, waits for combinational settling without a clock edge, and compares `result` with an independent 32-bit reference calculation. Convert each operand to signed form only for operations requiring it; calculate signed quotients with integer arithmetic that truncates toward zero, not floating-point division or floor division. Apply the edge-case rules before ordinary division.
+
+1. **Selector decoding:** Hold both operands fixed and sweep all eight `funct3` values, checking the table in order. Use additional operand pairs when two operations happen to yield the same value, so an incorrect selector cannot pass merely because those results coincide. Change only `funct3` during each sweep.
+2. **Operand routing and multiplication:** For each multiplication selector, hold `funct3` and one operand fixed while varying the other, then reverse which operand varies. Include `0`, `1`, `0x7FFFFFFF`, `0x80000000`, and `0xFFFFFFFF`, plus unequal operands. Check both product halves and use negative-bit-pattern second operands to distinguish MULH, MULHSU, and MULHU.
+3. **Dividend, divisor, and signedness:** For each division and remainder selector, vary the dividend with a fixed nonzero divisor, then vary the divisor with a fixed dividend. Include unequal magnitudes, exact and inexact divisions, positive and negative signed values, and values whose signed and unsigned interpretations differ. Check quotient and remainder separately; use cases where swapping the operands or selecting the other signedness produces a different result.
+4. **Boundary rules:** Test zero divisors for each of DIV, DIVU, REM, and REMU with dividends `0`, a nonzero positive value, and a negative-bit-pattern value. Test the signed-overflow pair under all four division/remainder selectors, changing only `funct3`. Also test neighboring non-overflow operand pairs to establish that the special result applies only to the specified pair.
+5. **Input independence:** After each directed case, change one input at a time and recheck the settled output. Include returning to an earlier complete input tuple after intervening tuples; it must reproduce the same result without reset or a clock edge.

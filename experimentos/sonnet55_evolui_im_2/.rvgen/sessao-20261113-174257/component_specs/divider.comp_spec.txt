@@ -1,0 +1,189 @@
+# Component semantic contract: divider
+
+## Public interface
+```vhdl
+entity divider is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        is_signed : in std_logic;
+        want_rem : in std_logic;
+        result : out std_logic_vector(31 downto 0)
+    );
+end divider;
+```
+
+## Responsibility
+Compute the quotient or remainder of operand_a / operand_b, signed or unsigned, truncating toward zero. The remainder has the sign of the dividend. Divisor = 0 gives quotient 0xFFFFFFFF and remainder = operand_a. Signed overflow (0x80000000 / 0xFFFFFFFF) gives quotient 0x80000000 and remainder 0. These cases are handled before any '/' or 'rem' is evaluated, so the simulation never divides by zero.
+
+## Timing
+
+- `divider` is purely combinational. It has no clock, no enable, and no stored state.
+- `result` is a function only of the current values of `operand_a`, `operand_b`, `is_signed` and `want_rem`.
+- After any input changes and the simulation settles (one delta cycle or more, no clock edge needed), `result` holds the value defined in this contract.
+- The result does not depend on input history. Applying the input vector X, then Y, then X again must give the same result both times X is applied.
+- All inputs must be driven with the defined values `'0'` or `'1'`. Behavior for `'U'`, `'X'`, `'Z'`, `'W'`, `'L'`, `'H'` or `'-'` is unspecified, and tests must not drive them.
+
+## Reset
+
+`none`. There is no reset input and no reset behavior.
+
+## Behavior
+
+Inputs:
+- `operand_a` (32 bits) is the dividend.
+- `operand_b` (32 bits) is the divisor.
+- `is_signed` selects the interpretation of both operands:
+  - `'1'`: both operands are two's-complement signed values.
+  - `'0'`: both operands are unsigned values.
+- `want_rem` selects which output is produced:
+  - `'0'`: `result` is the quotient.
+  - `'1'`: `result` is the remainder.
+
+The selector encodings (`is_signed`, `want_rem`) are unchanged by this revision. They are private to `divider`. `divider` has no dependencies, so no adaptation to another entity's encoding is needed. A parent that instantiates `divider` derives `is_signed` and `want_rem` from the instruction `funct3` field (see Operations).
+
+Output:
+- `result` (32 bits) is the selected quotient or remainder, encoded as a 32-bit two's-complement pattern (signed mode) or an unsigned pattern (unsigned mode). It is always fully defined for defined inputs.
+
+Arithmetic definition (divisor non-zero and not the signed-overflow case):
+- The quotient is the exact mathematical quotient truncated toward zero.
+- The remainder satisfies `a = q*b + r` exactly.
+- In signed mode the remainder is zero or has the same sign as the dividend `operand_a`, and `|r| < |b|`.
+- In unsigned mode `0 <= r < b`.
+- Both outputs are reduced to 32 bits. No exception, trap, or error signal exists.
+
+Special cases (these take precedence over the ordinary arithmetic definition). They are handled before any `/` or `rem` is evaluated, so the simulation never divides by zero.
+
+| Condition | `want_rem = '0'` (quotient) | `want_rem = '1'` (remainder) |
+|---|---|---|
+| `operand_b = 0x00000000`, either `is_signed` | `0xFFFFFFFF` | `operand_a` |
+| `is_signed='1'`, `operand_a = 0x80000000`, `operand_b = 0xFFFFFFFF` | `0x80000000` | `0x00000000` |
+
+The signed-overflow case applies only when `is_signed = '1'`. With `is_signed = '0'`, `0x80000000 / 0xFFFFFFFF` is an ordinary unsigned division: quotient `0x00000000`, remainder `0x80000000`.
+
+## Operations
+
+Two independent one-bit selectors. All four combinations are valid.
+
+| `is_signed` | `want_rem` | Operation | Result |
+|---|---|---|---|
+| `'0'` | `'0'` | DIVU | unsigned quotient |
+| `'0'` | `'1'` | REMU | unsigned remainder |
+| `'1'` | `'0'` | DIV | signed quotient, truncated toward zero |
+| `'1'` | `'1'` | REM | signed remainder, sign of dividend |
+
+Parent adaptation from the RV32M `funct3` field (`instr[14:12]`, with `funct7 = 0000001`):
+- `funct3 = 100` (DIV): `is_signed='1'`, `want_rem='0'`.
+- `funct3 = 101` (DIVU): `is_signed='0'`, `want_rem='0'`.
+- `funct3 = 110` (REM): `is_signed='1'`, `want_rem='1'`.
+- `funct3 = 111` (REMU): `is_signed='0'`, `want_rem='1'`.
+
+Equivalently, `want_rem = funct3(1)` and `is_signed = not funct3(0)`. This mapping belongs to the parent. `divider` itself only sees the two one-bit selectors.
+
+## Edge cases
+
+- Divisor zero, in all four operations, for any `operand_a`:
+  - Quotient operations return `0xFFFFFFFF`.
+  - Remainder operations return `operand_a` unchanged.
+  - This includes `operand_a = 0`.
+- Signed overflow (`is_signed='1'`, `0x80000000 / 0xFFFFFFFF`): DIV returns `0x80000000`, REM returns `0`.
+- Signed `0x80000000` with other divisors (for example `1`, `2`, `0x7FFFFFFF`) is ordinary arithmetic and not overflow.
+- Signed dividend `0x80000001` divided by `0xFFFFFFFF` is ordinary: quotient `0x7FFFFFFF`, remainder `0`.
+- Dividend smaller in magnitude than the divisor: quotient `0`, remainder equals the dividend (signed or unsigned interpretation as selected).
+- Dividend `0`, divisor non-zero: quotient `0`, remainder `0`.
+- Divisor `1`: quotient equals the dividend, remainder `0`.
+- Divisor equal to the dividend (non-zero): quotient `1`, remainder `0`.
+- Signed divisor `0xFFFFFFFF` (-1), dividend not `0x80000000`: quotient is the arithmetic negation of the dividend, remainder `0`.
+- Operands with bit 31 set are large positive values when `is_signed='0'` and negative values when `is_signed='1'`. The two modes must differ for such operands where the mathematics says they differ.
+- Signed sign combinations (dividend/divisor):
+  - `+/+`: quotient positive, remainder positive.
+  - `-/+`: quotient negative, remainder negative or zero.
+  - `+/-`: quotient negative, remainder positive or zero.
+  - `-/-`: quotient positive, remainder negative or zero.
+- The quotient result does not depend on `want_rem` other than through selection, and the remainder result does not depend on it other than through selection.
+
+## Test strategy
+
+All expected values below are computed by an independent reference model written in the test (Python integer arithmetic with explicit truncation toward zero and explicit special-case handling). Each test case applies inputs, waits for settling, and compares all 32 bits of `result`. Within each group, vary one semantic factor at a time and hold the others fixed.
+
+These tests drive the `divider` ports directly, so the selectors are observable here. At the CPU public ports, only the final register-writeback values (and any resulting memory or PC effects) are observable. Internal selectors are not observed directly.
+
+**1. Operation selector (`is_signed` × `want_rem`)**
+- Control classes: the four combinations in the Operations table.
+- Causal relation: `want_rem` chooses quotient or remainder of the same division. `is_signed` chooses the operand interpretation.
+- Distinguishable sources: use operands whose quotient and remainder differ from each other and from both operands, so a wrong selection cannot pass by coincidence.
+  - `100 / 7`: Q=`0x0000000E`, R=`0x00000002`.
+  - `0xFFFFFFF9 / 0x00000002`:
+    - unsigned: Q=`0x7FFFFFFC`, R=`0x00000001`.
+    - signed (-7/2): Q=`0xFFFFFFFD`, R=`0xFFFFFFFF`.
+- Method:
+  - Hold operands fixed and apply all four selector combinations. Each of the four results must match exactly.
+  - Then toggle only `want_rem`, then only `is_signed`, for each operand pair. The results must change exactly as the relation predicts.
+  - For `100 / 7`, signed and unsigned results must be identical. This shows `is_signed` has no effect when both operands are non-negative.
+
+**2. Operand roles (dividend vs divisor)**
+- Apply `100 / 7` (Q=`14`, R=`2`) and then the swapped `7 / 100` (Q=`0`, R=`7`), in all four operations.
+- For `100 / 7`, the values a=`100`, b=`7`, Q=`14` and R=`2` are all different. Both Q and R differ from the swapped result.
+- For `7 / 100`, R equals the dividend (`7`) by mathematics, because any dividend smaller than the divisor leaves remainder = dividend. In this case Q, R and a are not all distinct.
+  - Do not rely on R alone to detect swapped operands in the `7 / 100` case. R=`7` there cannot separate a swapped-operand fault from a "remainder = dividend" fault.
+  - Detect the swap through the quotient: Q=`14` versus Q=`0`. Also detect it through R in the `100 / 7` case: R=`2` versus R=`7`.
+- Add a second swap pair, `1000 / 30` (Q=`33`, R=`10`) and `30 / 1000` (Q=`0`, R=`30`). The same rule applies: the swap is detected by Q and by R in the first case, and by Q in the second.
+
+**3. Signed sign combinations (`is_signed='1'`, both `want_rem` values)**
+- Apply the cases in this Gray-code order:
+  1. `7 / 2`: Q=`0x00000003`, R=`0x00000001`.
+  2. `-7 / 2` (`0xFFFFFFF9 / 0x00000002`): Q=`0xFFFFFFFD`, R=`0xFFFFFFFF`.
+  3. `-7 / -2` (`0xFFFFFFF9 / 0xFFFFFFFE`): Q=`0x00000003`, R=`0xFFFFFFFF`.
+  4. `7 / -2` (`0x00000007 / 0xFFFFFFFE`): Q=`0xFFFFFFFD`, R=`0x00000001`.
+- Magnitudes are held constant. Between consecutive cases exactly one operand's sign changes (`a`, then `b`, then `a`). This verifies truncation toward zero and that the remainder has the dividend's sign.
+
+**4. Signed vs unsigned interpretation of bit 31**
+- Keep the bit patterns fixed and toggle only `is_signed`:
+  - `0xFFFFFFFF / 0x00000002`: unsigned Q=`0x7FFFFFFF`, R=`0x00000001`. Signed (-1/2) Q=`0x00000000`, R=`0xFFFFFFFF`.
+  - `0x00000007 / 0xFFFFFFFE`: unsigned Q=`0x00000000`, R=`0x00000007`. Signed (7/-2) Q=`0xFFFFFFFD`, R=`0x00000001`.
+  - `0xFFFFFFFF / 0x00010000`: unsigned Q=`0x0000FFFF`, R=`0x0000FFFF`. Signed Q=`0x00000000`, R=`0xFFFFFFFF`.
+  - `0xFFFFFFFF / 0xFFFFFFFF`: Q=`1`, R=`0` in both modes.
+
+**5. Divisor zero**
+- Dividends: `0x00000000`, `0x00000005`, `0x7FFFFFFF`, `0x80000000`, `0xFFFFFFFF`, `0xA5A5A5A5`.
+- Each dividend is run through all four operations with `operand_b = 0`.
+- Expected: quotient operations give `0xFFFFFFFF`. Remainder operations give exactly the dividend, which are distinct values, so a constant or wrong source fails.
+- The test must complete with no simulator error or division fault.
+
+**6. Signed overflow and its neighbors**
+- `0x80000000 / 0xFFFFFFFF`:
+  - Signed DIV: `0x80000000`.
+  - Signed REM: `0x00000000`.
+  - Unsigned DIVU: `0x00000000`.
+  - Unsigned REMU: `0x80000000`.
+- Vary one factor at a time from the overflow case:
+  - `0x80000000 / 0x00000001` signed: Q=`0x80000000`, R=`0`.
+  - `0x80000000 / 0x00000002` signed: Q=`0xC0000000`, R=`0`.
+  - `0x80000000 / 0x7FFFFFFF` signed: Q=`0xFFFFFFFF`, R=`0xFFFFFFFF`.
+  - `0x80000001 / 0xFFFFFFFF` signed: Q=`0x7FFFFFFF`, R=`0`.
+  - `0x00000005 / 0xFFFFFFFF` signed: Q=`0xFFFFFFFB`, R=`0`.
+
+**7. Magnitude and identity boundaries (all four operations)**
+- `0 / 5`: Q=`0`, R=`0`.
+- `3 / 10`: Q=`0`, R=`3`.
+- `12345 / 12345`: Q=`1`, R=`0`.
+- `0x12345678 / 1`: Q=`0x12345678`, R=`0`.
+- `0xFFFFFFFF / 1` unsigned: Q=`0xFFFFFFFF`, R=`0`.
+- `0x7FFFFFFF / 2`: Q=`0x3FFFFFFF`, R=`1`.
+- `0xFFFFFFFE / 0xFFFFFFFF` unsigned: Q=`0`, R=`0xFFFFFFFE`.
+
+**8. Bit-position sweeps**
+- Dividend `2^k` for k = 0..31 with fixed divisor `3`, in all four operations. This catches a bit lost or misrouted at any position.
+- Divisor `2^k` for k = 0..31 with fixed dividend `0xFFFFFFFF`, in unsigned and signed modes. For k=31, signed means divisor = -2^31.
+- Expected values come from the reference model.
+
+**9. Randomized cross-check**
+- At least 2000 seeded random vectors for each of the four operations, using a fixed seed that is logged.
+- Operands are drawn from a mix of uniformly random 32-bit values, small values, values near `0x7FFFFFFF`/`0x80000000`, and values with only bit 31 set.
+- Include at least 50 vectors per operation with a zero divisor.
+- Every result is compared with the reference model.
+- Identity check for every non-special vector: `a = Q*b + R` holds, and the sign and magnitude constraints in the Behavior section hold.
+
+**10. Combinational behavior**
+- Change each input individually, with no clock present, and verify `result` updates after settling.
+- Apply the sequence X, Y, X for several vector pairs and verify the first and second results for X are identical.

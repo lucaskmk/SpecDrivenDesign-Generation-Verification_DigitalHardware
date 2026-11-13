@@ -1,0 +1,75 @@
+{
+  "origem": "experimentos/luna6_prof_3",
+  "isa_anterior": "rv32i",
+  "isa_nova": "rv32im",
+  "linha_de_base": {
+    "isa": "rv32i",
+    "componentes": {
+      "immediate_generator": {
+        "passaram": 5,
+        "total": 5
+      },
+      "register_file": {
+        "passaram": 5,
+        "total": 5
+      },
+      "alu": {
+        "passaram": 5,
+        "total": 5
+      },
+      "decoder": {
+        "passaram": 5,
+        "total": 5
+      },
+      "cpu": {
+        "passaram": 5,
+        "total": 5
+      }
+    },
+    "spec_riscv_test": "40/40 casos"
+  },
+  "entendimento": "The CPU specification changed from single-cycle RV32I to single-cycle RV32IM while keeping the exact same top-level entity, single-cycle execution timing, memory bus protocol, and asynchronous active-high reset. The CPU must now decode and execute the eight R-type M-extension instructions (MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU) encoded under opcode 0110011 (0x33) with funct7 = 0000001 (0x01) in a single clock cycle, including exact RISC-V architectural results for division by zero and signed division overflow (-2^31 / -1) guarded before VHDL division/remainder operators.",
+  "blocos": {
+    "immediate_generator": {
+      "acao": "keep",
+      "de": [
+        "immediate_generator"
+      ],
+      "mudanca": "kept"
+    },
+    "register_file": {
+      "acao": "keep",
+      "de": [
+        "register_file"
+      ],
+      "mudanca": "kept"
+    },
+    "alu": {
+      "acao": "keep",
+      "de": [
+        "alu"
+      ],
+      "mudanca": "kept"
+    },
+    "muldiv_unit": {
+      "acao": "new",
+      "de": [],
+      "mudanca": "New combinational execution unit implementing the eight RV32M multiply, divide, and remainder operations."
+    },
+    "decoder": {
+      "acao": "change",
+      "de": [
+        "decoder"
+      ],
+      "mudanca": "Decode opcode 0x33 with funct7 = 0000001 as valid RV32M instructions, add the 3-bit muldiv_op output, and use wb_select = \"11\" to select muldiv_unit writeback."
+    },
+    "cpu": {
+      "acao": "change",
+      "de": [
+        "cpu"
+      ],
+      "mudanca": "Instantiate muldiv_unit, connect rs1_data, rs2_data, and decoder muldiv_op to it, and select muldiv_unit result for register writeback when wb_select = \"11\"."
+    }
+  },
+  "removidos": []
+}

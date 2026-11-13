@@ -1,0 +1,8 @@
+{
+  "bloco": "decoder",
+  "arquivo": "src/decoder.vhd",
+  "hash_vhdl": "44d79f36848360706bc796f775dae356f1dd7c72e55000af4775e4561983be58",
+  "testes": [
+    "testes/test_decoder.py"
+  ]
+}

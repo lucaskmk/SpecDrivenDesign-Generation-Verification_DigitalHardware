@@ -1,0 +1,340 @@
+{
+  "design": "luna6_prof_3",
+  "microarquitetura": "monociclo",
+  "isa": "rv32im",
+  "top": "cpu",
+  "origem": "modelo",
+  "blocks": [
+    {
+      "name": "immediate_generator",
+      "file": "src/immediate_generator.vhd",
+      "responsibility": "Generate sign-extended I-, S-, B-, and J-type immediates, and the zero-extended U-type immediate from the instruction word.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "imm_i : out std_logic_vector(31 downto 0)",
+        "imm_s : out std_logic_vector(31 downto 0)",
+        "imm_b : out std_logic_vector(31 downto 0)",
+        "imm_u : out std_logic_vector(31 downto 0)",
+        "imm_j : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Centralizes immediate bit mapping and sign extension, making branch, jump, load/store, and ALU-immediate behavior independently verifiable.",
+      "depends_on": []
+    },
+    {
+      "name": "register_file",
+      "file": "src/register_file.vhd",
+      "responsibility": "Provide 32 32-bit integer registers with two asynchronous read ports, one rising-edge write port, asynchronous active-high reset, and hardwired-zero x0.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "rs1_addr : in std_logic_vector(4 downto 0)",
+        "rs2_addr : in std_logic_vector(4 downto 0)",
+        "rs1_data : out std_logic_vector(31 downto 0)",
+        "rs2_data : out std_logic_vector(31 downto 0)",
+        "rd_addr : in std_logic_vector(4 downto 0)",
+        "rd_data : in std_logic_vector(31 downto 0)",
+        "rd_write : in std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "Isolates architectural state and asynchronous operand reads, keeping the single-cycle datapath simple and register behavior easy to test.",
+      "depends_on": []
+    },
+    {
+      "name": "alu",
+      "file": "src/alu.vhd",
+      "responsibility": "Perform RV32I arithmetic, logic, shifts, and signed and unsigned comparisons selected by an operation control input.",
+      "ports": [
+        "operand_a : in std_logic_vector(31 downto 0)",
+        "operand_b : in std_logic_vector(31 downto 0)",
+        "alu_control : in std_logic_vector(3 downto 0)",
+        "result : out std_logic_vector(31 downto 0)",
+        "equal : out std_logic",
+        "signed_less : out std_logic",
+        "unsigned_less : out std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "Keeps datapath operations and comparison semantics in one combinational block, supporting focused verification and avoiding unnecessary pipeline state.",
+      "depends_on": []
+    },
+    {
+      "name": "multiplier",
+      "file": "src/multiplier.vhd",
+      "responsibility": "Compute the low or high 32 bits of the 64-bit product with signed/signed, signed/unsigned or unsigned/unsigned interpretation, selected by a 2-bit operation code (00 MUL, 01 MULH, 10 MULHSU, 11 MULHU, equal to funct3[1:0]).",
+      "ports": [
+        "operand_a : in std_logic_vector(31 downto 0)",
+        "operand_b : in std_logic_vector(31 downto 0)",
+        "mul_op : in std_logic_vector(1 downto 0)",
+        "result : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Isolating the multiplier lets cocotb check the exact spec examples (MULH 0x80000000^2, MULHSU -1 x 0xFFFFFFFF, MULHU) without any CPU context. It uses signed 33-bit by 33-bit operands (sign- or zero-extended per operation) and takes bits [31:0] or [63:32].",
+      "depends_on": []
+    },
+    {
+      "name": "divider",
+      "file": "src/divider.vhd",
+      "responsibility": "Compute signed and unsigned quotient and remainder, truncating toward zero, selected by a 2-bit operation code (00 DIV, 01 DIVU, 10 REM, 11 REMU, equal to funct3[1:0]). Handle divisor = 0 (quotient all ones, remainder = dividend) and signed overflow 0x80000000 / -1 (quotient 0x80000000, remainder 0) before the arithmetic, so no simulation division error occurs.",
+      "ports": [
+        "operand_a : in std_logic_vector(31 downto 0)",
+        "operand_b : in std_logic_vector(31 downto 0)",
+        "div_op : in std_logic_vector(1 downto 0)",
+        "result : out std_logic"
+      ],
+      "satisfies": [],
+      "design_rationale": "Special cases are the highest-risk part of M, so they are isolated in one block with exhaustive directed tests. The result must be std_logic_vector(31 downto 0); the port is written as such below.",
+      "depends_on": []
+    },
+    {
+      "name": "decoder",
+      "file": "src/decoder.vhd",
+      "responsibility": "Decode RV32IM instruction opcode and function fields into register-write, memory-write, operand-source, ALU-operation, branch, jump, writeback-selection and M-operation controls.",
+      "ports": [
+        "instr : in std_logic_vector(31 downto 0)",
+        "reg_write : out std_logic",
+        "mem_write : out std_logic",
+        "alu_src_a_pc : out std_logic",
+        "alu_src_b_imm : out std_logic",
+        "alu_control : out std_logic_vector(3 downto 0)",
+        "branch_enable : out std_logic",
+        "jump : out std_logic",
+        "jalr : out std_logic",
+        "wb_select : out std_logic_vector(1 downto 0)",
+        "muldiv_op : out std_logic_vector(2 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "Decoding is the only place where funct7=0000001 was previously rejected. Reusing wb_select \"11\" and adding one 3-bit output is a minimal interface change. The decoder tests must be updated: the M encodings are now valid, and the old 'unsupported funct7' cases must not use 0000001 for OP.",
+      "depends_on": []
+    },
+    {
+      "name": "muldiv_unit",
+      "file": "src/muldiv_unit.vhd",
+      "responsibility": "Given rs1, rs2 and funct3 of an M instruction, instantiate the multiplier and divider and output the result of the selected operation: funct3[2]=0 selects the multiplier, funct3[2]=1 selects the divider, and funct3[1:0] is passed as the sub-operation.",
+      "ports": [
+        "operand_a : in std_logic_vector(31 downto 0)",
+        "operand_b : in std_logic_vector(31 downto 0)",
+        "funct3 : in std_logic_vector(2 downto 0)",
+        "result : out std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "This keeps the cpu top level small, with one M result bus and one mux input. The funct3-to-operation mapping is tested once, independently of fetch and decode.",
+      "depends_on": [
+        "multiplier",
+        "divider"
+      ]
+    },
+    {
+      "name": "cpu",
+      "file": "src/cpu.vhd",
+      "responsibility": "Implement the RV32IM single-cycle top level: maintain the PC, instantiate the register file, decoder, ALU, immediate generator and M unit, select branch and jump targets, perform load extraction and extension, select the writeback source among ALU, load data, PC+4 and M result, and drive the instruction and data buses exactly as specified.",
+      "ports": [
+        "clk : in std_logic",
+        "rst : in std_logic",
+        "instr_addr : out std_logic_vector(31 downto 0)",
+        "instr_data : in std_logic_vector(31 downto 0)",
+        "data_addr : out std_logic_vector(31 downto 0)",
+        "data_write : out std_logic",
+        "data_width : out std_logic_vector(1 downto 0)",
+        "data_write_data : out std_logic_vector(31 downto 0)",
+        "data_read_data : in std_logic_vector(31 downto 0)"
+      ],
+      "satisfies": [],
+      "design_rationale": "The CPU only gains one component instance and one mux input, so the single-cycle contract is preserved. The M result is computed combinationally in the same cycle and committed at the rising edge through the existing register-file write port.",
+      "depends_on": [
+        "immediate_generator",
+        "register_file",
+        "alu",
+        "decoder",
+        "muldiv_unit"
+      ]
+    }
+  ],
+  "notes": "Use only ieee.std_logic_1164 and ieee.numeric_std. The decoder's wb_select encodings should distinguish ALU result, load data, PC+4, and U-immediate; AUIPC uses PC as the ALU first operand. Branch conditions use funct3 together with the ALU comparison outputs. Stores drive the unshifted rs2 value and select byte, halfword, or word width; loads select and extend the addressed subword from the asynchronously supplied aligned word.",
+  "instructions": [
+    {
+      "mnemonic": "lui",
+      "description": "U-type, opcode 0110111. rd = instr[31:12] << 12 (low 12 bits zero). Next PC = pc+4."
+    },
+    {
+      "mnemonic": "auipc",
+      "description": "U-type, opcode 0010111. rd = pc + (instr[31:12] << 12). Next PC = pc+4."
+    },
+    {
+      "mnemonic": "jal",
+      "description": "J-type, opcode 1101111. rd = pc+4; next PC = pc + J-immediate (sign-extended, bit 0 = 0). Takes priority over branches. JAL x0,0 keeps the PC unchanged (halt loop). Writes to x0 are ignored."
+    },
+    {
+      "mnemonic": "jalr",
+      "description": "I-type, opcode 1100111, funct3 000. rd = pc+4; next PC = (rs1 + I) with bit 0 cleared. rs1 is read before rd is written. Writes to x0 are ignored."
+    },
+    {
+      "mnemonic": "beq",
+      "description": "B-type, opcode 1100011, funct3 000. If rs1 == rs2, next PC = pc + B-immediate, else pc+4. No register write."
+    },
+    {
+      "mnemonic": "bne",
+      "description": "B-type, opcode 1100011, funct3 001. If rs1 != rs2, next PC = pc + B-immediate, else pc+4. No register write."
+    },
+    {
+      "mnemonic": "blt",
+      "description": "B-type, opcode 1100011, funct3 100. If signed(rs1) < signed(rs2), next PC = pc + B-immediate, else pc+4."
+    },
+    {
+      "mnemonic": "bge",
+      "description": "B-type, opcode 1100011, funct3 101. If signed(rs1) >= signed(rs2), next PC = pc + B-immediate, else pc+4."
+    },
+    {
+      "mnemonic": "bltu",
+      "description": "B-type, opcode 1100011, funct3 110. If unsigned(rs1) < unsigned(rs2), next PC = pc + B-immediate, else pc+4."
+    },
+    {
+      "mnemonic": "bgeu",
+      "description": "B-type, opcode 1100011, funct3 111. If unsigned(rs1) >= unsigned(rs2), next PC = pc + B-immediate, else pc+4."
+    },
+    {
+      "mnemonic": "lb",
+      "description": "I-type load, opcode 0000011, funct3 000. data_addr = rs1 + I (unmasked), data_width=00, data_write=0. Select byte from data_read_data by addr[1:0] (little-endian), sign-extend to 32 bits, write to rd."
+    },
+    {
+      "mnemonic": "lh",
+      "description": "I-type load, opcode 0000011, funct3 001. data_addr = rs1 + I, data_width=01, data_write=0. Select halfword by addr[1] (bits 15:0 or 31:16), sign-extend, write to rd."
+    },
+    {
+      "mnemonic": "lw",
+      "description": "I-type load, opcode 0000011, funct3 010. data_addr = rs1 + I, data_width=10, data_write=0. rd = data_read_data."
+    },
+    {
+      "mnemonic": "lbu",
+      "description": "I-type load, opcode 0000011, funct3 100. data_addr = rs1 + I, data_width=00. Select byte by addr[1:0], zero-extend to 32 bits, write to rd."
+    },
+    {
+      "mnemonic": "lhu",
+      "description": "I-type load, opcode 0000011, funct3 101. data_addr = rs1 + I, data_width=01. Select halfword by addr[1], zero-extend, write to rd."
+    },
+    {
+      "mnemonic": "sb",
+      "description": "S-type store, opcode 0100011, funct3 000. data_addr = rs1 + S (S = sext(instr[31:25]||instr[11:7])), data_width=00, data_write=1, data_write_data = rs2 (validator uses low 8 bits). No register write."
+    },
+    {
+      "mnemonic": "sh",
+      "description": "S-type store, opcode 0100011, funct3 001. data_addr = rs1 + S, data_width=01, data_write=1, data_write_data = rs2 (low 16 bits used). No register write."
+    },
+    {
+      "mnemonic": "sw",
+      "description": "S-type store, opcode 0100011, funct3 010. data_addr = rs1 + S, data_width=10, data_write=1, data_write_data = rs2. No register write."
+    },
+    {
+      "mnemonic": "addi",
+      "description": "OP-IMM opcode 0010011, funct3 000. rd = rs1 + sext(I), 32-bit wraparound."
+    },
+    {
+      "mnemonic": "slti",
+      "description": "OP-IMM funct3 010. rd = 1 if signed(rs1) < signed(sext(I)), else 0."
+    },
+    {
+      "mnemonic": "sltiu",
+      "description": "OP-IMM funct3 011. rd = 1 if unsigned(rs1) < unsigned(sext(I)) (immediate sign-extended then compared unsigned), else 0."
+    },
+    {
+      "mnemonic": "xori",
+      "description": "OP-IMM funct3 100. rd = rs1 XOR sext(I)."
+    },
+    {
+      "mnemonic": "ori",
+      "description": "OP-IMM funct3 110. rd = rs1 OR sext(I)."
+    },
+    {
+      "mnemonic": "andi",
+      "description": "OP-IMM funct3 111. rd = rs1 AND sext(I)."
+    },
+    {
+      "mnemonic": "slli",
+      "description": "OP-IMM funct3 001, instr[31:25]=0000000. rd = rs1 shifted left logically by shamt = instr[24:20]."
+    },
+    {
+      "mnemonic": "srli",
+      "description": "OP-IMM funct3 101, instr[30]=0 (instr[31:25]=0000000). rd = rs1 shifted right logically by shamt = instr[24:20]."
+    },
+    {
+      "mnemonic": "srai",
+      "description": "OP-IMM funct3 101, instr[30]=1 (instr[31:25]=0100000). rd = rs1 shifted right arithmetically by shamt = instr[24:20], preserving sign."
+    },
+    {
+      "mnemonic": "add",
+      "description": "OP opcode 0110011, funct3 000, funct7 0000000. rd = rs1 + rs2, 32-bit wraparound."
+    },
+    {
+      "mnemonic": "sub",
+      "description": "OP funct3 000, funct7 0100000. rd = rs1 - rs2, 32-bit wraparound."
+    },
+    {
+      "mnemonic": "sll",
+      "description": "OP funct3 001, funct7 0000000. rd = rs1 << rs2[4:0] (logical)."
+    },
+    {
+      "mnemonic": "slt",
+      "description": "OP funct3 010, funct7 0000000. rd = 1 if signed(rs1) < signed(rs2), else 0."
+    },
+    {
+      "mnemonic": "sltu",
+      "description": "OP funct3 011, funct7 0000000. rd = 1 if unsigned(rs1) < unsigned(rs2), else 0."
+    },
+    {
+      "mnemonic": "xor",
+      "description": "OP funct3 100, funct7 0000000. rd = rs1 XOR rs2."
+    },
+    {
+      "mnemonic": "srl",
+      "description": "OP funct3 101, funct7 0000000. rd = rs1 >> rs2[4:0] (logical)."
+    },
+    {
+      "mnemonic": "sra",
+      "description": "OP funct3 101, funct7 0100000. rd = rs1 >> rs2[4:0] (arithmetic, sign preserved)."
+    },
+    {
+      "mnemonic": "or",
+      "description": "OP funct3 110, funct7 0000000. rd = rs1 OR rs2."
+    },
+    {
+      "mnemonic": "and",
+      "description": "OP funct3 111, funct7 0000000. rd = rs1 AND rs2."
+    },
+    {
+      "mnemonic": "mul",
+      "description": "OP funct7 0000001, funct3 000. rd = low 32 bits of rs1 * rs2 (same for signed/unsigned)."
+    },
+    {
+      "mnemonic": "mulh",
+      "description": "OP funct7 0000001, funct3 001. rd = bits [63:32] of signed(rs1) * signed(rs2) (64-bit product)."
+    },
+    {
+      "mnemonic": "mulhsu",
+      "description": "OP funct7 0000001, funct3 010. rd = bits [63:32] of signed(rs1) * unsigned(rs2); sign-extend rs1 and zero-extend rs2 to 33 bits, multiply as signed."
+    },
+    {
+      "mnemonic": "mulhu",
+      "description": "OP funct7 0000001, funct3 011. rd = bits [63:32] of unsigned(rs1) * unsigned(rs2)."
+    },
+    {
+      "mnemonic": "div",
+      "description": "OP funct7 0000001, funct3 100. Signed quotient truncated toward zero. Divisor 0 -> 0xFFFFFFFF; rs1=0x80000000 and rs2=-1 -> 0x80000000. Handle special cases before dividing, combinationally in a single cycle."
+    },
+    {
+      "mnemonic": "divu",
+      "description": "OP funct7 0000001, funct3 101. Unsigned quotient. Divisor 0 -> 0xFFFFFFFF."
+    },
+    {
+      "mnemonic": "rem",
+      "description": "OP funct7 0000001, funct3 110. Signed remainder with the sign of the dividend (rs1). Divisor 0 -> rs1; rs1=0x80000000 and rs2=-1 -> 0. Handle special cases before dividing."
+    },
+    {
+      "mnemonic": "remu",
+      "description": "OP funct7 0000001, funct3 111. Unsigned remainder. Divisor 0 -> rs1."
+    }
+  ],
+  "evolucao": {
+    "de": "experimentos/luna6_prof_3",
+    "sessao": "sessao-20261104-171911",
+    "isa_anterior": "rv32i"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "elf": "/repo/experimentos/sol6_evolui_im_1/.rvgen/sessao-20261113-163924/spec-riscv-test/linha-de-base/programs/rv32ui-p-xor",
+  "max_cycles": 20000,
+  "report": "/repo/experimentos/sol6_evolui_im_1/.rvgen/sessao-20261113-163924/spec-riscv-test/linha-de-base/rv32ui-p-xor/report.json",
+  "test": "rv32ui-p-xor",
+  "trace": null
+}

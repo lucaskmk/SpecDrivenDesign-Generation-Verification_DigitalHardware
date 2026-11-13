@@ -1,0 +1,107 @@
+# Component semantic contract: muldiv_unit
+
+## Public interface
+```vhdl
+entity muldiv_unit is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        muldiv_op : in std_logic_vector(2 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end muldiv_unit;
+```
+
+## Responsibility
+Perform single-cycle combinational RV32M 32x32 multiplication (MUL, MULH, MULHSU, MULHU) and signed/unsigned division and remainder (DIV, DIVU, REM, REMU) with RISC-V division-by-zero and signed-overflow handling.
+
+## Timing
+
+Purely combinational, zero-latency execution. `result` is a deterministic combinational function of `operand_a`, `operand_b`, and `muldiv_op` within the same cycle, with no clock input and no internal state retention across input changes.
+
+## Reset
+
+none
+
+## Behavior
+
+`muldiv_unit` computes the 32-bit result of the RV32M integer multiplication, division, and remainder instructions:
+
+- `operand_a(31 downto 0)`: First source operand (`rs1`), acting as the multiplicand for multiplication operations and the dividend for division and remainder operations.
+- `operand_b(31 downto 0)`: Second source operand (`rs2`), acting as the multiplier for multiplication operations and the divisor for division and remainder operations.
+- `muldiv_op(2 downto 0)`: Operation selector encoded identically to the RV32M `funct3` field.
+- `result(31 downto 0)`: Computed 32-bit output value (`rd`).
+
+Data interpretation and arithmetic semantics:
+- Signed interpretations treat a 32-bit vector as a two's-complement integer in the range $[-2^{31}, 2^{31}-1]$.
+- Unsigned interpretations treat a 32-bit vector as a non-negative binary integer in the range $[0, 2^{32}-1]$.
+- Multiplication operations form the exact 64-bit two's-complement or unsigned mathematical product of `operand_a` and `operand_b` according to each operation's operand signedness, then output either bits `[31:0]` (`MUL`) or bits `[63:32]` (`MULH`, `MULHSU`, `MULHU`).
+- `MULHSU` is asymmetric: `operand_a` is interpreted as signed and `operand_b` is interpreted as unsigned.
+- Division operations (`DIV`, `DIVU`) compute the integer quotient truncated toward zero.
+- Remainder operations (`REM`, `REMU`) compute the integer remainder associated with truncating division such that, for all non-zero divisors other than signed overflow, $\text{operand\_a} = \text{quotient} \times \text{operand\_b} + \text{remainder}$ holds in exact integer arithmetic, and a non-zero signed remainder has the same sign as `operand_a`.
+- No input combination raises an exception, trap, or simulation runtime divide-by-zero/overflow error on any `muldiv_op` value.
+
+## Operations
+
+All eight 3-bit values of `muldiv_op` are defined:
+
+| `muldiv_op` | RV32M Mnemonic | Semantics of `result(31 downto 0)` |
+|---|---|---|
+| `"000"` | `MUL` | Bits `[31:0]` of the 64-bit product `operand_a * operand_b` (identical for signed and unsigned operands) |
+| `"001"` | `MULH` | Bits `[63:32]` of the 64-bit signed product `signed(operand_a) * signed(operand_b)` |
+| `"010"` | `MULHSU` | Bits `[63:32]` of the 64-bit mixed-sign product `signed(operand_a) * unsigned(operand_b)` |
+| `"011"` | `MULHU` | Bits `[63:32]` of the 64-bit unsigned product `unsigned(operand_a) * unsigned(operand_b)` |
+| `"100"` | `DIV` | Signed quotient `signed(operand_a) / signed(operand_b)`, truncated toward zero (except division by zero and signed overflow) |
+| `"101"` | `DIVU` | Unsigned quotient `unsigned(operand_a) / unsigned(operand_b)`, truncated toward zero (except division by zero) |
+| `"110"` | `REM` | Signed remainder of `signed(operand_a) / signed(operand_b)` with the sign of `operand_a` (except division by zero and signed overflow) |
+| `"111"` | `REMU` | Unsigned remainder of `unsigned(operand_a) / unsigned(operand_b)` (except division by zero) |
+
+## Edge cases
+
+- **Division and remainder by zero (`operand_b = 0x00000000`)**:
+  - `muldiv_op = "100"` (`DIV`): `result = 0xFFFFFFFF` (`-1`).
+  - `muldiv_op = "101"` (`DIVU`): `result = 0xFFFFFFFF` ($2^{32} - 1$).
+  - `muldiv_op = "110"` (`REM`): `result = operand_a`.
+  - `muldiv_op = "111"` (`REMU`): `result = operand_a`.
+  - `muldiv_op = "000"`..`"011"` (`MUL`, `MULH`, `MULHSU`, `MULHU`): `result = 0x00000000`, and having `operand_b = 0x00000000` must never trigger a runtime error in unselected division/remainder paths.
+- **Signed division overflow (`operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`)**:
+  - `muldiv_op = "100"` (`DIV`): `result = 0x80000000` ($-2^{31}$).
+  - `muldiv_op = "110"` (`REM`): `result = 0x00000000` (`0`).
+  - `muldiv_op = "101"` (`DIVU`): Normal unsigned division ($2^{31} / (2^{32}-1)$), producing `result = 0x00000000`.
+  - `muldiv_op = "111"` (`REMU`): Normal unsigned remainder, producing `result = 0x80000000`.
+  - `muldiv_op = "000"`..`"011"`: Normal 64-bit multiplications (`MUL = 0x80000000`, `MULH = 0x00000000`, `MULHSU = 0x80000000`, `MULHU = 0x7FFFFFFF`) with no runtime overflow error.
+- **Extreme 32-bit multiplication boundaries**:
+  - `operand_a = 0x80000000`, `operand_b = 0x80000000`: `MUL = 0x00000000`, `MULH = 0x40000000`, `MULHSU = 0xC0000000`, `MULHU = 0x40000000`.
+  - `operand_a = 0xFFFFFFFF`, `operand_b = 0xFFFFFFFF`: `MUL = 0x00000001`, `MULH = 0x00000000`, `MULHSU = 0xFFFFFFFF`, `MULHU = 0xFFFFFFFE`.
+- **Zero dividend (`operand_a = 0x00000000`, `operand_b /= 0x00000000`)**:
+  - `DIV`, `DIVU`, `REM`, `REMU` all produce `0x00000000` regardless of `operand_b`'s sign.
+- **Operand-order asymmetry**:
+  - Swapping `operand_a` and `operand_b` when `operand_a = 0xFFFFFFFF` and `operand_b = 0x00000002` yields `MULHSU = 0xFFFFFFFF` (`-1 * 2 = -2`, upper bits `0xFFFFFFFF`), whereas `operand_a = 0x00000002` and `operand_b = 0xFFFFFFFF` yields `MULHSU = 0x00000001` (`2 * (2^32 - 1) = 2^33 - 2`, upper bits `0x00000001`).
+  - Swapping `operand_a = 0xFFFFFFFF` and `operand_b = 0x80000000` for `DIV` yields `0x00000000` (`-1 / -2^31 = 0`) and `REM` yields `0xFFFFFFFF` (`-1`), rather than triggering signed overflow.
+
+## Test strategy
+
+1. **Operation selector decoding (`muldiv_op` control class)**:
+   - Hold `(operand_a, operand_b)` fixed and step `muldiv_op` across all 8 encodings (`"000"` through `"111"`), one selector change per step.
+   - Use operand pairs where MSB=1 is exercised and outputs across selectors do not alias:
+     - Pair A (`operand_a = 0xFFFFFFFF`, `operand_b = 0xFFFFFFFF`): verifies `MUL` (`0x00000001`), `MULH` (`0x00000000`), `MULHSU` (`0xFFFFFFFF`), and `MULHU` (`0xFFFFFFFE`) all produce mutually distinct 32-bit words, proving word-slice selection (`[31:0]` vs `[63:32]`) and signedness selection.
+     - Pair B (`operand_a = 0xFFFFFFF9` (`-7`), `operand_b = 0x00000002` (`2`)): verifies `DIV` (`0xFFFFFFFD`), `DIVU` (`0x7FFFFFFC`), `REM` (`0xFFFFFFFF`), and `REMU` (`0x00000001`) all produce mutually distinct 32-bit words and none match `MUL` (`0xFFFFFFF2`).
+
+2. **Multiplication signedness and operand-order isolation**:
+   - Hold `muldiv_op` fixed and vary only operand sign bits `(operand_a(31), operand_b(31))` across `(0,0)`, `(1,0)`, `(0,1)`, and `(1,1)` with non-trivial magnitudes whose products span into bits `[63:32]`.
+   - Specifically compare `(operand_a = 0xFFFFFFF9, operand_b = 0x00000003)` against swapped `(operand_a = 0x00000003, operand_b = 0xFFFFFFF9)` under `muldiv_op = "010"` (`MULHSU`): prove that `operand_a` is treated as signed (`result = 0xFFFFFFFF`) and `operand_b` is treated as unsigned (`result = 0x00000002`), while `MUL`, `MULH`, and `MULHU` remain invariant under operand swap.
+   - Test `operand_a = 0x80000000`, `operand_b = 0x80000000` across `"000"`..`"011"` to distinguish `MULH` (`0x40000000`) from `MULHSU` (`0xC0000000`) and `MUL` (`0x00000000`).
+
+3. **Division truncation and remainder sign isolation**:
+   - Hold non-divisible magnitudes fixed (e.g., `|a| = 7`, `|b| = 2`, and large 32-bit magnitudes with non-zero upper bits) and vary one operand sign at a time across `(+7, +2)`, `(-7, +2)`, `(+7, -2)`, and `(-7, -2)`:
+     - Under `muldiv_op = "100"` (`DIV`), verify truncation toward zero (`3`, `-3`, `-3`, `3`).
+     - Under `muldiv_op = "110"` (`REM`), verify the remainder sign tracks `operand_a` exclusively (`1`, `-1`, `1`, `-1`) and satisfies `signed(operand_a) = signed(DIV) * signed(operand_b) + signed(REM)`.
+   - Under `muldiv_op = "101"` (`DIVU`) and `"111"` (`REMU`), test operands with bit 31 set in `operand_a` only (`0x80000005`, `0x00000003`), in `operand_b` only (`0x00000005`, `0x80000003`), and in both (`0xFFFFFFF5`, `0x80000003`) to verify full 32-bit unsigned comparison and division, and swap operands to verify dividend/divisor routing is not transposed.
+
+4. **Division-by-zero boundary across all selectors**:
+   - Set `operand_b = 0x00000000` and test distinct `operand_a` values (`0x12345678`, `0x87654321`, `0x80000000`, `0x00000000`) chosen so `operand_a /= 0xFFFFFFFF` makes `REM`/`REMU` outputs (`operand_a`) distinguishable from `DIV`/`DIVU` outputs (`0xFFFFFFFF`).
+   - For each `operand_a`, sweep all 8 `muldiv_op` values (`"000"`..`"111"`): verify `"000"`..`"011"` output `0x00000000` cleanly without simulation error, `"100"` and `"101"` output `0xFFFFFFFF`, and `"110"` and `"111"` output `operand_a`.
+
+5. **Signed-overflow boundary and single-factor neighbor exclusion**:
+   - Set `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF` and sweep all 8 `muldiv_op` values: verify `DIV = 0x80000000`, `REM = 0x00000000`, `DIVU = 0x00000000`, `REMU = 0x80000000`, `MUL = 0x80000000`, `MULH = 0x00000000`, `MULHSU = 0x80000000`, and `MULHU = 0x7FFFFFFF`.
+   - Perturb one factor at a time from `(0x80000000, 0xFFFFFFFF)`—testing `(0x80000001, 0xFFFFFFFF)`, `(0x80000000, 0xFFFFFFFE)`, and swapped `(0xFFFFFFFF, 0x80000000)`—under `DIV` and `REM` to confirm overflow substitution does not activate on adjacent values or reversed operands.

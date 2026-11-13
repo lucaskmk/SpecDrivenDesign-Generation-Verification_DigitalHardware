@@ -1,0 +1,7 @@
+{
+  "elf": "/repo/experimentos/carbon4_evolui_im_1/.rvgen/sessao-20261113-165813/spec-riscv-test/suite/programs/rv32ui-p-add",
+  "max_cycles": 20000,
+  "report": "/repo/experimentos/carbon4_evolui_im_1/.rvgen/sessao-20261113-165813/spec-riscv-test/suite/rv32ui-p-add/report.json",
+  "test": "rv32ui-p-add",
+  "trace": null
+}

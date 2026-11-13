@@ -1,0 +1,8 @@
+{
+  "bloco": "divider",
+  "arquivo": "src/divider.vhd",
+  "hash_vhdl": "2a2af9d03ecc4fd69851cf8fa1c21b4ce03d2a971049a0208b8521e2dd23ea59",
+  "testes": [
+    "testes/test_divider.py"
+  ]
+}
