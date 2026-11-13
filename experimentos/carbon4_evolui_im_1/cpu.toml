@@ -1,0 +1,47 @@
+# Manifesto gerado por rvgen: deterministico, a partir do contrato
+# fixo em rvgen/contrato.py. Nao foi escrito pelo modelo de
+# linguagem; so as fontes em src/ foram.
+#
+# CPU RV32IM fixa (o M esta sempre presente, sem generic): por isso
+# nao ha rv32m_generic. Para o Quartus, use --isa padrao (o padrao).
+
+[design]
+name = "carbon4_evolui_im_1"
+top  = "cpu"
+std  = "08"
+sources = [
+    "src/immediate_generator.vhd",
+    "src/register_file.vhd",
+    "src/alu.vhd",
+    "src/muldiv_unit.vhd",
+    "src/decoder.vhd",
+    "src/cpu.vhd",
+]
+
+[clock]
+signal    = "clk"
+period_ns = 10
+
+[reset]
+signal = "rst"
+active = "high"
+cycles = 3
+
+[program]
+mode         = "virtual"
+size_words   = 1024
+
+[memory]
+ram_base  = 0x00fc8100
+ram_bytes = 512
+
+[observe]
+ram       = "virtual"
+
+[halt]
+mode = "fetch_pc"
+pc = "instr_addr"
+stationary = 2
+drain = 2
+
+[metrics]

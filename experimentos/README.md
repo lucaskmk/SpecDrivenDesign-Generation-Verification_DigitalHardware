@@ -176,6 +176,40 @@ docker run --rm -v "$PWD:/repo" rvgen-veredito \
   python3 -m rvverify experimentos/luna6_prof_3 --etapa rv32i
 ```
 
+## Comparar as CPUs no Quartus (área, Fmax, potência)
+
+O juiz só diz se a CPU está certa (todas as da comparação de modelos dão
+48/48). Para saber qual é **melhor em hardware**, sintetize no Quartus. As
+cinco CPUs RV32IM abaixo já têm `cpu.toml` (fontes na ordem de compilação,
+conferida no GHDL) e rodam com o `quartus_testing`.
+
+No Linux, da raiz do repositório (Python 3.11+ e Docker rodando):
+
+```bash
+git pull
+docker pull gabrielgalazzi/imagens_projeto_descomp:25.1   # imagem do Quartus, ~8 GB, uma vez só
+for cpu in luna6_evolui_im_5 sol6_evolui_im_1 carbon4_evolui_im_1 sonnet55_evolui_im_2 luna6_im_1; do
+    python3 quartus_testing/quartus_cpu_check.py experimentos/$cpu
+done
+```
+
+| Pasta | Modelo que gerou | Bloco do M |
+|---|---|---|
+| `luna6_evolui_im_5` | `openai/gpt-6-luna` (evoluindo a RV32I) | `muldiv` |
+| `sol6_evolui_im_1` | `openai/gpt-6-sol` (evoluindo a RV32I) | `m_unit` |
+| `carbon4_evolui_im_1` | `google/gemini-4-carbon` (evoluindo a RV32I) | `muldiv_unit` |
+| `sonnet55_evolui_im_2` | `anthropic/claude-sonnet-5.5` (evoluindo a RV32I) | `multiplier` + `divider` |
+| `luna6_im_1` | `openai/gpt-6-luna` (do zero) | dentro de `execution_unit` |
+
+Cada compilação leva de 30 s a alguns minutos. O resultado de cada CPU fica
+em `quartus_testing/resultados/<pasta>/relatorio.md` (compila?, Fmax,
+ALMs/LUTs/registradores/DSP e potência estimada). O alvo padrão é 100 MHz
+(`--periodo-ns 10`); como as cinco fazem multiplicação e divisão em um ciclo
+só, é provável que nenhuma atinja 100 MHz, e a comparação útil é a Fmax e a
+área de cada uma. Os `cpu.toml` não têm `rv32m_generic` porque o M é fixo
+(sem generic): use o `--isa padrao`, que é o padrão. Detalhes do script em
+[`quartus_testing/how_to_use.md`](../quartus_testing/how_to_use.md).
+
 ## Novo experimento
 
 ```bash
