@@ -1,0 +1,289 @@
+# Component semantic contract: muldiv_unit
+
+## Public interface
+```vhdl
+entity muldiv_unit is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end muldiv_unit;
+```
+
+## Responsibility
+Provide the result of any RV32M instruction from rs1, rs2 and funct3. funct3 = 000..011 selects the multiplier (op = funct3[1:0]). funct3 = 100..111 selects the divider (is_signed = not funct3(0), want_rem = funct3(1)). It is purely combinational, so the result is ready in the same cycle.
+
+## Timing
+
+- `muldiv_unit` is purely combinational. It has no clock, enable, handshake or stored state, and `result` is ready in the same cycle as the inputs.
+- `result` depends only on the current values of `operand_a`, `operand_b` and `funct3`.
+- After any input change, `result` takes the value defined here once the simulation has settled. Settling needs at least one delta cycle and no clock edge. No settling delay is specified, so tests sample only after the inputs have been stable for at least one delta or a short fixed time.
+- `result` does not depend on input history. Applying input vector X, then Y, then X again gives the same result both times X is applied.
+- Changing only `funct3`, only `operand_a`, or only `operand_b` must each give the result for the new input triple.
+- Inputs must be driven with `'0'` or `'1'` only. Behavior for `'U'`, `'X'`, `'Z'`, `'W'`, `'L'`, `'H'` and `'-'` is unspecified, and tests must not drive them.
+
+## Reset
+
+`none`. There is no reset input and no state to initialize. Every input triple has a defined result at all times.
+
+## Behavior
+
+**Fixed decomposition (normative, not optional).** `muldiv_unit` instantiates each of `multiplier` and `divider` exactly once. It does not reimplement their arithmetic. Its own role is limited to:
+
+- deriving the selector inputs of the two units from `funct3`;
+- passing the operands to both units;
+- choosing which unit's output is `result`.
+
+**Ports.**
+
+- `operand_a` (32 bits) is the rs1 value. It is the multiplicand and signed operand for MULHSU, and the dividend.
+- `operand_b` (32 bits) is the rs2 value. It is the multiplier and unsigned operand for MULHSU, and the divisor.
+- `funct3` (3 bits) is the RV32M `instr[14:12]` field. All 8 values are defined and none is reserved.
+- `result` (32 bits) is the RV32M result for the selected operation, defined for every input triple.
+
+**Selector encodings are private to each dependency.**
+
+- `multiplier` has its own private selector `op` (2 bits): `00` MUL, `01` MULH, `10` MULHSU, `11` MULHU.
+- `divider` has its own private selectors `is_signed` and `want_rem` (1 bit each).
+- The two encodings are unrelated, and neither is required to match the other or `funct3`.
+- `muldiv_unit` defines an explicit adaptation from `funct3` to each dependency. Neither dependency interface changes.
+  - `multiplier.op := funct3(1 downto 0)`. This is an explicit adaptation. It is numerically an identity slice only because the `multiplier` encoding happens to follow the RV32M `funct3` order for `000..011`.
+  - `divider.is_signed := not funct3(0)`. The sense is inverted: `funct3(0) = '1'` (DIVU, REMU) means unsigned.
+  - `divider.want_rem := funct3(1)`.
+- These adaptations may be driven unconditionally, because the output of the unit that is not selected is discarded.
+
+**Unit selection.**
+
+- `funct3(2) = '0'` (`000..011`): `result` equals the output of `multiplier`. The divider has no influence on `result`.
+- `funct3(2) = '1'` (`100..111`): `result` equals the output of `divider`. The multiplier has no influence on `result`.
+- Both units always receive the same `operand_a` and `operand_b`, in the same roles (`operand_a` is rs1/dividend, `operand_b` is rs2/divisor). Operands are never swapped, masked or pre-extended on the way in.
+- `result` is passed through unmodified. There is no extra masking, shifting or extension of the selected unit's output.
+
+**Arithmetic meaning.**
+
+- Multiplier group. Let `P64 = P mod 2^64`, where `P` is the exact product under the interpretation selected by `funct3`.
+  - MUL, MULH and MULHSU: `P` fits in the signed 64-bit range, so `P64` is its two's-complement encoding.
+  - MULHU: `P` can reach `0xFFFFFFFE00000001`, which exceeds `2^63−1`. It is an unsigned 64-bit value and `P64 = P`.
+  - MUL returns `P64[31:0]`. MULH, MULHSU and MULHU return `P64[63:32]`.
+- Divider group. The quotient truncates toward zero. The signed remainder is zero or has the sign of the dividend. The special cases in `## Edge cases` take precedence over ordinary arithmetic.
+- There are no flags, exceptions, traps or saturation.
+
+**Signed variants and single-bit operands.** A single set bit in an operand gives a single set product bit only for MUL, MULHU, and the signed variants when no signed operand has bit 31 set.
+
+- MULH reads both operands as signed. MULHSU reads only `operand_a` as signed.
+- A signed operand with bit 31 set is negative (`−2^31`), so the product is negative and `P64` has many bits set. Example: `0x80000000 × 1` gives `P64 = 0xFFFFFFFF80000000`, so MULH and MULHSU return `0xFFFFFFFF`.
+- For `i = j = 31`, MULH gives `+2^62` (`0x40000000`) and MULHSU gives `−2^62` (`0xC0000000`).
+- Expectations for these cases come from the reference model only.
+
+**Scope.** `funct7` is not an input. The parent decides when this unit is used, namely for opcode `0110011` with `funct7 = 0000001`. This component defines results for all 8 `funct3` values unconditionally.
+
+**Changes in this revision.** Behavior is unchanged. Only these statements and test claims were corrected:
+
+- the selector adaptation is now explicit per dependency;
+- the product-bit rule is qualified per operation;
+- operation separation is stated per vector and per pair of operations;
+- the divisor-zero cross-group observability claim now requires `operand_a ≠ 0` for REM and REMU;
+- MULHSU asymmetry is claimed only when an operand has bit 31 set.
+
+## Operations
+
+| `funct3` | Instruction | Unit | Dependency selector (adaptation from `funct3`) | `result` |
+|---|---|---|---|---|
+| `000` | MUL | multiplier | `op = 00` | `P64[31:0]` |
+| `001` | MULH | multiplier | `op = 01` | `P64[63:32]`, signed × signed |
+| `010` | MULHSU | multiplier | `op = 10` | `P64[63:32]`, `operand_a` signed × `operand_b` unsigned |
+| `011` | MULHU | multiplier | `op = 11` | `P64[63:32]`, unsigned × unsigned |
+| `100` | DIV | divider | `is_signed='1'`, `want_rem='0'` | signed quotient, truncated toward zero |
+| `101` | DIVU | divider | `is_signed='0'`, `want_rem='0'` | unsigned quotient |
+| `110` | REM | divider | `is_signed='1'`, `want_rem='1'` | signed remainder, sign of dividend |
+| `111` | REMU | divider | `is_signed='0'`, `want_rem='1'` | unsigned remainder |
+
+Equivalent rules:
+
+- `funct3(2)` selects the unit: `'0'` multiplier, `'1'` divider.
+- Multiplier group: `multiplier.op = funct3(1 downto 0)`.
+- Divider group: `divider.is_signed = not funct3(0)` and `divider.want_rem = funct3(1)`.
+  - `funct3(0) = '1'` selects the unsigned operation, so the sense is inverted relative to `is_signed`.
+  - `funct3(1) = '1'` selects the remainder.
+- The two selector encodings are independent. `funct3(1 downto 0)` has a different meaning in each group: MUL/MULH/MULHSU/MULHU in the multiplier group and DIV-or-REM/DIVU-or-REMU bits in the divider group.
+
+## Edge cases
+
+Multiplier group (`funct3 = 000..011`):
+
+- If either operand is `0`, the result is `0` for all four operations.
+- `operand_b = 1`:
+  - MUL returns `operand_a`.
+  - MULH and MULHSU return `0xFFFFFFFF` if `operand_a(31) = '1'`, else `0`.
+  - MULHU returns `0`.
+- `0x80000000 × 0x80000000`: MUL = `0x00000000`, MULH = `0x40000000`, MULHSU = `0xC0000000`, MULHU = `0x40000000`.
+- `0xFFFFFFFF × 0xFFFFFFFF`: MUL = `0x00000001`, MULH = `0x00000000`, MULHSU = `0xFFFFFFFF`, MULHU = `0xFFFFFFFE`.
+- `0x80000000 × 0xFFFFFFFF`: MUL = `0x80000000`, MULH = `0x00000000`, MULHSU = `0x80000000`, MULHU = `0x7FFFFFFF`. MULHU products can be at or above 2^63, and the unsigned modulo-2^64 definition applies.
+- `0x80000000 × 0x00000001`: MUL = `0x80000000`, MULH = `0xFFFFFFFF`, MULHSU = `0xFFFFFFFF`, MULHU = `0x00000000`.
+- MULHSU is not symmetric when an operand has bit 31 set:
+  - `a=0x00000007, b=0xFFFFFFFD` gives `0x00000006`.
+  - `a=0xFFFFFFFD, b=0x00000007` gives `0xFFFFFFFF`.
+  - When both operands have bit 31 clear, MULHSU is symmetric like the others.
+  - MUL, MULH and MULHU are symmetric in their operands.
+
+Divider group (`funct3 = 100..111`):
+
+- Divisor `0x00000000`, for any dividend including `0`:
+  - DIV and DIVU return `0xFFFFFFFF`.
+  - REM and REMU return `operand_a`.
+- Signed overflow (`operand_a = 0x80000000`, `operand_b = 0xFFFFFFFF`): DIV returns `0x80000000` and REM returns `0x00000000`.
+- The same operands with the unsigned operations are ordinary: DIVU returns `0x00000000` and REMU returns `0x80000000`.
+- `0x80000001 / 0xFFFFFFFF` signed is ordinary: DIV = `0x7FFFFFFF`, REM = `0`.
+- Dividend magnitude smaller than the divisor: quotient `0`, remainder equals the dividend.
+- Dividend `0` with a non-zero divisor: quotient `0` and remainder `0`.
+- Divisor `1`: quotient equals the dividend and remainder is `0`.
+- `-7 / 2` signed: DIV = `0xFFFFFFFD`, REM = `0xFFFFFFFF`. The same bits unsigned: DIVU = `0x7FFFFFFC`, REMU = `0x00000001`.
+
+Cross-group:
+
+- When `operand_b = 0`, the multiplier group returns `0` for all four operations. The divider group returns:
+  - `0xFFFFFFFF` for DIV and DIVU;
+  - `operand_a` for REM and REMU.
+- A wrong unit selection is therefore observable as follows:
+  - for DIV and DIVU, always (`0xFFFFFFFF` ≠ `0`);
+  - for REM and REMU, only when `operand_a ≠ 0`. With `operand_a = 0` the divider returns `0`, which equals the multiplier result, so that input cannot reveal a selection error.
+- No input combination causes a simulator error such as division by zero.
+- `rd = x0` handling is not part of this component. It belongs to the parent.
+
+## Test strategy
+
+**Reference model.** All expected values come from an independent reference written in the Cocotb test, using Python arbitrary-precision integers. It must not be derived from the component under test.
+
+- Multiplier group: interpret the operands per the table, multiply exactly, reduce modulo 2^64 with `& (2**64-1)`, then slice the low or high 32 bits.
+- Divider group: use explicit truncation toward zero, remainder `a - q*b`, and explicit special-case handling for a zero divisor and for signed overflow.
+
+Inputs are driven as `'0'`/`'1'` only, and results are sampled after settling. Every check compares all 32 bits of `result`. Each group varies one semantic factor at a time. Closed-form expectations are used only where this contract states they are valid. Everywhere else the reference is the sole oracle.
+
+### 1. Operation selection by `funct3` (unit choice and selector adaptation)
+
+- **Control classes:** the 8 `funct3` values, in two groups: multiplier (`funct3(2)=0`) and divider (`funct3(2)=1`).
+- **Causal relation:** for fixed operands, only `funct3` determines which unit's output appears and which of its 4 operations is applied.
+- **Method:** hold `operand_a` and `operand_b` fixed and sweep all 8 `funct3` values. Repeat for each pair below. Expected results are listed in `funct3` order `000, 001, 010, 011, 100, 101, 110, 111`.
+  - P1 `(0xFFFFFFF9, 0x00000002)` (-7, 2): `FFFFFFF2, FFFFFFFF, FFFFFFFF, 00000001, FFFFFFFD, 7FFFFFFC, FFFFFFFF, 00000001`.
+  - P2 `(0x00000064, 0x00000007)` (100, 7): `000002BC, 00000000, 00000000, 00000000, 0000000E, 0000000E, 00000002, 00000002`.
+  - P3 `(0xFFFFFFFD, 0x00000007)` (-3, 7): `FFFFFFEB, FFFFFFFF, FFFFFFFF, 00000006, 00000000, 24924924, FFFFFFFD, 00000001`.
+  - P4 `(0x80000000, 0xFFFFFFFF)`: `80000000, 00000000, 80000000, 7FFFFFFF, 80000000, 00000000, 00000000, 80000000`.
+  - P5 `(0x12345678, 0x00000000)`: `00000000, 00000000, 00000000, 00000000, FFFFFFFF, FFFFFFFF, 12345678, 12345678`.
+- **What each pair separates.** No single pair gives eight distinct results, so separation is stated per pair of operations.
+  - P1 has these equal groups: MULH = MULHSU = REM = `FFFFFFFF`, and MULHU = REMU = `1`. Its other results are distinct, so it separates every other pair of operations.
+  - P2 has MULH = MULHSU = MULHU = `0`, DIV = DIVU = `E`, and REM = REMU = `2`. It separates MUL from everything else and shows divider and multiplier values that differ (`0x2BC` versus `0xE` and `0x2`). A crossover between units or a swapped decode fails.
+  - P3 has MULH = MULHSU = `FFFFFFFF`. It separates MULHSU from MULHU (`FFFFFFFF` versus `6`), and it separates MULHSU from REM (`FFFFFFFF` versus `FFFFFFFD`).
+  - P4 has these equal groups: MUL = MULHSU = DIV = REMU = `80000000`, and MULH = DIVU = REM = `0`. MULHU (`7FFFFFFF`) is distinct from all others.
+    - P4 separates MULH from MULHSU (`0` versus `80000000`) and MULH from MULHU.
+    - P4 does not separate MUL, MULHSU, DIV and REMU from one another.
+    - P4 does not separate MULH, DIVU and REM from one another.
+  - P5 shows that the multiplier group returns `0` while DIV and DIVU return `0xFFFFFFFF` and REM and REMU return the dividend. It does not separate DIV from DIVU, or REM from REMU. Since `operand_a ≠ 0`, a wrong unit is caught for all four divider operations.
+  - Pair-of-operations coverage: every one of the 28 unordered pairs of the 8 operations is separated by at least one of P1..P5. Example witnesses for the pairs that P1 does not separate:
+    - MULH/MULHSU by P4;
+    - MULH/REM by P2 (`0` versus `2`);
+    - MULHSU/REM by P2 (`0` versus `2`);
+    - MULHU/REMU by P2 (`0` versus `2`).
+- **Single-bit-flip walk:** apply `funct3` in the Gray order `000, 001, 011, 010, 110, 111, 101, 100` on P1, P3 and P4, so exactly one `funct3` bit changes per step.
+  - Check every step against the reference.
+  - The steps flip, in order: bit 0, bit 1, bit 0, bit 2, bit 0, bit 1, bit 0.
+  - The expected result differs across each step in at least one of the three pairs. For example, step `010 → 110` is equal in P1 (`FFFFFFFF` both) but differs in P3 (`FFFFFFFF` versus `FFFFFFFD`).
+  - This gives coverage of `funct3(2)` (unit select), `funct3(1:0)` (multiplier op), and `funct3(0)` and `funct3(1)` (divider selector adaptation). It is a check of results only.
+
+### 2. Unit independence (selected unit only)
+
+- **Control classes:** multiplier group versus divider group, with operands chosen so that the unselected unit would produce a different value.
+- **Method:** for each of the 8 `funct3` values, use the operand pairs from section 1 and assert that `result` equals only the selected operation's reference value. Never accept the other group's value.
+- **Specific checks:**
+  - `(0x12345678, 0)`: MUL, MULH, MULHSU and MULHU return `0`, not `0xFFFFFFFF` or the dividend.
+  - P4 is not a unit-independence discriminator for MUL versus DIV, because both return `0x80000000`. Use P4 for MULHU (`7FFFFFFF`) versus DIVU (`0`) and REMU (`80000000`), and P1, P2 and P3 for MUL versus DIV.
+  - P2 detects any crossover between `0x2BC` and `0xE`.
+
+### 3. Operand routing (roles of `operand_a` and `operand_b`)
+
+- **Control classes:** operand order swapped, for all 8 operations.
+- **Method:** run `(x, y)` and `(y, x)` for these pairs:
+  - `x = 0xFFFFFFFD, y = 0x00000007`;
+  - `x = 0x80000001, y = 0x00000003`;
+  - `x = 0x00000064, y = 0x00000007`;
+  - `x = 0x000003E8, y = 0x0000001E` (1000, 30).
+- **Expected relation:**
+  - MUL, MULH and MULHU are symmetric for all four pairs.
+  - MULHSU is not symmetric for the first two pairs, where one operand has bit 31 set.
+    - For `(0xFFFFFFFD, 7)` it gives `FFFFFFFF`, and for `(7, 0xFFFFFFFD)` it gives `00000006`.
+    - For `(0x80000001, 3)` it gives `FFFFFFFE`, and for `(3, 0x80000001)` it gives `00000001`.
+  - For the last two pairs both operands are small and positive, so MULHSU is symmetric and gives `0` in both orders. These pairs do not test MULHSU operand order.
+  - The divider operations are expected to give different results between orders for the listed pairs. `100/7` gives Q=`0xE`, R=`2`. `7/100` gives Q=`0`, R=`7`.
+- **Detection rule:** do not rely on a remainder alone for `7/100`, because R equals the dividend there. Detect the swap with the quotient (`0xE` versus `0`) and with the remainder of `100/7` (`2` versus `7`). The pair `1000/30` (Q=`0x21`, R=`0xA`) versus `30/1000` (Q=`0`, R=`0x1E`) follows the same rule.
+
+### 4. Signedness interpretation (one factor at a time)
+
+- **Isolate `operand_a(31)`:**
+  - Fix `operand_b = 0x00000007`.
+  - Use `operand_a = 0x7FFFFFFD` and `operand_a = 0xFFFFFFFD`, which differ only in bit 31.
+  - Run all 8 `funct3` values.
+  - Expected: MULH and MULHSU high words become negative for the second value, MULHU stays positive, and DIV and REM follow signed semantics while DIVU and REMU follow unsigned semantics.
+- **Isolate `operand_b(31)`:**
+  - Fix `operand_a = 0x00000007`.
+  - Use `operand_b = 0x7FFFFFFD` and `operand_b = 0xFFFFFFFD`.
+  - Run all 8 `funct3` values.
+  - Expected: MULH treats `operand_b` as signed. MULHSU and MULHU treat it as unsigned, so they are equal here. Repeat with `operand_a = 0xFFFFFFFD` to split MULHSU from MULHU.
+- **Divider sign sweep:** run DIV and REM on the four sign combinations of 7 and 2.
+  - `7/2`: Q=`3`, R=`1`.
+  - `-7/2`: Q=`0xFFFFFFFD`, R=`0xFFFFFFFF`.
+  - `-7/-2`: Q=`3`, R=`0xFFFFFFFF`.
+  - `7/-2`: Q=`0xFFFFFFFD`, R=`1`.
+  - Between consecutive cases exactly one operand sign changes. Also run `funct3` `101` and `111` on the same bit patterns, which must differ from the signed results where mathematics says they differ.
+
+### 5. Result slicing (low word, high word, quotient, remainder)
+
+- **Bit-position walk, `operand_a`:** `operand_a = 1<<i` for `i = 0..31` with `operand_b = 0x9ABCDEF1`. Run all 8 `funct3` values against the reference.
+- **Bit-position walk, `operand_b`:** `operand_a = 0x9ABCDEF1` with `operand_b = 1<<j` for `j = 0..31`. Run all 8 `funct3` values against the reference.
+- **Product-bit walk for the multiplier group:** `operand_a = 1<<i` and `operand_b = 1<<j` for all `i, j` in `0..31`, with `funct3 = 000..011`. Check every result against the reference. The one-bit closed-form expectations below are valid only as qualified.
+  - **MUL (`000`), valid for all `i, j`:** if `i+j < 32`, the result is `1<<(i+j)`. Otherwise it is `0`.
+  - **MULHU (`011`), valid for all `i, j`:** the product is exactly `2^(i+j)`.
+    - If `i+j < 32`, the result is `0`.
+    - Otherwise the result is `1<<(i+j-32)`.
+    - `i = j = 31` gives `0x40000000`.
+  - **MULH (`001`), valid only when neither `i` nor `j` is 31:** the result is `0` if `i+j < 32`, else `1<<(i+j-32)`.
+    - If exactly one of `i, j` is 31, the signed operand is `−2^31` and the product is negative. The high word is not a single bit. For example, `0x80000000 × 1` gives `0xFFFFFFFF`.
+    - `i = j = 31` gives `+2^62`, so the result is `0x40000000`.
+  - **MULHSU (`010`), valid only when `i ≠ 31`:** `operand_b` is unsigned, so `j = 31` is allowed. The result is `0` if `i+j < 32`, else `1<<(i+j-32)`.
+    - If `i = 31` and `j < 31`, the product is negative and the high word is not a single bit. For example, `0x80000000 × 1` gives `0xFFFFFFFF`.
+    - `i = j = 31` gives `−2^62`, so the result is `0xC0000000`. This differs from MULH and MULHU at the same operands.
+  - Therefore, at `i = 31` or `j = 31` the reference is the only oracle for MULH and MULHSU.
+  - Check the low/high placement at `i+j = 31` versus `32` with MUL and MULHU (always valid), and with MULH and MULHSU where their rule is valid.
+- **Divider walk:** dividend `2^k` for `k = 0..31` with divisor `3`, and divisor `2^k` with dividend `0xFFFFFFFF`, for `funct3 = 100..111`.
+- **Distinguishable words:** include `0x12345678 × 0x9ABCDEF1`, whose low and high words are both non-zero and different. This catches a high/low swap or a shifted slice.
+
+### 6. Boundary matrix
+
+- Run all 8 `funct3` values on every ordered pair from `{0x00000000, 0x00000001, 0xFFFFFFFF, 0x7FFFFFFF, 0x80000000, 0x80000001, 0x0000FFFF, 0x00010000}`. That is 64 ordered pairs × 8 operations, all checked against the reference.
+- Explicitly assert the fixed vectors in `## Edge cases`. These include the MULHU large-product vectors and the divide-by-zero and overflow cases, and the test must finish with no simulator error.
+- Divide-by-zero dividends: `0x00000000, 0x00000005, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF, 0xA5A5A5A5`, for all 4 divider operations. Quotients give `0xFFFFFFFF` and remainders give exactly the dividend. Run the multiplier operations on the same inputs and expect `0`.
+- Unit-selection observability on these inputs:
+  - for DIV and DIVU it holds for every dividend;
+  - for REM and REMU it holds only for dividends ≠ `0`;
+  - the dividend `0` case checks the value but cannot reveal a wrong unit.
+
+### 7. Randomized regression
+
+- Run at least 2000 random `(operand_a, operand_b, funct3)` triples per `funct3` value, with a fixed and logged seed.
+- Bias one third toward operands with bit 31 set, one third toward small magnitudes, and the rest uniform. Include values near `0x7FFFFFFF` and `0x80000000`.
+- Include at least 50 triples per divider `funct3` with `operand_b = 0`.
+- Compare the full 32-bit result against the reference.
+- For every non-special divider vector, also check `a = Q*b + R` with the sign and magnitude constraints.
+
+### 8. Combinational behavior
+
+- Drive no clock.
+- After settling, change only `funct3`, then only `operand_a`, then only `operand_b`, and recheck `result` after each change.
+- Apply the sequence X, Y, X for several triples, including one multiplier triple and one divider triple. Both applications of X must give the same result.
+- Alternate between a multiplier `funct3` and a divider `funct3` on the same operands, and confirm that no value is retained from the previous selection.
+
+### 9. Parent integration
+
+- At the CPU public ports, run programs with MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU. Use the operand pairs from section 1 and check the architectural `rd` values.
+- Include divide-by-zero and signed-overflow programs.
+- This exercises the `funct3` decode and the selector adaptations indirectly, through results only. Neither dependency's internal selector (`op`, `is_signed`, `want_rem`) is observed at the CPU ports.

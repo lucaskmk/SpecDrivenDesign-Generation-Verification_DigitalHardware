@@ -1,0 +1,27 @@
+{
+  "paths": [
+    "dut.operand_a",
+    "dut.operand_b",
+    "dut.funct3",
+    "dut.result",
+    "dut.mul_op",
+    "dut.div_signed",
+    "dut.div_rem",
+    "dut.mul_result",
+    "dut.div_result",
+    "dut.u_mul",
+    "dut.u_mul.operand_a",
+    "dut.u_mul.operand_b",
+    "dut.u_mul.op",
+    "dut.u_mul.result",
+    "dut.u_mul.a_ext",
+    "dut.u_mul.b_ext",
+    "dut.u_mul.product",
+    "dut.u_div",
+    "dut.u_div.operand_a",
+    "dut.u_div.operand_b",
+    "dut.u_div.is_signed",
+    "dut.u_div.want_rem",
+    "dut.u_div.result"
+  ]
+}

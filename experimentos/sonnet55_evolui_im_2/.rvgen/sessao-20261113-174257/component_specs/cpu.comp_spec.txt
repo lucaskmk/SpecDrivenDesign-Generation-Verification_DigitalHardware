@@ -1,0 +1,306 @@
+# Component semantic contract: cpu
+
+## Public interface
+```vhdl
+entity cpu is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        instr_addr : out std_logic_vector(31 downto 0);
+        instr_data : in std_logic_vector(31 downto 0);
+        data_addr : out std_logic_vector(31 downto 0);
+        data_write : out std_logic;
+        data_width : out std_logic_vector(1 downto 0);
+        data_write_data : out std_logic_vector(31 downto 0);
+        data_read_data : in std_logic_vector(31 downto 0)
+    );
+end entity cpu;
+```
+
+## Responsibility
+Implement the RV32IM single-cycle top level: maintain the PC, instantiate the register file, decoder, ALU, immediate generator and M-extension unit, select branch and jump targets, perform load extraction and extension, select the writeback value including M results, and drive the instruction and data buses exactly as specified.
+
+## Timing
+
+- `cpu` is an RV32IM single-cycle processor. `instr_addr` exposes the byte address of the current instruction, and `instr_data` is the asynchronous instruction word at that address.
+- With `rst = '0'`, each rising edge of `clk` completes the current instruction. Any register write and any external store take effect on that edge, and the PC advances to the instruction's next address. This holds for RV32M instructions too: exactly one instruction per rising edge, with no multi-cycle, stall or busy behavior.
+- Decode, register reads, effective-address generation, bus outputs, load extraction, M-extension computation, writeback selection, branch decisions and next-PC selection are all combinational. They respond to current inputs without waiting for a clock edge. The result of MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU is available in the same cycle as the instruction and is committed to `rd` on the same rising edge.
+- `data_read_data` is the asynchronous little-endian word based at `data_addr & 0xFFFFFFFC`. A load uses its value when the load completes at the rising edge.
+- The fixed decomposition is mandatory and is not optional. The CPU hierarchy contains exactly one each of `immediate_generator`, `register_file`, `alu`, `multiplier`, `divider`, `decoder` and `muldiv_unit`, and `cpu` does not reimplement the behavior of any of them.
+  - `cpu` instantiates `immediate_generator`, `register_file`, `alu`, `decoder` and `muldiv_unit` directly.
+  - The single `multiplier` and the single `divider` are the instances that `muldiv_unit` contains under its own contract. `cpu` adds no second copy of either.
+  - All dependencies are combinational except the register file, which has the state and edge behavior specified by its own contract.
+
+## Reset
+
+- `rst` is active high and asynchronous.
+- While `rst = '1'`, `instr_addr` is `0x00000000` and architectural registers read as zero. Reset does not require a clock edge.
+- A rising edge while reset is asserted does not execute an instruction (including an RV32M instruction). It does not update the PC, write a register, or cause an external data-memory write. `data_write` is `'0'` throughout reset, even if `instr_data` encodes a store.
+- Deasserting reset does not itself advance the PC or change register contents. Execution resumes from address zero at the next rising edge.
+- Reset behavior is unchanged by the RV32M addition. The M unit has no state and no reset.
+
+## Behavior
+
+- The public interface is fixed to the `cpu` entity and ports in the accompanying entity declaration. The CPU must not add public ports, generics or external memory instances. The ports are unchanged from the RV32I contract and there are no generics: the ISA is fixed to RV32IM and the M instructions are always implemented.
+- The PC is a 32-bit byte address. For each executed instruction, its next value is selected in this order:
+  1. `JAL` or valid `JALR`: use the corresponding jump target.
+  2. A taken conditional branch: use the branch target.
+  3. Otherwise: use `PC + 4`.
+
+  PC arithmetic wraps modulo 2^32. `JAL x0, 0` leaves the PC unchanged on each rising edge. M instructions never redirect the PC, so their next PC is `PC + 4`.
+- `JAL` writes `PC + 4` to `rd` and targets `PC + imm_j`. Valid `JALR` writes `PC + 4` to `rd` and targets `(rs1 + imm_i) & 0xFFFFFFFE`. A branch target is `PC + imm_b`.
+- The register file has 32 architectural 32-bit registers. `x0` always reads as zero, and writes to `x0` have no effect. Register reads are asynchronous; a valid write takes effect on the rising edge completing the instruction. The decoder asserts `reg_write` for M instructions even when `rd = x0`, and the register file suppresses the write to `x0`.
+- **M-extension unit (new).** `muldiv_unit` is instantiated with:
+  - `operand_a` = `rs1_data`, the register file's rs1 read value;
+  - `operand_b` = `rs2_data`, the register file's rs2 read value;
+  - `funct3` = `instr(14 downto 12)`.
+
+  Operands are never swapped, masked or pre-extended. Its `result` is used only as a writeback source. The decoder's `muldiv_op` output is connected inside `cpu` and drives the writeback mux. The CPU does not interpret `funct3` itself to compute M results, and `funct7` is not an input of `muldiv_unit`. The decoder alone decides, through `muldiv_op`, whether an instruction is an M instruction.
+- **Writeback selection (changed).** The register write data has four sources, selected in this priority:
+  1. If `muldiv_op = '1'`, the write data is the `muldiv_unit` result. This overrides `wb_select`, which the decoder drives as `"00"` for M instructions.
+  2. Otherwise `wb_select` selects:
+     - `"00"`: ALU result, or `imm_u` directly when the decoder's non-branch `alu_control` is `"1010"` (LUI);
+     - `"01"`: the extracted and extended load value;
+     - `"10"`: `PC + 4` (JAL and JALR).
+  3. `"11"` is reserved and never produced by the decoder.
+- For M instructions the decoder gives `reg_write = '1'`, `mem_write = '0'`, `alu_src_a_pc = '0'`, `alu_src_b_imm = '0'`, `alu_control = "0000"`, `branch_enable = '0'`, `jump = '0'` and `jalr = '0'`. The ALU still receives `rs1` and `rs2`, but its result is not used for an M instruction. No M instruction branches, jumps, loads, stores or asserts `data_write`.
+- `data_addr` is the effective byte address for loads and stores: `rs1 + imm_i` for loads and `rs1 + imm_s` for stores. Its low bits are not masked.
+- For loads and stores, `data_width` is `"00"` for byte, `"01"` for halfword and `"10"` for word. `"11"` is not selected by a valid load or store.
+- For loads, `data_read_data` is interpreted as a little-endian word based at `data_addr & 0xFFFFFFFC`. The address low bits select the byte or halfword. `LB` and `LH` sign-extend; `LBU` and `LHU` zero-extend; `LW` uses the full word.
+- For valid stores, `data_write` is `'1'` during the store instruction cycle, `data_write_data` is the unshifted `rs2` value, and `data_width` identifies which low 8, 16 or 32 bits are written. The external memory commits the write on the rising edge. For every non-store instruction (including every M instruction), and during reset, `data_write` is `'0'`.
+- `data_addr`, `data_width` and `data_write_data` have no architectural meaning when `data_write = '0'` and the current instruction is not a load. For loads, `data_addr` and `data_width` identify the effective address and access size.
+- Unsupported opcodes and unsupported function encodings have no architectural side effects: they do not write a register or memory, do not branch or jump, and advance the PC by four. Their data-bus outputs other than `data_write = '0'` have no architectural meaning. This includes OP instructions whose `funct7` is none of `0000000`, `0100000` (only with `funct3` 000 or 101) and `0000001`. For these the decoder gives `muldiv_op = '0'` and `reg_write = '0'`.
+- The ALU adaptation, branch evaluation, PC logic, load extraction and store routing are unchanged from the RV32I contract.
+
+## Operations
+
+Instruction fields are `opcode = instr[6:0]`, `rd = instr[11:7]`, `funct3 = instr[14:12]`, `rs1 = instr[19:15]`, `rs2 = instr[24:20]` and `funct7 = instr[31:25]`. The immediate generator supplies all five immediates concurrently:
+- `imm_i = sext(instr[31:20])`
+- `imm_s = sext(instr[31:25] || instr[11:7])`
+- `imm_b = sext(instr[31] || instr[7] || instr[30:25] || instr[11:8] || 0)`
+- `imm_u = instr[31:12] || 12'b0`
+- `imm_j = sext(instr[31] || instr[19:12] || instr[20] || instr[30:21] || 0)`
+
+Here `sext` is sign extension to 32 bits. Immediate selection is by instruction class; the immediate generator itself has no selector.
+
+**RV32I instructions (unchanged):**
+
+| Instruction | Opcode | Valid function encoding | Architectural operation |
+|---|---:|---|---|
+| `LUI` | `0x37` | Any `funct3`, `funct7` | `rd = U` |
+| `AUIPC` | `0x17` | Any `funct3`, `funct7` | `rd = PC + U` |
+| `JAL` | `0x6F` | Any `funct3`, `funct7` | `rd = PC + 4`; jump to `PC + J` |
+| `JALR` | `0x67` | `funct3 = 000` | `rd = PC + 4`; jump to `(rs1 + I) & 0xFFFFFFFE` |
+| `BEQ` | `0x63` | `funct3 = 000` | Branch if `rs1 == rs2` |
+| `BNE` | `0x63` | `funct3 = 001` | Branch if `rs1 != rs2` |
+| `BLT` | `0x63` | `funct3 = 100` | Branch if signed `rs1 < rs2` |
+| `BGE` | `0x63` | `funct3 = 101` | Branch if signed `rs1 >= rs2` |
+| `BLTU` | `0x63` | `funct3 = 110` | Branch if unsigned `rs1 < rs2` |
+| `BGEU` | `0x63` | `funct3 = 111` | Branch if unsigned `rs1 >= rs2` |
+| `LB` | `0x03` | `funct3 = 000` | Load signed byte |
+| `LH` | `0x03` | `funct3 = 001` | Load signed halfword |
+| `LW` | `0x03` | `funct3 = 010` | Load word |
+| `LBU` | `0x03` | `funct3 = 100` | Load unsigned byte |
+| `LHU` | `0x03` | `funct3 = 101` | Load unsigned halfword |
+| `SB` | `0x23` | `funct3 = 000` | Store low byte of `rs2` |
+| `SH` | `0x23` | `funct3 = 001` | Store low halfword of `rs2` |
+| `SW` | `0x23` | `funct3 = 010` | Store `rs2` word |
+| `ADD` | `0x33` | `funct3 = 000`, `funct7 = 0000000` | `rd = rs1 + rs2` |
+| `SUB` | `0x33` | `funct3 = 000`, `funct7 = 0100000` | `rd = rs1 - rs2` |
+| `SLL` | `0x33` | `funct3 = 001`, `funct7 = 0000000` | `rd = rs1 << rs2[4:0]` |
+| `SLT` | `0x33` | `funct3 = 010`, `funct7 = 0000000` | `rd = 1` iff signed `rs1 < rs2` |
+| `SLTU` | `0x33` | `funct3 = 011`, `funct7 = 0000000` | `rd = 1` iff unsigned `rs1 < rs2` |
+| `XOR` | `0x33` | `funct3 = 100`, `funct7 = 0000000` | `rd = rs1 XOR rs2` |
+| `SRL` | `0x33` | `funct3 = 101`, `funct7 = 0000000` | Logical right shift by `rs2[4:0]` |
+| `SRA` | `0x33` | `funct3 = 101`, `funct7 = 0100000` | Arithmetic right shift by `rs2[4:0]` |
+| `OR` | `0x33` | `funct3 = 110`, `funct7 = 0000000` | `rd = rs1 OR rs2` |
+| `AND` | `0x33` | `funct3 = 111`, `funct7 = 0000000` | `rd = rs1 AND rs2` |
+| `ADDI` | `0x13` | `funct3 = 000` | `rd = rs1 + I` |
+| `SLLI` | `0x13` | `funct3 = 001`, `instr[31:25] = 0000000` | `rd = rs1 << instr[24:20]` |
+| `SLTI` | `0x13` | `funct3 = 010` | `rd = 1` iff signed `rs1 < I` |
+| `SLTIU` | `0x13` | `funct3 = 011` | `rd = 1` iff unsigned `rs1 < I` |
+| `XORI` | `0x13` | `funct3 = 100` | `rd = rs1 XOR I` |
+| `SRLI` | `0x13` | `funct3 = 101`, `instr[31:25] = 0000000` | Logical right shift by `instr[24:20]` |
+| `SRAI` | `0x13` | `funct3 = 101`, `instr[31:25] = 0100000` | Arithmetic right shift by `instr[24:20]` |
+| `ORI` | `0x13` | `funct3 = 110` | `rd = rs1 OR I` |
+| `ANDI` | `0x13` | `funct3 = 111` | `rd = rs1 AND I` |
+
+**RV32M instructions (new).** All are R-type with `opcode = 0x33` and `funct7 = 0000001`. `rd` receives the `muldiv_unit` result. `rs1`/`rs2` are the register read values.
+
+| Instruction | `funct3` | `rd` result |
+|---|---:|---|
+| `MUL` | `000` | Low 32 bits of `rs1 × rs2` |
+| `MULH` | `001` | High 32 bits of signed `rs1` × signed `rs2` |
+| `MULHSU` | `010` | High 32 bits of signed `rs1` × unsigned `rs2` |
+| `MULHU` | `011` | High 32 bits of unsigned `rs1` × unsigned `rs2` |
+| `DIV` | `100` | Signed quotient, truncated toward zero |
+| `DIVU` | `101` | Unsigned quotient |
+| `REM` | `110` | Signed remainder, with the sign of the dividend `rs1` |
+| `REMU` | `111` | Unsigned remainder |
+
+Special M results, produced by `muldiv_unit` and passed through unmodified by `cpu`:
+
+| Case | DIV | DIVU | REM | REMU |
+|---|---|---|---|---|
+| divisor = 0 | `0xFFFFFFFF` | `0xFFFFFFFF` | `rs1` | `rs1` |
+| `rs1 = 0x80000000`, `rs2 = 0xFFFFFFFF` | `0x80000000` | ordinary (`0x00000000`) | `0x00000000` | ordinary (`0x80000000`) |
+
+**Writeback mux summary:**
+
+| Condition | Register write data |
+|---|---|
+| `muldiv_op = '1'` | `muldiv_unit.result` |
+| `muldiv_op = '0'`, `wb_select = "00"`, non-branch ALU selector `"1010"` | `imm_u` (LUI) |
+| `muldiv_op = '0'`, `wb_select = "00"`, otherwise | ALU result |
+| `muldiv_op = '0'`, `wb_select = "01"` | Extracted and extended load data |
+| `muldiv_op = '0'`, `wb_select = "10"` | `PC + 4` |
+
+The selector encodings of `decoder` and `alu` are private to those dependencies and are not required to be numerically identical. The parent CPU performs the following explicit adaptation for non-branch ALU operations (unchanged). The left column is the decoder's `alu_control`; the right column is the `alu_control` presented to the ALU:
+
+| Decoder selector | Meaning | ALU selector |
+|---|---|---|
+| `"0000"` | ADD | `"0000"` |
+| `"0001"` | SUB | `"0001"` |
+| `"0010"` | SLL | `"0101"` |
+| `"0011"` | signed SLT | `"1000"` |
+| `"0100"` | unsigned SLTU | `"1001"` |
+| `"0101"` | XOR | `"0100"` |
+| `"0110"` | SRL | `"0110"` |
+| `"0111"` | SRA | `"0111"` |
+| `"1000"` | OR | `"0011"` |
+| `"1001"` | AND | `"0010"` |
+| `"1010"` | PASS_B for LUI | Do not rely on an ALU PASS_B operation; select `imm_u` directly as the LUI writeback value |
+
+The M operation is not encoded in `alu_control` (the decoder gives `"0000"` for M instructions). The `muldiv_unit` selector is derived from `instr(14 downto 12)` only, and the unit's internal selectors are private to it.
+
+For branches, the decoder's branch selector has these meanings: `"0000"` BEQ, `"0001"` BNE, `"0010"` BLT, `"0011"` BGE, `"0100"` BLTU and `"0101"` BGEU. The CPU uses the ALU's `equal`, `signed_less` and `unsigned_less` outputs to evaluate the selected condition. The branch selector is not sent to the ALU as a non-branch operation selector. `alu` comparison outputs are defined independently of its operation selector.
+
+The decoder's `alu_src_a_pc` and `alu_src_b_imm` controls select the indicated source class, but do not themselves choose an immediate format. The CPU supplies the applicable operand: `imm_i` for OP-IMM and loads, `imm_s` for stores, and `imm_u` for LUI and AUIPC. AUIPC uses PC and `imm_u`; LUI writes `imm_u` directly. Branch, jump-target and link-value generation follow the architectural rules above.
+
+## Edge cases
+
+- All architectural integer results, effective addresses, PC additions and PC-relative targets wrap modulo 2^32; arithmetic overflow raises no exception.
+- Shift amounts use only the low five bits of the relevant source. `SRA` and `SRAI` replicate the source sign bit; logical shifts fill vacated bits with zero.
+- `SLT`, `SLTU`, `SLTI` and `SLTIU` produce exactly zero or one.
+- `JALR` clears target bit zero after adding its immediate. `JAL` and branch immediates have an implicit zero at bit zero.
+- `JAL x0, 0` is a valid self-loop and keeps `instr_addr` unchanged on successive rising edges.
+- The external data-memory interface assumes naturally aligned accesses. Behavior for misaligned halfword or word accesses is unspecified.
+- Inputs are defined for binary `std_logic` values. Behavior for unknown or high-impedance values is unspecified.
+- No instruction can simultaneously be a jump and a conditional branch: their opcodes are distinct. The specified next-PC ordering therefore does not create a reachable overlap case.
+- **M division by zero:**
+  - DIV and DIVU return `0xFFFFFFFF`.
+  - REM and REMU return `rs1`.
+  - No trap or simulator error occurs. This includes `rs1 = 0`, where the quotients are still `0xFFFFFFFF` and the remainders are `0`.
+- **M signed overflow:** `0x80000000 DIV 0xFFFFFFFF = 0x80000000` and `0x80000000 REM 0xFFFFFFFF = 0`. The unsigned forms of the same operands are ordinary: DIVU gives `0x00000000` and REMU gives `0x80000000`.
+- **M multiplication:**
+  - MUL returns the same low word for signed and unsigned operands.
+  - MULHSU is asymmetric: `rs1` is signed and `rs2` is unsigned.
+  - MULHU products can exceed 2^63 (for example `0xFFFFFFFF × 0xFFFFFFFF` gives `0xFFFFFFFE`).
+  - Reference vectors:
+
+    | Instruction | `rs1` | `rs2` | `rd` |
+    |---|---|---|---|
+    | MUL | `0x00000007` | `0xFFFFFFFD` | `0xFFFFFFEB` |
+    | MULH | `0x80000000` | `0x80000000` | `0x40000000` |
+    | MULHSU | `0xFFFFFFFF` | `0xFFFFFFFF` | `0xFFFFFFFF` |
+    | MULHU | `0xFFFFFFFF` | `0xFFFFFFFF` | `0xFFFFFFFE` |
+    | DIV | `0xFFFFFFF9` | `0x00000002` | `0xFFFFFFFD` |
+    | DIVU | `0xFFFFFFF9` | `0x00000002` | `0x7FFFFFFC` |
+    | REM | `0xFFFFFFF9` | `0x00000002` | `0xFFFFFFFF` |
+    | REMU | `0xFFFFFFF9` | `0x00000002` | `0x00000001` |
+
+- An M instruction with `rd = x0` has no architectural effect: later reads of `x0` give zero, and no exception occurs.
+- An M instruction writes only `rd`. It does not write memory, change the PC beyond `PC + 4`, or alter any other register. Source registers equal to `rd` read their pre-edge values.
+- `funct7 = 0000001` with an opcode other than `0x33` is never an M instruction (`muldiv_op = '0'`). OP-IMM with `instr[31:25] = 0000001` follows the OP-IMM rules: it is a valid ADDI, SLTI and so on for non-shift `funct3`, and unsupported for `funct3 = 001` or `101`. A load, store, branch, `LUI`, `AUIPC`, `JAL` or `JALR` with those bits is decoded by its own rules and never writes an M result.
+- OP with `funct7` one bit away from `0000001` (`0000011`, `0000101`, `0001001`, `0010001`, `0100001`, `1000001`) is unsupported: no register write, no memory write, and `PC + 4`. `funct7 = 0000000` is the RV32I OP, not M.
+- `muldiv_op = '1'` overrides `wb_select` and the LUI path. The M result is never replaced by an ALU, load or `PC + 4` value.
+
+## Test strategy
+
+Use executable Cocotb tests with a software reference model for the PC, architectural register values, instruction behavior (including all RV32M operations) and external memory. Tests observe only the CPU's public ports: they must not require direct reads of internal registers or selectors. Drive inputs, allow combinational propagation to settle, check bus outputs before the active edge, then apply the rising edge and check `instr_addr` and any externally observable effects. Use binary inputs and distinct values so incorrect sources, slices or selections are observable. Expected M values come from an independent reference using Python arbitrary-precision integers, with truncating division and explicit zero-divisor and overflow cases.
+
+Observe register effects through later public behavior rather than by inspecting register state: for example, store a register value to external memory and check the committed memory contents, or use the value in a branch and check the resulting `instr_addr`. `x0` behavior can likewise be checked by using it as a later store source or branch operand.
+
+1. **Fetch, sequencing and edge qualification**
+   - Assert reset asynchronously and require `instr_addr = 0`; deassert reset without a clock and require it remains zero.
+   - Execute sequential instructions with distinguishable effects, including M instructions. Before each rising edge, require `instr_addr` to equal the current PC; after the edge, require the expected next PC.
+   - Hold inputs constant while the clock is low and verify the PC does not advance. Verify that an instruction's architectural effects, including those of M instructions, occur only at the rising edge.
+   - Verify that each MUL, DIV, REM and similar instruction completes in exactly one rising edge: the PC advances by four after one edge and the result is observable by the next instruction.
+
+2. **Register effects and writeback routing**
+   - Initialize registers through executed instructions using distinct, nonzero values. Verify results through later stores or branches; do not check internal register state directly.
+   - Exercise writeback from OP, OP-IMM, LUI, AUIPC, loads, JAL, JALR and M instructions. For each class, use the resulting register value in a later public operation, such as a store to a known address.
+   - Repeat representative writes with `rd = x0`, including an M instruction with `rd = x0`; verify that later reads through stores or branches still observe zero.
+   - Reset after populating registers, then use those registers in later instructions to verify reset-cleared values through public behavior. Keep reset asserted across a rising edge and verify no instruction side effect occurs.
+
+3. **Instruction decoding and ALU transformations (RV32I)**
+   - Execute every valid OP and OP-IMM encoding in **Operations**, using asymmetric source values such as `0x81234567` and `0x10203005`. Verify results through subsequent stores or branches.
+   - Test ADD/ADDI and SUB wraparound and signed-boundary operands, including `0xFFFFFFFF + 1`, `0x7FFFFFFF + 1` and `0 - 1`.
+   - For SLL/SLLI/SRL/SRLI/SRA/SRAI, test amounts 0, 1 and 31, and compare source amounts with differing upper bits but matching low five bits. Use negative and nonnegative operands to distinguish shift fill.
+   - For signed and unsigned comparisons, use pairs such as `0xFFFFFFFF` and `0x00000000`, and test equality. Verify results are exactly zero or one through later public behavior.
+   - For XOR, OR and AND, use mixed bit patterns and verify exact results through a store or a branch that distinguishes the result.
+   - Exercise unsupported OP, OP-IMM, load, store, branch and JALR function encodings. Require no register or memory write, no redirect, and sequential PC advance. Also test representative unsupported opcodes, and unsupported OP `funct7` values (see item 11).
+
+4. **Immediate selection and transformations**
+   - Construct I-, S-, B-, U- and J-format instructions with distinguishable nonzero patterns in their immediate slices. Verify the effective address, stored or loaded value, ALU result, or target uses the specified format and bit ordering.
+   - Test positive and negative I, S, B and J immediates. For each format, vary only the sign bit and verify the sign-extension effect through a public address or control-flow result.
+   - For U-type values, verify the low 12 result bits are zero and the upper 20 bits match the instruction, using a later store or branch to expose the result.
+   - Test branch and jump offsets with nonzero encoded bits and verify the implicit low zero bit and target calculation.
+
+5. **Branches and control flow**
+   - Test BEQ and BNE with equal and unequal values. Test BLT, BGE, BLTU and BGEU with both outcomes, including operand pairs such as `0xFFFFFFFF` and `0x00000000` that distinguish signed from unsigned comparisons.
+   - For each condition, check taken and not-taken next PCs. Test forward and backward targets and verify a not-taken branch uses `PC + 4`.
+   - Test JAL and valid JALR redirects separately, and test that invalid JALR function encodings do not redirect. A jump-versus-taken-branch priority overlap test is not applicable: no single instruction can be both classes.
+   - Execute `JAL x0, 0` repeatedly and require `instr_addr` to remain at the same address on every edge.
+   - Use an M result as a branch operand (for example `mul` then `beq`) and require the correct taken and not-taken PCs. Require that an M instruction itself never redirects the PC.
+
+6. **Jump targets and link values**
+   - For JAL, use positive and negative offsets and a nonzero `rd`; verify the target through `instr_addr` and the link value through a later store or branch. Vary the offset and destination in separate comparisons.
+   - For JALR, use distinct `rs1` values and positive and negative I immediates; verify the summed target with bit zero cleared and verify `PC + 4` through a later public operation.
+   - Exercise JALR `funct3 = 000` and require all other `funct3` values to have no link write or PC redirect.
+   - Verify that the link value (`wb_select = "10"`) is not replaced by the M result: with `muldiv_op = '0'` the `PC + 4` path still applies, including for `JAL` and `JALR` encodings whose `funct7`-position bits equal `0000001`.
+
+7. **Load address, width, extraction and extension**
+   - For LB, LBU, LH, LHU and LW, drive a base and immediate that produce a distinguishable effective byte address. Check that `data_addr` is unmasked and `data_width` is correct.
+   - Use a read word with four distinct bytes, such as `0xD3A57C19`. Test byte offsets 0, 1, 2 and 3, including bytes with the high bit set and clear; verify selected values and sign or zero extension through a later store or branch.
+   - Test halfword offsets 0 and 2 with distinct lower and upper halfwords, including signed-positive and signed-negative values. Verify LH sign extension and LHU zero extension. For LW, verify all 32 bits are preserved.
+   - Change only `data_read_data` between otherwise identical load executions and verify the loaded value follows the current memory input. Require loads never to assert `data_write`.
+   - Verify that a load whose encoded immediate has upper bits `0000001` still writes the loaded value, not an M result.
+
+8. **Store routing, payload and suppression**
+   - For SB, SH and SW, use distinct base, immediate and `rs2` patterns. Check the unmasked effective byte address, `data_write = '1'`, correct width, and unshifted `rs2` on `data_write_data`. Verify the external memory commits the appropriate low 8, 16 or 32 bits only at the rising edge.
+   - Change `rs2` before the edge and require the bus payload to track it; change it after the edge without another edge and verify no second store occurs.
+   - For every non-store class, including every M instruction and unsupported instructions, require `data_write = '0'`. While reset is asserted, require `data_write = '0'` even if `instr_data` encodes a store.
+
+9. **Reset and post-reset execution**
+   - Assert reset between clock edges after instructions have changed the PC and registers. Require `instr_addr` to become zero immediately and remain zero while reset is held.
+   - Keep reset asserted across a rising edge with inputs that would otherwise request register and memory writes (including an M instruction with a nonzero `rd`). Verify no store occurs, and use subsequent public behavior after reset to verify registers read as zero.
+   - Deassert reset without a clock and verify state does not advance until the next rising edge. Then execute a register-writing instruction, an M instruction and a store to confirm normal operation resumes from address zero.
+
+10. **RV32M operation results and writeback routing (new)**
+    - For each of MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU, load `rs1` and `rs2` through executed instructions, execute the M instruction, then store `rd` and check the committed memory word. Cover every reference vector in **Edge cases**, in `funct3` order `000..111`.
+    - Sweep all eight `funct3` values on each of these operand pairs. They are chosen so that most operations give distinct results:
+      - `(0xFFFFFFF9, 0x00000002)`
+      - `(0x00000064, 0x00000007)`
+      - `(0xFFFFFFFD, 0x00000007)`
+      - `(0x80000000, 0xFFFFFFFF)`
+      - `(0x12345678, 0x00000000)`
+
+      Hold the operands fixed and change only `instr[14:12]`. Require each result to match the reference. This catches a wrong `funct3` connection, a swapped operand order, and a swap between high and low words, or between quotient and remainder.
+    - Test the asymmetry of MULHSU with `(0x00000007, 0xFFFFFFFD)` versus `(0xFFFFFFFD, 0x00000007)`. Swapping `rs1` and `rs2` must change the MULHSU result as the reference predicts, which confirms that `rs1_data` and `rs2_data` reach `operand_a` and `operand_b` in the right roles.
+    - Test signedness by changing only bit 31 of one operand (for example `0x7FFFFFFD` versus `0xFFFFFFFD` with divisor 7) and compare MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU against the reference.
+    - Test division by zero for all four divider operations using dividends `0x00000000`, `0x00000005`, `0x80000000` and `0xFFFFFFFF`. Quotients must be `0xFFFFFFFF` and remainders must equal the dividend. Test multiplier operations with a zero operand (result 0). The test must finish with no simulator error.
+    - Test signed overflow (`0x80000000` with `0xFFFFFFFF`) for DIV and REM, and confirm the ordinary unsigned results for DIVU and REMU.
+    - Test writeback priority. For an M instruction, the stored `rd` equals the M result and not the ALU ADD result of the same operands (the decoder gives `alu_control = "0000"`, so a missing mux would store `rs1 + rs2`). Compare against an ADD with the same `rs1` and `rs2`, changing only `funct7`, and confirm the results differ as the reference predicts.
+    - Test `rd = x0` M instructions with nonzero results: a later store of `x0` writes zero and no other register changes. Also test M with `rs1 = x0` and `rs2 = x0`, and with `rs1 = rs2` and `rd = rs1`, to confirm that pre-edge values are used.
+    - Test M instructions in sequence with data dependencies (for example `mul` feeding `div` feeding `rem`), and with the result used as a load or store base address, to confirm one result per edge and correct forwarding through the register file only.
+    - Require `data_write = '0'` and `instr_addr = PC + 4` after every M instruction. Verify that no external store occurs.
+    - Combinational check: before the edge, change only `rs2` (through its register source or `instr_data`) and confirm that the value that will be written follows it. Observe the committed value after the edge. Confirm no write occurs without the edge.
+
+11. **Decode boundaries around RV32M (new)**
+    - For OP with `funct7 = 0000000` and each `funct3`, confirm the RV32I result (not an M result) is written. Then change only `funct7` to `0000001` and confirm the M result is written instead, for every `funct3`.
+    - For OP with unsupported `funct7` values (`0000011`, `0000101`, `0001001`, `0010001`, `0100001`, `1000001`, `0000010`, `1000000`, `1111111`) and every `funct3`, confirm no register is written, no memory is written, and the PC advances by four. This requires a marker register to retain its previous value. Also test `funct7 = 0100000` with `funct3` other than `000` and `101`.
+    - For OP-IMM with `instr[31:25] = 0000001`, check that non-shift `funct3` values execute the normal OP-IMM operation (for example the ADDI immediate with those upper bits) and write the ALU result, never an M result. Check that `funct3 = 001` and `101` with those bits are unsupported and write nothing.
+    - From an M-encoded word, change only the opcode to `0x13`, `0x03`, `0x23`, `0x63`, `0x37`, `0x17`, `0x6F`, `0x67` and an unknown opcode. Confirm the behavior is that of the resulting instruction or an unsupported no-op, and never an M result.
+    - Confirm that all non-M instruction classes keep their previous writeback source (ALU, load data, `PC + 4`, `imm_u`) when `muldiv_op = '0'`, by re-running a representative instruction from each class after M instructions have executed. This detects stale M selection.
+    - Alternate M, RV32I OP and unsupported OP instructions on the same registers in consecutive cycles, and require each cycle's committed result to match that instruction only.

@@ -1,0 +1,7 @@
+{
+  "elf": "/repo/experimentos/carbon4_evolui_im_1/.rvgen/sessao-20261113-165813/spec-riscv-test/linha-de-base/programs/rv32ui-p-simple",
+  "max_cycles": 20000,
+  "report": "/repo/experimentos/carbon4_evolui_im_1/.rvgen/sessao-20261113-165813/spec-riscv-test/linha-de-base/rv32ui-p-simple/report.json",
+  "test": "rv32ui-p-simple",
+  "trace": null
+}

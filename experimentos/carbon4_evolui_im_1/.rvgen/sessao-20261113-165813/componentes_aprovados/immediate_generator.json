@@ -1,0 +1,8 @@
+{
+  "bloco": "immediate_generator",
+  "arquivo": "src/immediate_generator.vhd",
+  "hash_vhdl": "c4a74e020ee50b5e71c52ff3426abd2a25445a1f1161b632b2a95f0656caf37d",
+  "testes": [
+    "testes/test_immediate_generator.py"
+  ]
+}

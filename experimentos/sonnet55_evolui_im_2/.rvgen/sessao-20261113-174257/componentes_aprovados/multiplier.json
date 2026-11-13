@@ -1,0 +1,8 @@
+{
+  "bloco": "multiplier",
+  "arquivo": "src/multiplier.vhd",
+  "hash_vhdl": "1baec6d80d93a385be57138eae7b215c6dc56cd32a277999e94978ca1ba9f480",
+  "testes": [
+    "testes/test_multiplier.py"
+  ]
+}

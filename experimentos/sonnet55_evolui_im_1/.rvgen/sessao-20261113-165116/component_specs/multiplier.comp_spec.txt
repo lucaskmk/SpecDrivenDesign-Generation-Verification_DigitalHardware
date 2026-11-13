@@ -1,0 +1,163 @@
+# Component semantic contract: multiplier
+
+## Public interface
+```vhdl
+entity multiplier is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        mul_op : in std_logic_vector(1 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end multiplier;
+```
+
+## Responsibility
+Compute the low or high 32 bits of the 64-bit product with signed/signed, signed/unsigned or unsigned/unsigned interpretation, selected by a 2-bit operation code (00 MUL, 01 MULH, 10 MULHSU, 11 MULHU, equal to funct3[1:0]).
+
+## Timing
+- `multiplier` is purely combinational. It has no clock, no enable and no internal state, so `result` depends only on the current values of `operand_a`, `operand_b` and `mul_op`.
+- After any input changes and the simulator settles, `result` must equal the function defined in this contract for the new inputs. No earlier input value may influence it.
+- No clock edge is needed for `result` to update. The component adds no cycle latency.
+- Consumers may sample `result` once the inputs have been stable for one simulator delta settle. Tests must not rely on a particular propagation delay.
+
+## Reset
+`none`. The component has no reset input and no state. Its output is fully defined by the current inputs at all times, including at simulation start.
+
+## Behavior
+Ports:
+
+| Port | Dir | Width | Meaning |
+|---|---|---|---|
+| `operand_a` | in | 32 | First (left) multiplicand, `rs1` in the RISC-V sense. It is read as a 32-bit two's-complement bit pattern. |
+| `operand_b` | in | 32 | Second (right) multiplicand, `rs2` in the RISC-V sense. It is read as a 32-bit bit pattern. |
+| `mul_op` | in | 2 | Selects the interpretation of the operands and which half of the product is returned. See `## Operations`. |
+| `result` | out | 32 | The selected 32-bit half of the full 64-bit product. |
+
+Definitions, with `A` and `B` the integer values of the operands:
+
+- `Au` = `operand_a` read as unsigned, in 0 to 2^32−1.
+- `As` = `operand_a` read as two's-complement signed, in −2^31 to 2^31−1.
+- `Bu` and `Bs` are defined the same way for `operand_b`.
+- `P` is the exact mathematical product of the interpretations selected by `mul_op`. It is never truncated or saturated before a half is chosen.
+- `P64` is `P` taken modulo 2^64, as a 64-bit two's-complement pattern.
+- `result = P64[31:0]` for the low-half operation.
+- `result = P64[63:32]` for the high-half operations.
+- Every 32-bit `operand_a`, `operand_b` and `mul_op` combination has a defined result. No input combination is illegal.
+- The result never signals overflow, carry, exception or flags. There is no output other than `result`.
+- The operation is exact: no rounding, saturation or approximation.
+
+## Operations
+`mul_op` is the 2-bit code equal to `funct3[1:0]` of the RISC-V M-extension multiply instructions.
+
+| `mul_op` | Name | Operand interpretation | Returned half | `result` |
+|---|---|---|---|---|
+| `"00"` | MUL | Not relevant (see below) | Low | `(As·Bs) mod 2^32`, which equals `(Au·Bu) mod 2^32` |
+| `"01"` | MULH | `operand_a` signed, `operand_b` signed | High | bits [63:32] of `As·Bs` |
+| `"10"` | MULHSU | `operand_a` signed, `operand_b` unsigned | High | bits [63:32] of `As·Bu` |
+| `"11"` | MULHU | `operand_a` unsigned, `operand_b` unsigned | High | bits [63:32] of `Au·Bu` |
+
+- For MUL the low 32 bits are identical under every signed/unsigned interpretation, so there is exactly one correct result.
+- MULHSU is asymmetric. `operand_a` is the signed one and `operand_b` is the unsigned one. Swapping the operands changes the result in general.
+- For the other operations the result is symmetric in the operands.
+- High halves are taken from the 64-bit two's-complement representation of the signed product. A negative product therefore has its upper bits sign-filled according to that representation.
+
+## Edge cases
+- Either operand `0x00000000` gives `result = 0x00000000` for all four operations.
+- Operand `0x00000001`:
+  - The other operand `X` gives MUL = `X`.
+  - MULHU gives `0x00000000`.
+  - MULH and MULHSU give `0x00000000` if `X` is non-negative as read by that operation (`operand_a` signed, `operand_b` signed for MULH, `operand_b` unsigned for MULHSU).
+  - They give `0xFFFFFFFF` if the signed operand is negative.
+- Operand `0xFFFFFFFF` (−1 signed, 2^32−1 unsigned) is the sign-sensitive case. For `operand_a = operand_b = 0xFFFFFFFF`:
+  - MUL = `0x00000001`.
+  - MULH = `0x00000000`.
+  - MULHSU = `0xFFFFFFFF`.
+  - MULHU = `0xFFFFFFFE`.
+- `operand_a = operand_b = 0x80000000`:
+  - MUL = `0x00000000`.
+  - MULH = `0x40000000`.
+  - MULHSU = `0xC0000000`.
+  - MULHU = `0x40000000`.
+- The most negative value times −1, `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, is not special-cased:
+  - MUL = `0x80000000`.
+  - MULH = `0x00000000`, because the product +2^31 fits in 64 bits.
+  - MULHSU = `0xFFFFFFFF` (the product is −2^31·(2^32−1), which is negative).
+  - MULHU = `0x7FFFFFFF`.
+- Spec examples that must hold:
+  - MUL `0x00000007` × `0xFFFFFFFD` = `0xFFFFFFEB`.
+  - MULH `0x80000000` × `0x80000000` = `0x40000000`.
+  - MULHSU `0xFFFFFFFF` × `0xFFFFFFFF` = `0xFFFFFFFF`.
+  - MULHU `0xFFFFFFFF` × `0xFFFFFFFF` = `0xFFFFFFFE`.
+- `0x7FFFFFFF × 0x7FFFFFFF` (largest positive squared) gives MUL = `0x00000001` and MULH = MULHSU = MULHU = `0x3FFFFFFF`.
+- Products that fit in 32 bits give a high half of `0x00000000` for non-negative interpreted products. They give `0xFFFFFFFF` for negative interpreted products under the signed-involving operations.
+- Inputs containing non-binary std_logic values (`U`, `X`, `Z`, `W`, `L`, `H`, `-`) are outside the contract. Tests must drive only `'0'` and `'1'`.
+- `mul_op` has exactly four values, all defined, so there is no "invalid opcode" behavior.
+
+## Test strategy
+Normative. A bench that uses the checks below must fail any implementation that selects the wrong half, the wrong operand interpretation, the wrong operand, or the wrong bit slice.
+
+**Reference model.** The bench computes the expected value independently with arbitrary-precision integers. It interprets `A` and `B` as signed or unsigned per `mul_op`, multiplies exactly, reduces the product modulo 2^64, and slices the low or high 32 bits. Every check compares all 32 bits of `result` with this reference. Checking only a few bits or only a sign is not allowed.
+
+**Control classes.** The control is `mul_op`. Each class gets its own full vector set, and every class must be exercised with every vector family below.
+- `00` (low half)
+- `01` (high, signed×signed)
+- `10` (high, signed×unsigned)
+- `11` (high, unsigned×unsigned)
+
+**1. Operation selection (control routing).**
+- For each of these operand pairs, apply all four `mul_op` values in turn with the operands held fixed and compare each with the reference. Only `mul_op` varies between the four applications.
+  - `0xFFFFFFFF × 0xFFFFFFFF`. Expected results are `0x00000001`, `0x00000000`, `0xFFFFFFFF` and `0xFFFFFFFE` for ops `00` to `11`. All four are distinct, so any mix-up between operations is detected.
+  - `0x80000000 × 0xFFFFFFFF`. Expected results are `0x80000000`, `0x00000000`, `0xFFFFFFFF` and `0x7FFFFFFF`. All four are distinct.
+- Add pairs for which some operations coincide, as extra anti-aliasing checks. For `0x80000000 × 0x80000000`, MULH and MULHU are both `0x40000000`, so they are not distinguishable there. The earlier pairs and the signedness checks must be used to separate them.
+- Apply the control sequence `00,01,10,11,11,10,01,00` and every ordered pair of different codes (including adjacent changes such as `00→11` and `11→00`) on fixed operands. This checks that `result` follows the current `mul_op` with no memory of the previous one.
+
+**2. Low versus high half selection.**
+- Use operands whose full product has different, both nonzero, 32-bit halves. Choose them from reference-verified vectors, for example `0x12345678 × 0x9ABCDEF0` and `0xDEADBEEF × 0x0000FFFF`.
+- Check that MUL returns the low half and MULHU returns the high half, with only `mul_op` changed from `00` to `11`.
+- Check that the two values differ in these vectors.
+- Add small-product vectors (both operands below 2^16). MULHU must be `0` and MUL must be the nonzero product. This detects an implementation that returns the wrong half.
+
+**3. Signedness (one factor at a time).**
+- Hold the low 31 bits of both operands fixed and vary only bit 31 of one operand. Use at least three distinct nonzero low-bit patterns, such as `0x00000003`, `0x7FFFFFFF` and `0x2AAAAAAA`.
+  - Toggle bit 31 of `operand_a` with `mul_op = 01`, then `10`, then `11`.
+    - In ops `01` and `10` the result must change as signed `A` changes.
+    - In op `11` it must change as unsigned `A` changes.
+  - Toggle bit 31 of `operand_b` the same way.
+    - It must affect ops `01` and `11` differently from op `10`, because `operand_b` is signed for op `01` and unsigned for ops `10` and `11`.
+- Equality checks that isolate each interpretation:
+  - With `operand_b` bit 31 = 0, MULH must equal MULHSU, since `Bs = Bu`.
+  - With `operand_a` bit 31 = 0, MULHSU must equal MULHU, since `As = Au`.
+  - With both operand bit 31 = 0, ops `01`, `10` and `11` must all be equal.
+  - With `operand_a` bit 31 = 1 and `operand_b` bit 31 = 1, MULH and MULHU must differ for any nonzero low-bit pattern.
+- For MUL (`00`), toggling bit 31 of either operand must change `result` exactly as `(A·B) mod 2^32` changes. In particular, MUL must equal the low half under all three signed/unsigned interpretations of the same bit patterns.
+
+**4. Operand routing and MULHSU asymmetry.**
+- Use distinguishable operand values, never `operand_a == operand_b` as the only check.
+- For each op, apply `(a, b)` and then `(b, a)` for several pairs.
+  - For ops `00`, `01` and `11`, results must be equal (commutative).
+  - For op `10` the swapped results must match the reference, which differs in general. Required vector: `a = 0xFFFFFFFF, b = 0x00000002` gives `0xFFFFFFFF`. Swapped, `a = 0x00000002, b = 0xFFFFFFFF` gives `0x00000001`.
+- Vary only one operand at a time with the other fixed nonzero and not 1, and confirm that `result` follows the changed operand. Do this for each operand separately, so a missing or constant operand path cannot pass.
+
+**5. Bit-position coverage.**
+- One-hot sweep. For `i` and `j` in `{0, 1, 2, 7, 8, 15, 16, 30, 31}` apply `a = 2^i`, `b = 2^j` for all four ops. Compare with the reference, which places the product bit at position `i+j`. This must show `result` bit `i+j` in the low half for `i+j < 32` and in the high half otherwise.
+- Repeat the sweep with `a = 2^i` and `b = 0xFFFFFFFF` (all-ones) to check bit fill and sign fill across the whole width.
+- Walking-ones and walking-zeros on one operand, with the other operand held at fixed values `0x00000003`, `0xFFFFFFFF` and `0x80000001`. Compare all four ops with the reference.
+- Carry propagation: `0x0000FFFF × 0x0000FFFF`, `0x00010001 × 0xFFFF0000`, `0x55555555 × 0xAAAAAAAA` and `0xFFFFFFFF × 0x00000001` across all four ops.
+
+**6. Boundary matrix.**
+- Take the set S = {`0x00000000`, `0x00000001`, `0x00000002`, `0x7FFFFFFE`, `0x7FFFFFFF`, `0x80000000`, `0x80000001`, `0xFFFFFFFE`, `0xFFFFFFFF`, `0x0000FFFF`, `0x00010000`, `0xAAAAAAAA`, `0x55555555`}.
+- Apply every ordered pair from S × S for every `mul_op`, which is 13 × 13 × 4 = 676 vectors. Compare each against the reference.
+- Explicitly assert the fixed vectors in `## Edge cases`, including the four spec examples.
+
+**7. Randomized regression.**
+- Use a fixed, logged seed and at least 2000 random operand pairs per `mul_op` (8000 total).
+- Draw operands from a mix of uniform 32-bit values, values with sign bits forced to 0 or 1, and small-magnitude values.
+- Compare every result with the reference.
+
+**8. Combinational behavior.**
+- Without any clock toggling, change only `operand_a`, then only `operand_b`, then only `mul_op`, with a settle between changes. After each change, `result` must match the reference for the new inputs.
+- Return to a previous input triple and confirm that `result` returns to the previous value, which shows there is no state or history dependence.
+- Reapply identical inputs several times and confirm `result` is stable and repeatable.
+
+**Pass criterion.** Every check above passes with exact 32-bit equality, and no `'U'`, `'X'` or other non-binary value appears on `result` after any applied input set.

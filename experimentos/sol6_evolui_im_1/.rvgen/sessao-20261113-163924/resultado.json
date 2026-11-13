@@ -1,0 +1,109 @@
+{
+  "veredito": "aprovado",
+  "objetivo_atingido": true,
+  "placar": "48/48 casos",
+  "iteracoes": 0,
+  "chamadas": 55,
+  "tokens_entrada": 642594,
+  "tokens_saida": 50811,
+  "segundos": 711.3,
+  "provedor": "openrouter",
+  "modelo": "openai/gpt-6-sol",
+  "microarquitetura": "monociclo",
+  "isa": "rv32im",
+  "testes_componentes": true,
+  "regressoes_componentes": true,
+  "gates_componentes": true,
+  "evolucao": {
+    "de": "experimentos/luna6_prof_3",
+    "sessao": "sessao-20261104-171911",
+    "isa_anterior": "rv32i",
+    "blocos": {
+      "immediate_generator": {
+        "acao": "change",
+        "de": [
+          "immediate_generator"
+        ],
+        "mudanca": "Retain the five immediate formulas, but review and validate the block as part of the RV32IM decomposition. M instructions introduce no immediate format."
+      },
+      "register_file": {
+        "acao": "keep",
+        "de": [
+          "register_file"
+        ],
+        "mudanca": "None."
+      },
+      "alu": {
+        "acao": "keep",
+        "de": [
+          "alu"
+        ],
+        "mudanca": "None."
+      },
+      "m_unit": {
+        "acao": "new",
+        "de": [],
+        "mudanca": "Add combinational execution of MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, and REMU."
+      },
+      "decoder": {
+        "acao": "change",
+        "de": [
+          "decoder"
+        ],
+        "mudanca": "Add m_enable for OP instructions with funct7=0000001 and any of the eight funct3 values. Retain RV32I decoding and unsupported-instruction behavior."
+      },
+      "cpu": {
+        "acao": "change",
+        "de": [
+          "cpu"
+        ],
+        "mudanca": "Instantiate m_unit and select its result for register writeback when m_enable is asserted. Preserve existing PC, RV32I datapath, reset, and external-bus behavior."
+      }
+    },
+    "removidos": [],
+    "mudaram": [
+      "cpu",
+      "decoder",
+      "immediate_generator",
+      "m_unit"
+    ],
+    "congelados": [
+      "alu",
+      "register_file"
+    ],
+    "linha_de_base": {
+      "isa": "rv32i",
+      "componentes": {
+        "immediate_generator": {
+          "passaram": 5,
+          "total": 5
+        },
+        "register_file": {
+          "passaram": 5,
+          "total": 5
+        },
+        "alu": {
+          "passaram": 5,
+          "total": 5
+        },
+        "decoder": {
+          "passaram": 5,
+          "total": 5
+        },
+        "cpu": {
+          "passaram": 5,
+          "total": 5
+        }
+      },
+      "spec_riscv_test": "40/40 casos"
+    }
+  },
+  "relatorio": ".rvgen/sessao-20261113-163924/spec-riscv-test/suite/report.json",
+  "sessao": {
+    "chamadas": 55,
+    "tokens_entrada": 642594,
+    "tokens_saida": 50811,
+    "segundos_modelo": 476.5,
+    "execucoes": 1
+  }
+}
