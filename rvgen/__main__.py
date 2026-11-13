@@ -523,8 +523,11 @@ def cmd_gerar(args: argparse.Namespace) -> int:
         modelo = args.modelo or cfg.modelo_externo
         cliente = ClienteOpenAI(cfg.vllm_url, cfg.vllm_key, modelo,
                                 provedor="vllm",
-                                temperatura=cfg.temperatura, timeout=cfg.timeout_s)
+                                temperatura=cfg.temperatura, timeout=cfg.timeout_s,
+                                reasoning_effort=cfg.vllm_reasoning_effort)
         onde = f"vllm {modelo} em {cfg.vllm_url}"
+        if cfg.vllm_reasoning_effort:
+            onde += f", reasoning_effort {cfg.vllm_reasoning_effort}"
     elif provedor == "google":
         if not cfg.gemini_key:
             return erro("GEMINI_API_KEY nao definida (.env ou ambiente).")

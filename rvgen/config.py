@@ -14,6 +14,8 @@ o ambiente ainda nao definiu -- o ambiente sempre vence o arquivo.
     SPECHDL_LLM_MODEL    modelo externo padrao           (o mesmo da trilha A)
     RVGEN_VLLM_BASE_URL  base URL do vLLM                (padrao: http://localhost:8000/v1)
     RVGEN_VLLM_API_KEY   chave do vLLM                   (opcional; vLLM nao exige)
+    RVGEN_VLLM_REASONING_EFFORT  low | medium | high, mandado como `reasoning_effort`
+                         ao vLLM (opcional; sem ela, o padrao do modelo)
     GEMINI_API_KEY        chave da Gemini API
     RVGEN_GEMINI_MODEL    modelo Gemini (padrao: gemini-2.5-flash)
     RVGEN_NUM_CTX        janela de contexto no Ollama    (padrao: 16384)
@@ -114,6 +116,7 @@ class Config:
     timeout_s: float
     executor: str
     imagem_docker: str
+    vllm_reasoning_effort: str | None = None
 
 
 def _int(ambiente: MutableMapping[str, str], nome: str, padrao: int) -> int:
@@ -168,4 +171,6 @@ def ler_config(ambiente: MutableMapping[str, str] | None = None,
         executor=_escolha(amb, "RVGEN_EXECUTOR", "auto", EXECUTORES),
         imagem_docker=(amb.get("RVGEN_IMAGEM_DOCKER") or "").strip()
         or IMAGEM_DOCKER_PADRAO,
+        vllm_reasoning_effort=(amb.get("RVGEN_VLLM_REASONING_EFFORT") or "").strip().lower()
+        or None,
     )

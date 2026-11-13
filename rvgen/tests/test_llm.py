@@ -142,6 +142,17 @@ class TestClienteOpenAI(unittest.TestCase):
         # o schema nao vai para a API externa (ver a docstring de rvgen.llm)
         self.assertNotIn("response_format", req["corpo"])
 
+    def test_reasoning_effort_so_vai_quando_configurado(self):
+        ok = {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]}
+        with ServidorFalso({("POST", "/v1/chat/completions"): lambda c, h: (200, ok)}) as s:
+            ClienteOpenAI(f"{s.url}/v1", "tok", "qwen", provedor="vllm",
+                          reasoning_effort="high").conversar([{"role": "user", "content": "oi"}])
+            ClienteOpenAI(f"{s.url}/v1", "tok", "qwen", provedor="vllm").conversar(
+                [{"role": "user", "content": "oi"}])
+            com, sem = (r["corpo"] for r in s.recebidas)
+        self.assertEqual(com["reasoning_effort"], "high")
+        self.assertNotIn("reasoning_effort", sem)
+
     def test_sem_chave_recusa_antes_de_chamar(self):
         with self.assertRaisesRegex(ErroLLM, "OPENROUTER_API_KEY"):
             ClienteOpenAI("http://127.0.0.1:9", None, "m").conversar([])
@@ -286,6 +297,14 @@ class TestConfig(unittest.TestCase):
         # vazio = None, igual ao openrouter
         cfg2 = ler_config({"RVGEN_PROVEDOR": "vllm"}, usar_env_arquivo=False)
         self.assertIsNone(cfg2.vllm_key)
+
+    def test_vllm_esforco_de_raciocinio_por_ambiente(self):
+        cfg = ler_config({"RVGEN_PROVEDOR": "vllm", "RVGEN_VLLM_REASONING_EFFORT": " HIGH "},
+                         usar_env_arquivo=False)
+        self.assertEqual(cfg.vllm_reasoning_effort, "high")
+        # sem a variavel, o padrao do modelo (nada vai para o servidor)
+        self.assertIsNone(ler_config({"RVGEN_PROVEDOR": "vllm"},
+                                     usar_env_arquivo=False).vllm_reasoning_effort)
 
     def test_google_por_ambiente(self):
         cfg = ler_config({"RVGEN_PROVEDOR": "google", "GEMINI_API_KEY": "k",
