@@ -226,6 +226,26 @@ class TestTopoSemConta(unittest.TestCase):
             self.assertIn("integration wiring", agente._requisito_integracao_top(arq["blocks"]))
 
 
+class TestTitulosDoContrato(unittest.TestCase):
+    """Rodada real (13/11/2026, claude-sonnet-5.5): cada título aparecia uma vez, mas o
+    texto citava `## Edge cases` e `## Operations`; 6 revisões foram recusadas."""
+
+    CONTRATO = ("## Timing\ncombinational\n\n## Reset\nnone\n\n## Behavior\nsee `## Operations` "
+                "and `## Edge cases` below\n\n## Operations\nmul\n\n## Edge cases\nzero; the "
+                "cases listed in ## Edge cases are normative\n\n## Test strategy\nexact checks\n")
+
+    def test_mencao_no_texto_nao_conta_como_titulo(self):
+        corpo, preservadas = Agente._completar_revisao_de_spec(self.CONTRATO, self.CONTRATO)
+        self.assertEqual(preservadas, ())
+        self.assertTrue(corpo.startswith("## Timing"))
+        self.assertEqual(Agente._corpo_especificacao_markdown(self.CONTRATO), self.CONTRATO.strip())
+
+    def test_titulo_repetido_de_verdade_continua_recusado(self):
+        repetido = self.CONTRATO + "\n## Operations\nde novo\n"
+        with self.assertRaises(Exception):
+            Agente._completar_revisao_de_spec(repetido, self.CONTRATO)
+
+
 class TestMontadorNaCpuIM(unittest.TestCase):
     """Rodada real (06/11/2026): o pedido mandava usar `assemble_rv32i`, o validador
     de uma CPU RV32IM só aceitava `assemble_rv32im`, e 30 casos de teste do
