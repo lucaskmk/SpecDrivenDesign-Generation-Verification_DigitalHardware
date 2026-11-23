@@ -265,10 +265,14 @@ def texto_do_contrato(microarquitetura: str, isa: str, pasta: Path | None = None
             raise ErroContrato(
                 f"cpu.md declara RV32IM, mas a referencia do M {rv32m_spec} nao pode ser "
                 f"lida: {e}") from e
+        # O comportamento das operacoes (inclusive casos especiais como
+        # divisao por zero) vem so de riscv-rv32m.md: uma dica escrita aqui
+        # entraria no prompt mesmo com a spec reduzida e contaminaria a
+        # ablacao da injecao de conhecimento (docs/artigo.md).
         extensao = (
             f"RV32M ({_RV32M}) is required: decode opcode 0110011 with "
-            f"funct7 = 0000001. Implement these operations in generated VHDL, "
-            f"including RISC-V division-by-zero and signed-overflow semantics. "
+            f"funct7 = 0000001. Implement these operations in generated VHDL "
+            f"as specified in the RV32M Implementation Reference below. "
             f"The entity `cpu` has no generics: the ISA is fixed by "
             f"specs/cpu.md, so the CPU always implements the M instructions."
         )
