@@ -1,0 +1,8 @@
+{
+  "id": "it-003",
+  "nome": "RV32IM com rótulos de rastreabilidade",
+  "criada_em": "2026-11-23T20:22:02",
+  "origem": "it-001",
+  "notas": "Igual à it-001 mais o specs/rotulos.md (catálogo FG/FC/CK). Usada com rvgen gerar --rotulos (item 3, 23/11/2026).",
+  "experimentos": []
+}
