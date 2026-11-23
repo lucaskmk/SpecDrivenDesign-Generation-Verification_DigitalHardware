@@ -270,6 +270,10 @@ class TestAnalise(BaseRepo):
         arq = next(a for a in self.repo.analisar("base")["arquivos"] if a["rel"] == "cpu.md")
         self.assertEqual(arq["tokens"], round(arq["chars"] / 4))
 
+    def test_papel_do_catalogo_de_rotulos(self):
+        from iteracoes.nucleo import PAPEL_ROTULOS, papel_do_arquivo
+        self.assertEqual(papel_do_arquivo("rotulos.md"), PAPEL_ROTULOS)
+
     def test_referencia_do_m_so_conta_com_rv32im(self):
         papeis = {a["rel"]: a["papel"] for a in self.repo.analisar("base")["arquivos"]}
         self.assertEqual(papeis["riscv-rv32m.md"], PAPEL_SISTEMA_IM)
