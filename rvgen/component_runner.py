@@ -22,6 +22,18 @@ def _diagnostico(log: Path, limite: int = 6000) -> str:
     return texto[-limite:]
 
 
+# Teto de tempo SIMULADO de um teste de componente. Os testes gerados usam
+# alguns nanossegundos por estimulo; um teste que espera para sempre (ex.:
+# `await clock.start()` no cocotb 2, rodada real luna6_abl_m_completa_1 de
+# 23/11/2026) simulava sem fim e so pararia no limite de 1 h do executor.
+TEMPO_SIMULADO_MAXIMO = "1ms"
+
+
+def argumentos_de_simulacao(vcd: Path | None = None) -> list[str]:
+    """Argumentos do GHDL depois da unidade de topo (o cocotb os passa como plusargs)."""
+    return [f"--stop-time={TEMPO_SIMULADO_MAXIMO}"] + ([f"--vcd={vcd}"] if vcd else [])
+
+
 def executar(cpu: Path, componente: str, teste: Path, *, workdir: Path,
              build_root: Path, fontes: list[Path] | None = None, vcd: Path | None = None) -> dict:
     # No Docker os argumentos chegam relativos a /job, mas o cocotb inicia o
@@ -63,7 +75,7 @@ def executar(cpu: Path, componente: str, teste: Path, *, workdir: Path,
         # Em GHDL, --vcd é argumento de simulação e deve vir após a unidade
         # top-level. cocotb posiciona `plusargs` nessa parte do comando.
         test_args = ["--std=08"]
-        plusargs = [f"--vcd={vcd}"] if vcd else []
+        plusargs = argumentos_de_simulacao(vcd)
         resultado = runner.test(hdl_toplevel=componente.lower(), hdl_toplevel_lang="vhdl",
                                   test_module=teste.stem,
                                   test_args=test_args, build_dir=build_root,
