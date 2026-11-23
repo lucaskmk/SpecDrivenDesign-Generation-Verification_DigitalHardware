@@ -694,6 +694,22 @@ AssertionError: expected 1, observed 0
         eventos = (r.sessao / "sessao.jsonl").read_text(encoding="utf-8")
         self.assertIn('"evento": "regressao_gerada"', eventos)
 
+    def test_regressao_com_varios_testes_como_o_pedido_manda_e_aceita(self):
+        # Rodada real com gpt-6-luna (luna6_abl_m_reduzida_1, 23/11/2026): o
+        # pedido manda "um teste para a falha e pelo menos tres casos de borda"
+        # e o validador exigia exatamente um teste; 5 e 6 testes foram
+        # recusados e a geracao abortou.
+        varios = ("```python\nimport cocotb\n\n" + "".join(
+            f"@cocotb.test()\nasync def caso_{n}(dut):\n    assert dut is not None\n\n"
+            for n in range(5)) + "```")
+        agente = self.agente(ModeloFalso({"testbench": [varios]}), ExecutorFalso([]))
+        agente.sessao.mkdir(parents=True)
+        bloco = {"name": "alu", "file": "src/alu.vhd", "ports": ["a : in std_logic"]}
+        agente._caminho_especificacao(bloco).parent.mkdir(parents=True)
+        agente._caminho_especificacao(bloco).write_text("## Test strategy\n- x\n", encoding="utf-8")
+        destino = agente._escrever_regressao(bloco, "SRA esperado -1", 5)
+        self.assertEqual(len(Agente._testes_cocotb(destino.read_text(encoding="utf-8"))), 5)
+
     def test_valor_fora_da_largura_contratada_corrige_testbench_nao_vhdl(self):
         plano = json.dumps({"blocks": [
             {"name": "cpu", "responsibility": "top", "ports": [],

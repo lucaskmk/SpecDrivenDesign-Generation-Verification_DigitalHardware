@@ -2476,11 +2476,16 @@ class Agente:
                 f"Normative component semantic contract:\n{self._ler_especificacao(bloco)}\n\n"
                 f"Public DUT interface:\n```vhdl\n{interface}\n```")},
         ]
+        # O pedido manda um teste para a falha e pelo menos tres casos de
+        # borda; o validador exigia exatamente um teste (um_teste=True) e
+        # recusava todo modulo que seguisse o pedido. Numa rodada real com
+        # gpt-6-luna (luna6_abl_m_reduzida_1, 23/11/2026) as duas respostas
+        # tinham 5 e 6 testes e a geracao abortou.
         for _ in (1, 2):
             r = self._chamar("regressao", destino.relative_to(self.pasta).as_posix(), mensagens)
             codigo = extrair_python(r.texto)
             try:
-                if codigo and self._modulo_cocotb_valido(codigo, um_teste=True):
+                if codigo and self._modulo_cocotb_valido(codigo):
                     destino.parent.mkdir(parents=True, exist_ok=True)
                     destino.write_text(codigo, encoding="utf-8")
                     self._log({"evento": "regressao_gerada", "bloco": bloco["name"],
@@ -2492,7 +2497,8 @@ class Agente:
             mensagens += [{"role": "assistant", "content": r.texto},
                           {"role": "user", "content":
                            "The regression module is invalid. Send a complete syntactically valid "
-                           "Cocotb module in one ```python block."}]
+                           "Cocotb module in one ```python block; every @cocotb.test() function "
+                           "takes only `dut` and uses it."}]
         raise ErroGeracao(f"o modelo nao produziu uma regressao valida para {bloco['file']}")
 
     def _testes_existentes_do_bloco(self, bloco: dict) -> list[Path]:
