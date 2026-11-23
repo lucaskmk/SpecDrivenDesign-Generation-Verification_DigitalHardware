@@ -170,6 +170,20 @@ python -m rvgen comparar --markdown experimentos/COMPARACAO.md
 python -m rvgen comparar --sem-rede             # sem buscar preços; custo sai como ?
 ```
 
+Para ver **onde** as chamadas, o tempo e as falhas foram gastos, por grupo de
+fases (planejamento, contratos, VHDL, testes, correção, juiz):
+
+```bash
+python -m rvgen telemetria experimentos/luna6_evolui_im_5 experimentos/sol6_evolui_im_1
+python -m rvgen telemetria experimentos/luna6_prof_3 --detalhado   # uma linha por fase do rvgen
+python -m rvgen telemetria --markdown telemetria.md                 # todos os experimentos
+```
+
+A telemetria inclui sessões interrompidas (mostra onde pararam) e conta, além
+de chamadas e tokens, o tempo de simulação, as falhas de simulação, as
+recusas do validador e do revisor e os erros do provedor (`docs/artigo.md`,
+seção 4.8).
+
 `comparar` só lê os registros da sessão (`resultado.json`, o relatório do
 `spec-riscv-test` e, numa sessão retomada sem o bloco `sessao`, o
 `sessao.jsonl`); não roda modelo nem GHDL. Numa sessão retomada, chamadas,

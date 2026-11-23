@@ -11,6 +11,7 @@
                                           o mesmo, com um modelo externo
     python -m rvgen gerar ia_mono ...     so um nome: grava em experimentos/ia_mono
     python -m rvgen comparar              experimentos lado a lado
+    python -m rvgen telemetria            chamadas, tokens, tempo e falhas por fase
 
 Codigo de saida: 0 quando tudo esta pronto (preparar) ou a CPU atingiu o
 objetivo (gerar), 1 com pendencia ou CPU reprovada, 2 com erro de uso, de
@@ -29,6 +30,7 @@ import urllib.request
 from pathlib import Path
 
 from . import comparar as cmp
+from . import telemetria as tel
 from . import contrato as ct
 from . import evolucao as evo
 from . import executor as ex
@@ -392,6 +394,27 @@ def cmd_comparar(args: argparse.Namespace) -> int:
         destino = Path(args.markdown)
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_text(cmp.tabela_markdown(linhas, precos_ok), encoding="utf-8")
+        print(f"\ntabela em Markdown: {destino}")
+    return 0
+
+
+def cmd_telemetria(args: argparse.Namespace) -> int:
+    alvos = [Path(a) for a in args.pastas] or [cmp.PASTA_PADRAO]
+    sessoes = tel.sessoes(alvos, todas=args.todas)
+    if not sessoes:
+        onde = ", ".join(str(a) for a in alvos)
+        print(f"Nenhuma sessao com sessao.jsonl em {onde}.", file=sys.stderr)
+        return 1
+    externos = any(cmp.provedor_de(s) not in ("ollama", "vllm") for s in sessoes)
+    precos = None if (args.sem_rede or not externos) else cmp.precos_openrouter()
+    tels = [tel.telemetria_de(s, precos) for s in sessoes]
+    precos_ok = precos is not None or not externos
+    print(tel.tabela_texto(tels, precos_ok, detalhado=args.detalhado), end="")
+    if args.markdown:
+        destino = Path(args.markdown)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(tel.tabela_markdown(tels, precos_ok, detalhado=args.detalhado),
+                           encoding="utf-8")
         print(f"\ntabela em Markdown: {destino}")
     return 0
 
@@ -800,6 +823,20 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--sem-rede", action="store_true",
                    help="nao busca precos no OpenRouter; custo externo sai como ?")
     c.set_defaults(func=cmd_comparar)
+
+    t = sub.add_parser("telemetria",
+                       help="por fase: chamadas, tokens, tempo, falhas, recusas e repeticoes")
+    t.add_argument("pastas", nargs="*",
+                   help="experimentos ou pastas de experimentos (padrao: experimentos/)")
+    t.add_argument("--todas", action="store_true",
+                   help="todas as sessoes de cada experimento, nao so a mais recente")
+    t.add_argument("--detalhado", action="store_true",
+                   help="uma linha por fase do rvgen em vez de grupos de fases")
+    t.add_argument("--markdown", metavar="ARQUIVO",
+                   help="grava as mesmas tabelas em Markdown")
+    t.add_argument("--sem-rede", action="store_true",
+                   help="nao busca precos no OpenRouter; custo externo sai como ?")
+    t.set_defaults(func=cmd_telemetria)
 
     args = ap.parse_args(argv)
     return args.func(args)

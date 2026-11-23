@@ -145,6 +145,7 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <ul>
     <li><b>Resultado principal:</b> a CPU <code>experimentos/luna6_prof_3</code> (RV32I monociclo, gerada pelo <code>openai/gpt-6-luna</code>) passou <b>40/40</b> programas do <code>riscv-tests</code> no <code>spec-riscv-test</code>, o juiz do <code>rvgen</code>, sem nenhuma iteração de correção do VHDL. Antes disso o <code>spec-riscv-test</code> nunca tinha rodado numa CPU gerada.</li>
     <li><b>Evoluir em vez de gerar do zero (06/11):</b> com o novo <code>--evoluir-de</code>, a CPU RV32I aprovada virou RV32IM (<code>luna6_evolui_im_3</code>, 48/48) criando um bloco próprio para o M (<code>rv32m_unit</code>) e mudando só o <code>cpu</code>, que apenas integra; os outros 4 blocos ficaram iguais. 28 chamadas e ~US$ 0,06, contra 68 chamadas e ~US$ 0,13 gerando do zero. Antes de mudar, ela roda todos os testes antigos e lê o diff das specs. Ver <a href="#evoluir">Evoluir</a>.</li>
+    <li><b>Telemetria por fase (23/11):</b> <code>python -m rvgen telemetria</code> soma, por grupo de fases, chamadas, tokens, tempo, falhas, recusas e erros a partir do <code>sessao.jsonl</code>, sem custo de IA. Nos 4 modelos da comparação, os testes de componente levam 65% a 74% das chamadas e o laço do juiz não foi usado por nenhum. Ver <a href="#telemetria">Telemetria</a>.</li>
     <li><b>RV32IM também funciona (06/11):</b> com a referência do M em <code>specs/riscv-rv32m.md</code>, o mesmo modelo gerou a <code>experimentos/luna6_im_1</code>, que passou <b>48/48</b> (40 do I + 8 do M; <b>8/8</b> rodando só o M), sem correção de VHDL, numa execução só e por cerca de US$ 0,13. Antes, uma CPU IM escrita à mão (<code>cpus/rv32im_gabarito</code>) provou o caminho do M no juiz: 48/48, enquanto a CPU sem M tira 0/8 nos programas do M.</li>
     <li><b>Segunda opinião:</b> no <code>rvverify</code> a mesma CPU passa os 24 casos RV32I, mas o veredito dele é <b>“parcial”</b> (só a etapa RV32I foi pedida). Esse 24/24 vem de uma execução manual cujo relatório não está versionado.</li>
     <li><b>Custo:</b> cerca de US$ 0,14 na sessão aprovada (78 chamadas). Somando as 2 rodadas anteriores, que pararam em defeitos do <code>rvgen</code>, foram 105 chamadas e cerca de US$ 0,19. É estimativa pelo preço do OpenRouter, não valor de fatura.</li>
@@ -496,6 +497,23 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <li><b>Todos criaram um bloco próprio para o M</b> sem a regra do topo, e nenhum mexeu na <code>alu</code> nem no <code>register_file</code>. O Sonnet foi o que mais dividiu (multiplicador e divisor separados), e também o que mais gastou e o único que precisou de correção.</li>
   <li><b>Defeito do <code>rvgen</code> achado nesta bateria:</b> a primeira rodada do Sonnet (<code>sonnet55_evolui_im_1</code>, 10 chamadas, ~US$ 1,10) parou porque o leitor de contrato contava menções no texto (“ver <code>## Edge cases</code>”) como títulos repetidos e recusou 6 respostas válidas. Corrigido: só conta título no começo da linha.</li>
   <li>Uma rodada por modelo: é comparação de um caso, não medida de taxa de sucesso.</li>
+</ul>
+
+<h3 id="telemetria">Telemetria por fase dos 4 modelos (23/11/2026)</h3>
+<p><code>python -m rvgen telemetria &lt;experimentos&gt;</code> lê o <code>sessao.jsonl</code> e soma por grupo de fases. É a mesma ideia da figura por estágio do UCAgent (agente de verificação de março de 2026): mostra onde cada modelo gasta e onde erra. Sem custo de IA. Colunas de fase em chamadas ao modelo.</p>
+<div class="tblwrap"><table>
+  <tr><th>Modelo</th><th>Planej.</th><th>Contratos</th><th>VHDL</th><th>Testes</th><th>Correção</th><th>Juiz</th><th>Recusas do validador</th><th>Recusas do revisor</th><th>Falhas de simulação</th><th>Min. de modelo</th><th>Min. de simulação</th><th>Custo nos testes</th></tr>
+  <tr><td><code>gpt-6-luna</code></td><td>2</td><td>6</td><td>3</td><td>27 (71%)</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>10,7</td><td>2,7</td><td>61%</td></tr>
+  <tr><td><code>gpt-6-sol</code></td><td>3</td><td>8</td><td>4</td><td>36 (65%)</td><td>4</td><td>0</td><td>0</td><td>0</td><td>4</td><td>7,9</td><td>3,0</td><td>62%</td></tr>
+  <tr><td><code>gemini-4-carbon</code></td><td>2</td><td>6</td><td>3</td><td>27 (71%)</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>38,6</td><td>2,9</td><td>69%</td></tr>
+  <tr><td><code>claude-sonnet-5.5</code></td><td>2</td><td>21</td><td>5</td><td>86 (74%)</td><td>2</td><td>0</td><td>20</td><td>5</td><td>2</td><td>28,9</td><td>4,3</td><td>67%</td></tr>
+</table></div>
+<ul>
+  <li><b>Os testes dominam em todos:</b> 65% a 74% das chamadas e 61% a 69% do custo. Escrever o VHDL fica entre 4% e 8% das chamadas.</li>
+  <li><b>Ninguém precisou do laço do juiz:</b> todas as falhas foram resolvidas na pilha de componentes, antes do veredito.</li>
+  <li><b>Por que o Sonnet gastou mais:</b> 20 casos ou planos de teste recusados pelas regras do <code>rvgen</code> e 5 contratos reprovados pelo revisor. O luna 6 teve zero de cada.</li>
+  <li><b>O Gemini é lento:</b> as mesmas 38 chamadas do luna 6, mas 3,6 vezes o tempo de modelo.</li>
+  <li>“Min. de modelo” soma o tempo de resposta, não é o relógio de parede da tabela anterior. A partir de agora o <code>rvgen</code> também grava quantos pedidos HTTP foram repetidos por falha de rede; as sessões acima são de antes disso.</li>
 </ul>
 
 <h2 id="f-modelo">11 · Como uma chamada ao modelo funciona</h2>
@@ -857,6 +875,7 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 <tr><td>Juiz que o <code>rvgen</code> chama</td><td><code>rvgen/executor.py</code> → <code>spec-riscv-test/spec_riscv_test/cli.py</code> (lista de testes por ISA) · <code>tb_riscv.py</code></td></tr>
 <tr><td>Certificação pelas specs</td><td><code>rvverify/</code>: <code>conformance.py</code> (35 casos, veredito) · <code>manifest.py</code> (<code>cpu.toml</code>) · <code>harness.py</code> · <code>reference.py</code> (modelo Python)</td></tr>
 <tr><td>Comparar IAs</td><td><code>comparar.py</code> → <code>python -m rvgen comparar</code></td></tr>
+<tr><td>Telemetria por fase</td><td><code>telemetria.py</code> → <code>python -m rvgen telemetria</code></td></tr>
 <tr><td>Quartus (Fmax, área, potência)</td><td><code>quartus_testing/quartus_cpu_check.py</code> · <code>how_to_use.md</code></td></tr>
 </table>
 </div>
@@ -884,7 +903,8 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 python -m rvgen gerar cpu_luna --provedor openrouter \
     --testes-componentes --gates-componentes --regressoes-componentes
 python -m rvgen retomar ...              # continua sessão parada (exige as flags acima)
-python -m rvgen comparar                 # várias rodadas lado a lado: veredito, tokens, custo</code></pre>
+python -m rvgen comparar                 # várias rodadas lado a lado: veredito, tokens, custo
+python -m rvgen telemetria               # por fase: chamadas, tokens, tempo, falhas, recusas</code></pre>
 <p>Um nome simples (<code>cpu_luna</code>) grava em <code>experimentos/cpu_luna/</code>; um caminho (<code>entregas/minha_cpu</code>) grava lá. Para não repetir <code>--provedor</code>, ponha <code>RVGEN_PROVEDOR=openrouter</code> no <code>.env</code>. <code>--modelo</code> troca o modelo só naquela rodada.</p>
 <div class="cols">
   <div class="card"><h3>Sem flags</h3><p>Contrato + revisão por bloco, escreve <b>todo</b> o VHDL e vai direto à suíte oficial. Não é a pilha do professor.</p></div>
@@ -1289,6 +1309,7 @@ python -m rvgen preparar --verificar</code></pre>
 <p>Ao mudar este documento, acrescente uma linha aqui e atualize o resumo do topo.</p>
 <div class="tblwrap"><table>
   <tr><th>Data</th><th>O que mudou</th></tr>
+  <tr><td>23/11/2026</td><td>Telemetria por fase (<code>python -m rvgen telemetria</code>) e tabela dos 4 modelos: testes com 65% a 74% das chamadas, laço do juiz sem uso. O evento <code>llm</code> passa a gravar as repetições de rede (<code>repeticoes_rede</code>).</td></tr>
   <tr><td>13/11/2026</td><td>Comparação medida de 4 modelos na evolução RV32I → RV32IM (luna 6, gpt-6-sol, gemini-4-carbon, claude-sonnet-5.5): todos 48/48; custo de US$ 0,08 a US$ 8,34. Corrigido o leitor de contrato que contava menções no texto como títulos.</td></tr>
   <tr><td>06/11/2026</td><td>Regra do topo virou opção e ficou desligada por padrão (<code>--proibir-conta-no-topo</code> liga). Sem ela, a evolução também pôs o M num bloco próprio (<code>luna6_evolui_im_5</code>, 48/48, 38 chamadas): o efeito veio de liberar a decomposição.</td></tr>
   <tr><td>06/11/2026</td><td>Evolução com decomposição livre (manter, mudar, criar, dividir, juntar, renomear, remover), <code>--max-blocos</code> no lugar do limite fixo de 8 e topo sem conta: <code>luna6_evolui_im_3</code>, 48/48, M num bloco próprio, 28 chamadas.</td></tr>

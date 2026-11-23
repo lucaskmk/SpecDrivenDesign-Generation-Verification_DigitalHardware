@@ -1639,6 +1639,7 @@ class Agente:
                    "provedor": r.provedor, "modelo": r.modelo,
                     "tokens_entrada": r.tokens_entrada, "tokens_saida": r.tokens_saida,
                     "segundos": r.segundos, "cortes": r.cortes,
+                    "repeticoes_rede": getattr(r, "repeticoes_rede", 0),
                     "motivo_finalizacao": r.motivo_finalizacao,
                     "temperatura": temperatura,
                     "mensagens": registradas,

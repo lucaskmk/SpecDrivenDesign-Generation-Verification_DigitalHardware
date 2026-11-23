@@ -173,6 +173,8 @@ class TestClienteOpenAI(unittest.TestCase):
             pedidos = len(s.recebidas)
         self.assertEqual((r.texto, pedidos), ("ok", 3))
         self.assertEqual([c.args[0] for c in dormir.call_args_list], [2.0, 4.0])
+        # as duas repeticoes ficam na resposta, para a telemetria por fase
+        self.assertEqual(r.repeticoes_rede, 2)
 
     def test_desiste_depois_de_tres_tentativas_e_diz_quantas(self):
         rota = lambda c, h: (502, {"error": "upstream caiu"})  # noqa: E731

@@ -331,13 +331,57 @@ resultado do juiz por uma fração do custo. A primeira rodada do Sonnet parou
 por um defeito do gerador, não do modelo: o leitor de contrato contava
 menções a `## Edge cases` no meio do texto como títulos repetidos.
 
+### 4.8 Telemetria por fase
+
+O comando `python -m rvgen telemetria` lê o `sessao.jsonl` e soma, por grupo
+de fases, chamadas, tokens, tempo de resposta do modelo, tempo de simulação
+(GHDL/cocotb e `spec-riscv-test`, sem IA), falhas de simulação, recusas do
+validador (regras determinísticas do `rvgen`: caso ou plano de teste
+recusado, plano de evolução inválido), recusas do revisor (contrato
+reprovado pela IA revisora) e erros do provedor. É o mesmo tipo de
+telemetria por estágio que o UCAgent usa para comparar modelos. Os grupos
+são: planejamento (instruções, decomposição, plano de evolução), contratos
+(escrita e revisões), VHDL, testes (testbench e expansão de casos), correção
+dentro da pilha de componentes (triagem, diagnóstico, correção de
+testbench) e juiz (laço de correção guiado pelo `spec-riscv-test`). Para as
+quatro evoluções da seção 4.7:
+
+| Modelo | Planej. | Contratos | VHDL | Testes | Correção | Juiz | Recusas validador | Recusas revisor | Falhas de simulação | Min. modelo | Min. simulação | Custo dos testes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `gpt-6-luna` | 2 | 6 | 3 | 27 (71%) | 0 | 0 | 0 | 0 | 0 | 10,7 | 2,7 | 61% |
+| `gpt-6-sol` | 3 | 8 | 4 | 36 (65%) | 4 | 0 | 0 | 0 | 4 | 7,9 | 3,0 | 62% |
+| `gemini-4-carbon` | 2 | 6 | 3 | 27 (71%) | 0 | 0 | 0 | 0 | 0 | 38,6 | 2,9 | 69% |
+| `claude-sonnet-5.5` | 2 | 21 | 5 | 86 (74%) | 2 | 0 | 20 | 5 | 2 | 28,9 | 4,3 | 67% |
+
+Colunas de fase em chamadas ao modelo. "Min. modelo" é o tempo de resposta
+somado, não o relógio de parede da tabela 4.7. "Custo dos testes" é a
+fração do custo estimado gasta no grupo testes.
+
+- **Os testes dominam em todos os modelos:** 65% a 74% das chamadas e 61% a
+  69% do custo; o VHDL fica entre 4% e 8% das chamadas. O achado da seção
+  4.3 (uma rodada, um modelo) se repete nos quatro.
+- **Nenhum modelo usou o laço do juiz:** 0 chamadas no grupo juiz. Todas as
+  falhas foram resolvidas dentro da pilha de componentes, antes do veredito.
+- **Onde o Sonnet gastou mais:** 20 recusas do validador nos testes (casos e
+  planos de teste recusados por regra) e 5 contratos reprovados pelo
+  revisor explicam boa parte das 116 chamadas, contra 0 e 0 no luna 6.
+- **O Gemini é lento, não verboso em chamadas:** o mesmo número de chamadas
+  do luna 6 (38), mas 3,6 vezes o tempo de modelo, com 2,7 vezes mais
+  tokens de saída.
+
+Desde este comando, o evento `llm` também registra quantos pedidos HTTP
+foram repetidos por falha transitória (`repeticoes_rede`); nas sessões
+acima, gravadas antes, esse número não existe. n = 1 por modelo.
+
 ## 5 Discussão
 
 **O custo está na expansão de testes.** Mais da metade das chamadas (44 de
 78) foi gasta ampliando os testbenches de componente, contra 5 para escrever
 o VHDL. Isso já com `--max-casos-teste` reduzido de 32 para 4. O resultado
 sugere que o próximo ganho de custo está em gerar casos em lote ou de forma
-determinística a partir do contrato, não em trocar o modelo do RTL.
+determinística a partir do contrato, não em trocar o modelo do RTL. A
+telemetria dos quatro modelos (seção 4.8) mostra o mesmo padrão em todos:
+65% a 74% das chamadas vão para os testes.
 
 **Os defeitos foram de orquestração, não do modelo.** Nenhum dos cinco
 defeitos da seção 4.4 era erro de VHDL da IA; todos eram do gerador (prompt

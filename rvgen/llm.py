@@ -76,6 +76,7 @@ class Resposta:
     segundos: float
     cortes: int = 0          # vezes que o servidor encerrou o streaming e ele foi retomado
     motivo_finalizacao: str | None = None  # ex.: "stop" ou "length" (vLLM/OpenAI)
+    repeticoes_rede: int = 0  # pedidos HTTP repetidos por falha transitoria antes desta resposta
 
 
 # --------------------------------------------------------------------------
@@ -123,7 +124,8 @@ def _espera_pedida(e: urllib.error.HTTPError) -> float | None:
 
 def post_json(url: str, corpo: dict, *, headers: dict[str, str] | None = None,
               timeout: float = 60.0, tentativas: int = 3, base_s: float = 2.0,
-              pausar: Callable[[float], None] | None = None) -> dict:
+              pausar: Callable[[float], None] | None = None,
+              repeticoes: list[str] | None = None) -> dict:
     """POST com corpo JSON, resposta JSON.
 
     Falha transitoria (HTTP 408/425/429/5xx, conexao recusada ou interrompida)
@@ -131,6 +133,8 @@ def post_json(url: str, corpo: dict, *, headers: dict[str, str] | None = None,
     `Retry-After` do servidor, no maximo 30 s. Erro definitivo (chave recusada,
     pedido invalido, resposta que nao e JSON) e uma chamada so. O estouro do
     `timeout` tambem nao e repetido: o pedido pode ja ter sido cobrado.
+    Cada repeticao acrescenta o erro que a causou a `repeticoes`, quando dada
+    (a telemetria conta essas repeticoes por fase).
     """
     total = max(1, tentativas)
     for numero in range(1, total + 1):
@@ -156,6 +160,8 @@ def post_json(url: str, corpo: dict, *, headers: dict[str, str] | None = None,
         if numero == total:
             raise ErroLLM(f"{erro} (depois de {numero} tentativa"
                           f"{'s' if numero > 1 else ''})") from None
+        if repeticoes is not None:
+            repeticoes.append(str(erro))
         # `time.sleep` e resolvido na hora da espera (e nao como valor padrao do
         # parametro) para que um teste possa substitui-lo.
         (pausar or time.sleep)(min(_ESPERA_MAXIMA_S,
@@ -306,8 +312,9 @@ class ClienteOpenAI:
         if self.reasoning_effort:
             corpo["reasoning_effort"] = self.reasoning_effort
         inicio = time.monotonic()
+        repeticoes: list[str] = []
         dados = post_json(f"{self.base_url}/chat/completions", corpo,
-                          headers=headers, timeout=self.timeout)
+                          headers=headers, timeout=self.timeout, repeticoes=repeticoes)
         if dados.get("error"):
             erro = dados["error"]
             raise ErroLLM(f"{self.provedor} ({self.modelo}): "
@@ -327,6 +334,7 @@ class ClienteOpenAI:
             tokens_saida=uso.get("completion_tokens"),
             segundos=round(time.monotonic() - inicio, 2),
             motivo_finalizacao=escolha.get("finish_reason"),
+            repeticoes_rede=len(repeticoes),
         )
 
 
@@ -362,8 +370,10 @@ class ClienteGemini:
             corpo["generationConfig"].update({"responseMimeType": "application/json",
                                                 "responseJsonSchema": schema})
         inicio = time.monotonic()
+        repeticoes: list[str] = []
         dados = post_json(f"{self.base_url}/models/{self.modelo}:generateContent", corpo,
-                          headers={"x-goog-api-key": self.chave}, timeout=self.timeout)
+                          headers={"x-goog-api-key": self.chave}, timeout=self.timeout,
+                          repeticoes=repeticoes)
         try:
             candidato = dados["candidates"][0]
             texto = "".join(p.get("text", "") for p in candidato["content"]["parts"])
@@ -372,7 +382,8 @@ class ClienteGemini:
         uso = dados.get("usageMetadata") or {}
         return Resposta(texto=texto, provedor=self.provedor, modelo=self.modelo,
                         tokens_entrada=uso.get("promptTokenCount"), tokens_saida=uso.get("candidatesTokenCount"),
-                        segundos=round(time.monotonic() - inicio, 2), motivo_finalizacao=candidato.get("finishReason"))
+                        segundos=round(time.monotonic() - inicio, 2), motivo_finalizacao=candidato.get("finishReason"),
+                        repeticoes_rede=len(repeticoes))
 
 
 # --------------------------------------------------------------------------
