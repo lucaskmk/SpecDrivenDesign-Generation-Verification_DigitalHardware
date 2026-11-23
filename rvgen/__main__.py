@@ -12,6 +12,8 @@
     python -m rvgen gerar ia_mono ...     so um nome: grava em experimentos/ia_mono
     python -m rvgen comparar              experimentos lado a lado
     python -m rvgen telemetria            chamadas, tokens, tempo e falhas por fase
+    python -m rvgen mutacao <cpu> --bloco muldiv
+                                          mutation score dos testes gerados (GHDL)
 
 Codigo de saida: 0 quando tudo esta pronto (preparar) ou a CPU atingiu o
 objetivo (gerar), 1 com pendencia ou CPU reprovada, 2 com erro de uso, de
@@ -31,6 +33,7 @@ from pathlib import Path
 
 from . import comparar as cmp
 from . import telemetria as tel
+from . import mutacao as mut
 from . import contrato as ct
 from . import evolucao as evo
 from . import executor as ex
@@ -416,6 +419,26 @@ def cmd_telemetria(args: argparse.Namespace) -> int:
         destino.write_text(tel.tabela_markdown(tels, precos_ok, detalhado=args.detalhado),
                            encoding="utf-8")
         print(f"\ntabela em Markdown: {destino}")
+    return 0
+
+
+def cmd_mutacao(args: argparse.Namespace) -> int:
+    cpu = resolver_pasta(args.cpu)
+    try:
+        sessao = mut.sessao_aprovada(cpu)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    isa = args.isa or json.loads((sessao / "resultado.json").read_text(encoding="utf-8")).get("isa", "rv32i")
+    trabalho = Path(args.trabalho or REPO_ROOT / "out" / "mutacao" / cpu.name / args.bloco).resolve()
+    juiz = [t.strip() for t in args.juiz_testes.split(",") if t.strip()] if args.juiz_testes else None
+    resumo = mut.rodar(cpu, args.bloco, isa=isa, trabalho=trabalho, executor=ex.ExecutorLocal(),
+                       juiz_testes=juiz, paralelo=args.paralelo, limite=args.limite)
+    print(mut.resumo_texto(resumo), end="")
+    destino = Path(args.saida) if args.saida else cpu / "mutacao" / f"{args.bloco}.json"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(json.dumps(resumo, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"resumo em {destino}")
     return 0
 
 
@@ -837,6 +860,22 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--sem-rede", action="store_true",
                    help="nao busca precos no OpenRouter; custo externo sai como ?")
     t.set_defaults(func=cmd_telemetria)
+
+    m = sub.add_parser("mutacao",
+                       help="mutantes de um bloco: quantos os testes de componente e o juiz pegam")
+    m.add_argument("cpu", help="CPU aprovada (pasta ou nome em experimentos/)")
+    m.add_argument("--bloco", required=True, help="bloco a mutar (ex.: muldiv)")
+    m.add_argument("--isa", choices=["rv32i", "rv32im"], default=None,
+                   help="ISA do juiz (padrao: a da sessao aprovada)")
+    m.add_argument("--juiz-testes", default=None, metavar="LISTA",
+                   help="programas do juiz separados por virgula (padrao: a suite inteira)")
+    m.add_argument("--paralelo", type=int, default=2, help="mutantes ao mesmo tempo (padrao: 2)")
+    m.add_argument("--limite", type=int, default=None, help="so os N primeiros mutantes")
+    m.add_argument("--trabalho", default=None,
+                   help="pasta de trabalho (padrao: out/mutacao/<cpu>/<bloco>)")
+    m.add_argument("--saida", default=None,
+                   help="resumo JSON (padrao: <cpu>/mutacao/<bloco>.json)")
+    m.set_defaults(func=cmd_mutacao)
 
     args = ap.parse_args(argv)
     return args.func(args)
