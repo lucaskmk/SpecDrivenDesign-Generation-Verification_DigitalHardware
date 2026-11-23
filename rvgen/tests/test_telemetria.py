@@ -88,6 +88,17 @@ class TestTelemetria(unittest.TestCase):
         self.assertTrue(t.repeticoes_registradas)
         self.assertEqual(t.fases["caso_publico_isolado"].chamadas, 1)
 
+    def test_correcao_antes_do_juiz_e_de_componente(self):
+        # rodada real luna6_abl_m_completa_1: `correcao` do register_file depois
+        # da triagem, bem antes da fumaca do juiz
+        eventos = [llm("correcao"),
+                   {"evento": "spec-riscv-test", "rotulo": "linha-de-base", "placar": "40/40"},
+                   llm("escolha"),
+                   {"evento": "spec-riscv-test", "rotulo": "fumaca", "placar": "1/1 casos"},
+                   llm("correcao")]
+        t = tel.telemetria_de(sessao(self.raiz, "c", eventos))
+        self.assertEqual((t.grupos["correcao"].chamadas, t.grupos["juiz"].chamadas), (2, 1))
+
     def test_sessao_antiga_sem_repeticoes_e_parada_no_teto(self):
         eventos = [llm("escrita"), {"evento": "limite_atingido", "fase": "testbench"},
                    {"evento": "retomada"}, {"evento": "inicio"}]

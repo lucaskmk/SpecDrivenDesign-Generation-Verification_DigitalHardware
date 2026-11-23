@@ -171,11 +171,20 @@ def telemetria_de(sessao: Path, precos: cmp.Precos | None = None) -> Telemetria:
     registradas = teto = False
     execucoes = 0
 
+    # `escolha` e `correcao` servem aos dois laços: o de componente (depois
+    # da triagem) e o do juiz. Antes da primeira execução do juiz na ISA nova
+    # (fumaça ou suíte; a linha de base da evolução não conta), são correção
+    # de componente.
+    juiz_comecou = False
+
     def grupo_da_fase(fase: object) -> str:
-        return FASE_PARA_GRUPO.get(str(fase), "outros")
+        g = FASE_PARA_GRUPO.get(str(fase), "outros")
+        return "correcao" if g == "juiz" and not juiz_comecou else g
 
     for d in _eventos(sessao):
         ev = d.get("evento")
+        if ev == "spec-riscv-test" and d.get("rotulo") != "linha-de-base":
+            juiz_comecou = True
         if ev == "llm":
             g = grupo_da_fase(d.get("fase"))
             parcial = Metricas(chamadas=1,
