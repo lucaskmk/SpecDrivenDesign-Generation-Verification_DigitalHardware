@@ -1,0 +1,8 @@
+{
+  "id": "it-002",
+  "nome": "RV32IM, spec do M reduzida (ablação)",
+  "criada_em": "2026-11-23T17:13:57",
+  "origem": "it-001",
+  "notas": "Igual à it-001, mas o riscv-rv32m.md ficou só com o cabeçalho e a tabela de codificação: sem regras gerais, sem casos especiais (divisão por zero, overflow), sem exemplos e sem notas para VHDL. Ablação da injeção de conhecimento (23/11/2026).",
+  "experimentos": []
+}
