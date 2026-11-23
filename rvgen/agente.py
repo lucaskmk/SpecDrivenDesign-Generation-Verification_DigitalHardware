@@ -42,6 +42,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Protocol
 
 from . import contrato as ct
+from . import rotulos as rot
 from .config import REPO_ROOT
 from .executor import Execucao, Executor
 from .llm import ErroLLM, Resposta, extrair_json, extrair_python, extrair_vhdl
@@ -626,6 +627,7 @@ class Agente:
                  max_tokens: int | None = None,
                  max_blocos: int = MAX_BLOCOS_PADRAO,
                  topo_sem_conta: bool = False,
+                 rotulos: bool = False,
                  relatar: Callable[[str], None] = print,
                  protegidos: Callable[[], str] | None = None,
                  caso_de_fumaca: Callable[[], str] = _caso_de_fumaca) -> None:
@@ -647,6 +649,10 @@ class Agente:
         # Desligada por padrão: sem ela, a evolução luna6_evolui_im_5 também pôs
         # o M num bloco próprio; o que decidiu foi liberar a decomposição.
         self.topo_sem_conta = topo_sem_conta
+        # rastreabilidade por rotulos (--rotulos): catalogo fixo em
+        # specs/rotulos.md; None = desligada (comportamento anterior)
+        self.catalogo = (rot.carregar(ct._arquivo_spec(rot.ARQUIVO, None))
+                         if rotulos else None)
         self.exemplo = Path(exemplo).resolve() if exemplo else None
         self.descricao = (descricao or "").strip() or None
         self.forcar = forcar
@@ -1052,23 +1058,38 @@ class Agente:
                 f"Simulator-confirmed hierarchy inventory:\n{json.dumps(caminhos)}\n\n"
                 f"Last rejected expansion (if any; replace its plan, do not repeat it):\n"
                 f"{rejeicao_anterior or '(none)'}\n\n"
-                f"Current passing suite:\n```python\n{atual}\n```")},
+                f"Current passing suite:\n```python\n{atual}\n```"
+                f"{'' if interno else self._pedido_labels_orquestrador(bloco)}")},
         ]
         self.relatar(f"  verificando cobertura incremental de {bloco['name']} ...")
-        for _ in (1, 2):
+        faltam_labels = [] if interno else self._labels_sem_teste(bloco)
+        for tentativa in (1, 2):
             r = self._chamar("orquestracao_expansao_testbench",
                              teste.relative_to(self.pasta).as_posix(), mensagens,
                              schema=_SCHEMA_PLANO_EXPANSAO, temperatura=0.0)
             resposta = r.texto.strip()
-            if resposta.upper() == "COMPLETE":
-                return None
             try:
                 plano_json = extrair_json(resposta)
             except (ErroLLM, AttributeError):
                 plano_json = None
+            completo = resposta.upper() == "COMPLETE" or (
+                isinstance(plano_json, dict) and plano_json.get("decision") == "complete")
+            if completo and faltam_labels and saldo_de_casos > 0 and tentativa == 1:
+                # o checker recusa `complete` uma vez enquanto houver rotulo
+                # do contrato sem teste e orcamento; na segunda, aceita e a
+                # omissao fica registrada na cobertura de rotulos
+                self._registrar_recusa_labels("testes", bloco,
+                                              ["complete com rotulos sem teste: " +
+                                               ", ".join(faltam_labels)])
+                mensagens += [{"role": "assistant", "content": r.texto},
+                              {"role": "user", "content":
+                               "`complete` refused: these CK labels from `## Labels` have no "
+                               "passing test: " + ", ".join(faltam_labels) +
+                               ". Return decision `add` for one of them."}]
+                continue
+            if completo:
+                return None
             if isinstance(plano_json, dict):
-                if plano_json.get("decision") == "complete":
-                    return None
                 # `prerequisites` pode ser lista vazia: o caso mais simples nao
                 # depende de nenhum outro (numa rodada real com gpt-6-luna, `[]`
                 # era recusado duas vezes e a geracao parava).
@@ -1276,6 +1297,109 @@ class Agente:
             partes.append(f"## {nome}.comp_spec.txt\n{self._ler_especificacao(dep)}")
         return "\n\n".join(partes) or "(none)"
 
+    # -- rotulos (--rotulos) ----------------------------------------------
+
+    def _caminho_labels(self, bloco: dict) -> Path:
+        return self.sessao / "component_specs" / f"{bloco['name']}.labels.txt"
+
+    def _labels_do_bloco(self, bloco: dict) -> set[str]:
+        try:
+            return set(rot.CK_RE.findall(self._caminho_labels(bloco).read_text(encoding="utf-8")))
+        except OSError:
+            return set()
+
+    def _labels_assumidos(self, arq: dict, exceto: str) -> set[str]:
+        out: set[str] = set()
+        for b in arq.get("blocks", []):
+            if b["name"] != exceto:
+                out |= self._labels_do_bloco(b)
+        return out
+
+    def _pedido_labels_contrato(self, bloco: dict, arq: dict) -> str:
+        if self.catalogo is None:
+            return ""
+        texto = ("\n\nTraceability labels: add a seventh level-2 heading `## Labels` AFTER "
+                 "`## Test strategy`, listing as bullets the CK-* check points from the fixed "
+                 "catalog below that this component is responsible for verifying through its own "
+                 "ports. Use only labels from the catalog, copied exactly; never invent labels. "
+                 "List only check points this component's behavior actually decides.\n"
+                 f"Catalog (FG group > FC function > CK check point):\n"
+                 f"{self.catalogo.texto_para_prompt(self.isa)}\n")
+        if bloco["name"] == ct.TOP:
+            faltam = sorted(self.catalogo.cks(self.isa) - self._labels_assumidos(arq, ct.TOP))
+            if faltam:
+                texto += ("`cpu` is the last block: its `## Labels` must also list every catalog "
+                          "check point no other block claimed: " + ", ".join(faltam) + "\n")
+        return texto
+
+    def _problemas_labels_contrato(self, bloco: dict, arq: dict, resposta: str) -> list[str]:
+        if self.catalogo is None:
+            return []
+        erros = rot.problemas_contrato(resposta, self.catalogo, self.isa)
+        if not erros and bloco["name"] == ct.TOP:
+            faltam = (self.catalogo.cks(self.isa) - self._labels_assumidos(arq, ct.TOP)
+                      - rot.ck_do_contrato(resposta))
+            if faltam:
+                erros.append("catalog check points claimed by no block; list them in `cpu`'s "
+                             "`## Labels`: " + ", ".join(sorted(faltam)))
+        return erros
+
+    def _gravar_labels(self, bloco: dict, resposta: str) -> None:
+        cks = sorted(rot.ck_do_contrato(resposta) & self.catalogo.cks(self.isa))
+        destino = self._caminho_labels(bloco)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text("".join(f"- {ck}\n" for ck in cks), encoding="utf-8")
+
+    def _pedido_labels_teste(self, bloco: dict, *, obrigatorio: bool) -> str:
+        if self.catalogo is None:
+            return ""
+        cks = sorted(self._labels_do_bloco(bloco))
+        regra = ("The module MUST start with one comment line `# CK: <labels>`" if obrigatorio
+                 else "Optionally start the module with one comment line `# CK: <labels>`")
+        return (f"\n\n{regra} naming the CK labels this test actually asserts, chosen only "
+                f"from this component's `## Labels`: {', '.join(cks) or '(none)'}.\n")
+
+    def _problemas_labels_teste(self, bloco: dict, codigo: str, *, obrigatorio: bool) -> list[str]:
+        if self.catalogo is None:
+            return []
+        return rot.problemas_teste(codigo, self._labels_do_bloco(bloco), self.catalogo,
+                                   self.isa, obrigatorio=obrigatorio)
+
+    def _labels_sem_teste(self, bloco: dict) -> list[str]:
+        if self.catalogo is None:
+            return []
+        citados: set[str] = set()
+        for t in [self._caminho_teste(bloco), *self._casos_publicos_isolados(bloco)]:
+            try:
+                citados |= rot.ck_do_teste(t.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+        return sorted(self._labels_do_bloco(bloco) - citados)
+
+    def _pedido_labels_orquestrador(self, bloco: dict) -> str:
+        faltam = self._labels_sem_teste(bloco)
+        if self.catalogo is None or not faltam:
+            return ""
+        return ("\n\nTraceability: these CK labels from the contract's `## Labels` still have no "
+                "passing test citing them: " + ", ".join(faltam) + ". Prefer a case that verifies "
+                "one of them; `complete` is refused while any remains and budget is left.\n")
+
+    def _registrar_recusa_labels(self, grupo: str, bloco: dict, erros: list[str]) -> None:
+        self._log({"evento": "rotulos_recusados", "grupo": grupo, "bloco": bloco["name"],
+                   "motivo": "; ".join(erros)})
+
+    def _cobertura_rotulos(self, arq: dict) -> dict:
+        dados = rot.gravar_cobertura(self.sessao, [b["name"] for b in arq["blocks"]],
+                                     self.catalogo, self.isa)
+        resumo = {"cobertura_cpu": dados["cobertura_cpu"], "catalogo": dados["catalogo"],
+                  "cobertos": len(dados["cobertos"]), "sem_dono": len(dados["sem_dono"]),
+                  "arquivo": "rotulos_cobertura.json"}
+        self._log({"evento": "rotulos_cobertura", **resumo,
+                   "por_bloco": {n: b["cobertura"] for n, b in dados["por_bloco"].items()}})
+        self.relatar(f"  rotulos: {resumo['cobertos']}/{resumo['catalogo']} pontos de checagem "
+                     f"com teste; {resumo['sem_dono']} sem bloco responsavel")
+        return resumo
+
     def _escrever_especificacao(self, bloco: dict, arq: dict) -> None:
         """Fixa o contrato semântico antes de VHDL e Cocotb o consumirem."""
         destino = self._caminho_especificacao(bloco)
@@ -1302,14 +1426,23 @@ class Agente:
                 f"{self._decomposicao_fixa(bloco, arq)}\n"
                 f"Public interface:\n```vhdl\n{interface}\n```\n\n"
                 "Semantic contracts of direct dependencies:\n"
-                f"{self._especificacoes_dependencias(bloco, arq)}")},
+                f"{self._especificacoes_dependencias(bloco, arq)}"
+                f"{self._pedido_labels_contrato(bloco, arq)}")},
         ]
         self.relatar(f"  definindo contrato semantico de {bloco['file']} ...")
-        for _ in (1, 2):
+        for _ in ((1, 2, 3) if self.catalogo is not None else (1, 2)):
             r = self._chamar("especificacao_componente",
                              destino.relative_to(self.pasta).as_posix(), mensagens)
+            erros_labels: list[str] = []
             try:
-                self._salvar_especificacao(bloco, self._corpo_especificacao_markdown(r.texto))
+                corpo = self._corpo_especificacao_markdown(r.texto)
+                erros_labels = self._problemas_labels_contrato(bloco, arq, r.texto)
+                if erros_labels:
+                    self._registrar_recusa_labels("contratos", bloco, erros_labels)
+                    raise ErroLLM("rotulos invalidos")
+                if self.catalogo is not None:
+                    self._gravar_labels(bloco, r.texto)
+                self._salvar_especificacao(bloco, corpo)
                 self._log({"evento": "especificacao_componente", "bloco": bloco["name"],
                            "arquivo": destino.relative_to(self.pasta).as_posix()})
                 return
@@ -1317,6 +1450,8 @@ class Agente:
                 pass
             mensagens += [{"role": "assistant", "content": r.texto},
                             {"role": "user", "content":
+                             ("Fix the `## Labels` section: " + "; ".join(erros_labels) +
+                              ". Return the complete contract again.") if erros_labels else
                              "Return only complete Markdown with all six required ## headings."}]
         raise ErroGeracao(f"o modelo nao produziu a especificacao de {bloco['file']}")
 
@@ -1381,6 +1516,13 @@ class Agente:
     def _salvar_especificacao(self, bloco: dict, corpo: str) -> None:
         """Acrescenta interface fixa ao corpo Markdown semântico da LLM."""
         interface = self._interface_do_bloco(bloco)
+        if self.catalogo is not None:
+            # revisoes reescrevem o contrato; os rotulos ficam fixos no
+            # arquivo a parte e voltam ao fim de cada versao salva
+            corpo = rot.sem_secao_labels(corpo).rstrip()
+            cks = sorted(self._labels_do_bloco(bloco))
+            if cks:
+                corpo += "\n\n## Labels\n" + "\n".join(f"- {ck}" for ck in cks)
         linhas = [f"# Component semantic contract: {bloco['name']}", "",
                   "## Public interface", "```vhdl", interface, "```", "",
                   "## Responsibility", bloco["responsibility"], "", corpo]
@@ -1984,12 +2126,21 @@ class Agente:
                 f"Normative component semantic contract:\n{self._ler_especificacao(bloco)}\n\n"
                 "Public DUT interface (the implementation is intentionally not provided):\n"
                 f"```vhdl\n{interface}\n```\n\n"
-                "Answer only with the complete smoke test in one ```python block.")},
+                "Answer only with the complete smoke test in one ```python block."
+                f"{self._pedido_labels_teste(bloco, obrigatorio=False)}")},
         ]
         self.relatar(f"  gerando smoke test de {bloco['file']} ...")
         for _ in (1, 2):
             r = self._chamar("testbench", destino.relative_to(self.pasta).as_posix(), mensagens)
             codigo = extrair_python(r.texto)
+            erros_labels = (self._problemas_labels_teste(bloco, codigo, obrigatorio=False)
+                            if codigo else [])
+            if erros_labels:
+                self._registrar_recusa_labels("testes", bloco, erros_labels)
+                mensagens += [{"role": "assistant", "content": r.texto},
+                              {"role": "user", "content":
+                               "Fix the `# CK:` comment: " + "; ".join(erros_labels)}]
+                continue
             try:
                 if codigo and self._smoke_cocotb_valido(codigo):
                     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -2112,7 +2263,8 @@ class Agente:
                 f"{self._capacidade_assembly_rv32i(bloco)}\n"
                 "A passing smoke test is supplied only as a Cocotb/timing convention reference; "
                 "do not copy its test function:\n"
-                f"```python\n{exemplo}\n```")},
+                f"```python\n{exemplo}\n```"
+                f"{self._pedido_labels_teste(bloco, obrigatorio=True)}")},
         ]
         prefixo = f"  {rotulo}: " if rotulo else "  "
         self.relatar(f"{prefixo}gerando caso isolado para {bloco['file']} ...")
@@ -2121,6 +2273,7 @@ class Agente:
         for _ in range(3):
             r = self._chamar("caso_publico_isolado", destino.relative_to(self.pasta).as_posix(), mensagens)
             codigo = extrair_python(r.texto)
+            erros_labels: list[str] = []
             ultimo = (codigo or r.texto)[-3000:]
             try:
                 if codigo:
@@ -2130,17 +2283,22 @@ class Agente:
                     assembly_valido = (not portas_instrucao or self._novo_caso_usa_assembly_rv32i(
                         codigo, nomes, portas_instrucao,
                         exigir_labels_controle=self._programa_rv32i_sequencial(bloco)))
-                    if len(nomes) == 1 and assembly_valido:
+                    erros_labels = self._problemas_labels_teste(bloco, codigo, obrigatorio=True)
+                    if erros_labels:
+                        self._registrar_recusa_labels("testes", bloco, erros_labels)
+                    elif len(nomes) == 1 and assembly_valido:
                         destino.parent.mkdir(parents=True, exist_ok=True)
                         destino.write_text(codigo, encoding="utf-8")
                         return destino
             except SyntaxError:
-                pass
+                erros_labels = []
             mensagens += [{"role": "assistant", "content": r.texto},
                            {"role": "user", "content":
                             "Send exactly one syntactically valid, standalone Cocotb test module. "
                             "It must contain one @cocotb.test() and valid assembly through "
-                            f"`{self._montador_de_estimulos()}`."}]
+                            f"`{self._montador_de_estimulos()}`."
+                            + (" Fix the `# CK:` comment: " + "; ".join(erros_labels)
+                               if codigo and self.catalogo is not None and erros_labels else "")}]
         raise ErroPlanoTeste(
             f"candidato Cocotb isolado recusado: exige um unico teste e assembly RV32I valido em "
             f"{bloco['file']}. Candidato rejeitado:\n```python\n{ultimo}\n```")
@@ -5581,6 +5739,7 @@ async def inventory_visible_hierarchy(dut):
                     "gates_componentes": self.gates_componentes,
                    "exemplo": str(self.exemplo) if self.exemplo else None,
                    "descricao": self.descricao,
+                   "rotulos": self.catalogo is not None,
                    "specs": ct.descrever_pasta_specs()})
 
         self._resumir_cpu_proposta()
@@ -5645,6 +5804,8 @@ async def inventory_visible_hierarchy(dut):
                   "descricao": self.descricao,
                   "relatorio": final.json_path.relative_to(self.pasta).as_posix(),
                   "sessao": resultado.totais_sessao}
+        if self.catalogo is not None:
+            resumo["rotulos"] = self._cobertura_rotulos(arq)
         (self.sessao / "resultado.json").write_text(
             json.dumps(resumo, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         self._log({"evento": "fim", **resumo})

@@ -213,6 +213,9 @@ def telemetria_de(sessao: Path, precos: cmp.Precos | None = None) -> Telemetria:
             grupos["testes"].recusas_validador += 1
         elif ev == "plano_evolucao_invalido":
             grupos["planejamento"].recusas_validador += 1
+        elif ev == "rotulos_recusados":
+            g = str(d.get("grupo") or "outros")
+            grupos[g if g in grupos else "outros"].recusas_validador += 1
         elif ev == "especificacao_reprovada":
             grupos["contratos"].recusas_revisor += 1
         elif ev in ("llm_erro", "saida_truncada"):

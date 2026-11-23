@@ -34,6 +34,7 @@ from pathlib import Path
 from . import comparar as cmp
 from . import telemetria as tel
 from . import mutacao as mut
+from . import rotulos as rot
 from . import contrato as ct
 from . import evolucao as evo
 from . import executor as ex
@@ -500,6 +501,7 @@ def cmd_gerar(args: argparse.Namespace) -> int:
         args.regressoes_componentes = bool(inicio_sessao.get("regressoes_componentes"))
         args.gates_componentes = bool(inicio_sessao.get("gates_componentes"))
         args.exemplo = inicio_sessao.get("exemplo")
+        args.rotulos = bool(inicio_sessao.get("rotulos"))
         args.forcar = True
         for nome, herdado in herdar.items():
             if herdado and isinstance(inicio_sessao.get(nome), int):
@@ -513,6 +515,13 @@ def cmd_gerar(args: argparse.Namespace) -> int:
     except ValueError:
         return erro(f"{pasta} esta fora do repositorio; use entregas/<nome>.")
     evoluir_de = getattr(args, "evoluir_de", None)
+    if getattr(args, "rotulos", False):
+        if evoluir_de:
+            return erro("--rotulos ainda nao vale com --evoluir-de; gere do zero.")
+        try:
+            rot.carregar(ct._arquivo_spec(rot.ARQUIVO, None))
+        except rot.ErroRotulos as e:
+            return erro(f"--rotulos: {e}")
     max_blocos = getattr(args, "max_blocos", None)
     if max_blocos is not None and max_blocos < 2:
         return erro("--max-blocos deve ser pelo menos 2 (um bloco e o topo cpu).")
@@ -656,6 +665,7 @@ def cmd_gerar(args: argparse.Namespace) -> int:
                        max_chamadas=max_chamadas, max_tokens=max_tokens,
                        max_blocos=max_blocos,
                        topo_sem_conta=bool(getattr(args, "proibir_conta_no_topo", False)),
+                       rotulos=bool(getattr(args, "rotulos", False)),
                        relatar=relator.linha)
     try:
         if sessao_existente:
@@ -761,6 +771,9 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--max-tokens", type=int, default=None, metavar="N",
                    help="para quando entrada+saida somarem N tokens (padrao: sem teto); "
                         "pode passar do teto por uma chamada")
+    g.add_argument("--rotulos", action="store_true",
+                   help="rastreabilidade: contratos e testes citam os rotulos CK-* de "
+                        "specs/rotulos.md, conferidos sem IA; mede a cobertura de rotulos")
     g.add_argument("--proibir-conta-no-topo", action="store_true",
                    help="recusa multiplicacao, divisao e resto (*, /, rem, mod) no topo cpu "
                         "(padrao: permite; a decomposicao livre ja levou o M para um bloco "
