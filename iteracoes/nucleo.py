@@ -36,6 +36,8 @@ __all__ = [
     "PAPEL_DOC",
     "PAPEL_SISTEMA_IM",
     "ARQUIVO_M",
+    "ARQUIVO_ROTULOS",
+    "PAPEL_ROTULOS",
     "papel_do_arquivo",
 ]
 
@@ -45,11 +47,13 @@ ARQUIVO_TESTES = "testes.md"
 OBRIGATORIOS = ARQUIVOS_SISTEMA + (ARQUIVO_TESTES,)
 # Referencia do M: so vai para a IA (e so e obrigatoria) quando cpu.md e RV32IM.
 ARQUIVO_M = "riscv-rv32m.md"
+ARQUIVO_ROTULOS = "rotulos.md"
 
 PAPEL_SISTEMA = "vai para a IA (prompt de sistema)"
 PAPEL_TESTES = "vai para a IA (chamadas de teste)"
 PAPEL_DOC = "so documentacao, a IA nao le"
 PAPEL_SISTEMA_IM = "vai para a IA so com RV32IM (prompt de sistema)"
+PAPEL_ROTULOS = "vai para a IA so com rvgen gerar --rotulos (contratos e testes)"
 
 _ID_ITERACAO_RE = re.compile(r"^it-\d{3}$")
 # um trecho do caminho: letras (com acento), numeros, _ - . e espaco; nao
@@ -80,6 +84,8 @@ def papel_do_arquivo(rel: str) -> str:
         return PAPEL_SISTEMA
     if rel == ARQUIVO_M:
         return PAPEL_SISTEMA_IM
+    if rel == ARQUIVO_ROTULOS:
+        return PAPEL_ROTULOS
     if rel == ARQUIVO_TESTES:
         return PAPEL_TESTES
     return PAPEL_DOC
