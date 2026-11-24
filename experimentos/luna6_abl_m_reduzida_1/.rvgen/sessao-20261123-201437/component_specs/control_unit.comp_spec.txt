@@ -1,0 +1,208 @@
+# Component semantic contract: control_unit
+
+## Public interface
+```vhdl
+entity control_unit is
+    port(
+        instruction : in std_logic_vector(31 downto 0);
+        compare_equal : in std_logic;
+        compare_signed_less : in std_logic;
+        compare_unsigned_less : in std_logic;
+        alu_op : out std_logic_vector(3 downto 0);
+        alu_src_imm : out std_logic;
+        alu_imm_sel : out std_logic_vector(1 downto 0);
+        alu_a_pc : out std_logic;
+        alu_a_zero : out std_logic;
+        reg_write : out std_logic;
+        mem_read : out std_logic;
+        mem_write : out std_logic;
+        mem_width : out std_logic_vector(1 downto 0);
+        load_funct3 : out std_logic_vector(2 downto 0);
+        wb_sel : out std_logic_vector(1 downto 0);
+        branch : out std_logic;
+        branch_taken : out std_logic;
+        jal : out std_logic;
+        jalr : out std_logic
+    );
+end control_unit;
+```
+
+## Responsibility
+Decode the instruction into ALU, register-write, memory, writeback, and control-flow signals. Select conditional branches using the ALU comparison flags.
+
+## Timing
+
+`control_unit` is combinational. For stable inputs, all outputs shall reflect the instruction and comparison inputs without waiting for a clock edge. The component has no state, and outputs shall not depend on input history.
+
+## Reset
+
+None. The component has no reset input or reset behavior.
+
+## Behavior
+
+Decode `instruction` into ALU, register-write, memory, writeback, and control-flow signals as specified in **Operations**.
+
+- `alu_src_imm` selects an immediate (`'1'`) or register operand (`'0'`) as the ALU’s second operand.
+- When `alu_src_imm = '1'`, `alu_imm_sel` selects the immediate format in **Operations**. For RV32M instructions, `alu_src_imm = '0'` and `alu_imm_sel` selects the RV32M operation variant.
+- `alu_a_pc = '1'` selects the PC as the ALU’s first operand; `alu_a_zero = '1'` selects zero. When both are `'0'`, the first operand is the register operand. They shall never both be `'1'`.
+- `reg_write` indicates that the instruction writes its destination register.
+- `mem_read` and `mem_write` indicate a load and a store, respectively.
+- `mem_width` selects byte, halfword, or word access. `load_funct3` passes the load’s `funct3` field to load-data selection and extension logic.
+- `wb_sel` selects the value for register writeback.
+- `branch` identifies a valid conditional branch. `branch_taken` is asserted only when its condition is satisfied.
+- `jal` and `jalr` identify valid JAL and JALR instructions, respectively, and shall be mutually exclusive.
+- A valid instruction that does not use an output shall leave it at its default value.
+
+The `alu_op`, `alu_imm_sel`, `wb_sel`, and `mem_width` encodings below specify this component’s output contract. They do not require other entities to use the same numeric selector encodings. This component has no generated dependencies.
+
+For every supported instruction, outputs not assigned a non-default value in **Operations** shall have these defaults:
+
+| Output | Default |
+|---|---|
+| `alu_op` | `"0000"` |
+| `alu_src_imm` | `'0'` |
+| `alu_imm_sel` | `"00"` |
+| `alu_a_pc` | `'0'` |
+| `alu_a_zero` | `'0'` |
+| `reg_write` | `'0'` |
+| `mem_read` | `'0'` |
+| `mem_write` | `'0'` |
+| `mem_width` | `"10"` |
+| `load_funct3` | `"000"` |
+| `wb_sel` | `"00"` |
+| `branch` | `'0'` |
+| `branch_taken` | `'0'` |
+| `jal` | `'0'` |
+| `jalr` | `'0'` |
+
+An unsupported or reserved instruction shall produce exactly these defaults. This includes unsupported function fields and noncanonical `funct7` values where a specific encoding is required. An instruction containing any non-binary bit shall also produce exactly these defaults.
+
+For comparison inputs, only exact `'1'` is true. Each input’s effective Boolean value is true if and only if the input is `'1'`; `'0'` and every non-binary value are false. Apply branch conditions to these effective Boolean values. In particular, an inverse branch condition is true when its comparison input is `'0'` **or non-binary**. This normalization rule governs inverse branches.
+
+## Operations
+
+All instruction encodings use the standard RV32I/RV32M fields and opcodes. The listed `alu_op` encodings are normative for this component.
+
+**ALU operation selectors:**
+
+| `alu_op` | Operation |
+|---|---|
+| `"0000"` | ADD |
+| `"0001"` | SUB |
+| `"0010"` | SLL |
+| `"0011"` | SLT |
+| `"0100"` | SLTU |
+| `"0101"` | XOR |
+| `"0110"` | SRL |
+| `"0111"` | SRA |
+| `"1000"` | OR |
+| `"1001"` | AND |
+| `"1010"` | MUL or MULH; distinguish using `alu_imm_sel` |
+| `"1011"` | MULHSU or MULHU; distinguish using `alu_imm_sel` |
+| `"1100"` | DIV or DIVU; distinguish using `alu_imm_sel` |
+| `"1101"` | REM or REMU; distinguish using `alu_imm_sel` |
+| `"1110"` | Reserved |
+| `"1111"` | Reserved |
+
+For `alu_op` values `"1010"` through `"1101"`, `alu_imm_sel = "00"` selects the first operation named in the corresponding row and `"01"` selects the second. For these RV32M instructions, `alu_src_imm` remains `'0'`; `alu_imm_sel` is an operation-variant selector, not an immediate-format selector.
+
+**Immediate-format selectors** (used when `alu_src_imm = '1'`):
+
+| `alu_imm_sel` | Immediate format |
+|---|---|
+| `"00"` | I-type |
+| `"01"` | S-type |
+| `"10"` | B-type |
+| `"11"` | U-type, except for JAL, where it selects J-type |
+
+**Writeback selectors:**
+
+| `wb_sel` | Value selected for register writeback |
+|---|---|
+| `"00"` | ALU result |
+| `"01"` | Load data |
+| `"10"` | `PC + 4` |
+| `"11"` | Reserved; no supported instruction shall select it |
+
+**Memory-width selectors:**
+
+| `mem_width` | Access width |
+|---|---|
+| `"00"` | Byte |
+| `"01"` | Halfword |
+| `"10"` | Word |
+| `"11"` | Reserved; no supported load or store shall select it |
+
+For each instruction below, outputs not mentioned remain at the defaults in **Behavior**.
+
+**Loads** (`opcode = "0000011"`):
+
+- Supported `funct3` values are `"000"` (LB), `"001"` (LH), `"010"` (LW), `"100"` (LBU), and `"101"` (LHU).
+- Set `alu_op = "0000"`, `alu_src_imm = '1'`, `alu_imm_sel = "00"`, `reg_write = '1'`, `mem_read = '1'`, and `wb_sel = "01"`.
+- Set `mem_width` to `"00"` for LB/LBU, `"01"` for LH/LHU, and `"10"` for LW.
+- Set `load_funct3` to the instruction’s `funct3`.
+
+**Stores** (`opcode = "0100011"`):
+
+- Supported `funct3` values are `"000"` (SB), `"001"` (SH), and `"010"` (SW).
+- Set `alu_op = "0000"`, `alu_src_imm = '1'`, `alu_imm_sel = "01"`, and `mem_write = '1'`.
+- Set `mem_width` to `"00"` for SB, `"01"` for SH, and `"10"` for SW.
+
+**Conditional branches** (`opcode = "1100011"`):
+
+- Supported `funct3` values are `"000"` (BEQ), `"001"` (BNE), `"100"` (BLT), `"101"` (BGE), `"110"` (BLTU), and `"111"` (BGEU).
+- Set `alu_op = "0000"` (ADD), `alu_src_imm = '1'`, `alu_imm_sel = "10"`, `alu_a_pc = '1'`, and `branch = '1'`. These selections specify the branch-target calculation `PC + B-type immediate`; do not select SUB for this calculation.
+- Set `branch_taken` according to the corresponding effective comparison value: BEQ uses `compare_equal`; BNE uses its inverse; BLT uses `compare_signed_less`; BGE uses its inverse; BLTU uses `compare_unsigned_less`; BGEU uses its inverse. An inverse is the Boolean negation of the effective value defined in **Behavior**, so it is true for both `'0'` and non-binary inputs.
+
+**JAL** (`opcode = "1101111"`):
+
+- Set `alu_op = "0000"`, `alu_src_imm = '1'`, `alu_imm_sel = "11"`, `alu_a_pc = '1'`, `reg_write = '1'`, `wb_sel = "10"`, and `jal = '1'`.
+
+**JALR** (`opcode = "1100111"`, `funct3 = "000"` only):
+
+- Set `alu_op = "0000"`, `alu_src_imm = '1'`, `alu_imm_sel = "00"`, `reg_write = '1'`, `wb_sel = "10"`, and `jalr = '1'`.
+
+**LUI** (`opcode = "0110111"`):
+
+- Set `alu_op = "0000"`, `alu_src_imm = '1'`, `alu_imm_sel = "11"`, `alu_a_zero = '1'`, and `reg_write = '1'`.
+
+**AUIPC** (`opcode = "0010111"`):
+
+- Set `alu_op = "0000"`, `alu_src_imm = '1'`, `alu_imm_sel = "11"`, `alu_a_pc = '1'`, and `reg_write = '1'`.
+
+**OP-IMM** (`opcode = "0010011"`):
+
+- Set `alu_src_imm = '1'` and `reg_write = '1'`.
+- `funct3 = "000"` selects ADDI (`alu_op = "0000"`); `"010"` selects SLTI (`"0011"`); `"011"` selects SLTIU (`"0100"`); `"100"` selects XORI (`"0101"`); `"110"` selects ORI (`"1000"`); and `"111"` selects ANDI (`"1001"`). These operations accept any immediate bits.
+- `funct3 = "001"` selects SLLI (`alu_op = "0010"`) only when `instruction(31 downto 25) = "0000000"`.
+- `funct3 = "101"` selects SRLI (`alu_op = "0110"`) when `instruction(31 downto 25) = "0000000"` and SRAI (`alu_op = "0111"`) when it is `"0100000"`.
+- All supported OP-IMM instructions set `alu_imm_sel = "00"`.
+
+**OP** (`opcode = "0110011"`):
+
+- All supported OP instructions set `reg_write = '1'`.
+- With `funct7 = "0000000"`, `funct3` values `"000"` through `"111"` select, respectively, ADD, SLL, SLT, SLTU, XOR, SRL, OR, and AND, using the corresponding ALU selectors above.
+- With `funct7 = "0100000"`, `funct3 = "000"` selects SUB and `funct3 = "101"` selects SRA.
+- With `funct7 = "0000001"`, `funct3` values `"000"` through `"111"` select, respectively, MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, and REMU. Use the ALU selectors above and set the RV32M variant selector to `"00"` for MUL, MULHSU, DIV, and REM, and `"01"` for MULH, MULHU, DIVU, and REMU.
+
+## Edge cases
+
+- Register fields, including `rd`, `rs1`, and `rs2`, do not affect control decoding; outputs are determined by the opcode and required function fields.
+- OP and shift-immediate instructions with unsupported `funct7` values are invalid and produce the defaults. Non-shift OP-IMM instructions do not validate `funct7`.
+- A valid branch has `branch = '1'` whether its condition is satisfied or not. When the condition is not satisfied, `branch_taken = '0'`.
+- For branch evaluation, comparison inputs are first normalized as specified in **Behavior**: only exact `'1'` is true; `'0'` and non-binary values are false. Inverse conditions negate that normalized value, so they are true for `'0'` and non-binary inputs.
+- Unsupported load, store, or branch function codes, and JALR encodings with `funct3` other than `"000"`, produce the defaults.
+- Defaults apply to every output for unsupported instructions; no partial decode or side effect is permitted.
+
+## Test strategy
+
+Tests shall construct instruction words using the specified opcode and function fields, apply comparison inputs, and check every `control_unit` output against this contract. Use distinguishable field values and change one semantic factor at a time.
+
+1. **Opcode and function decoding:** Check the complete output vector for each supported load, store, branch, jump, U-type, OP-IMM, OP, and RV32M instruction. For each function-code family, hold the opcode and other fields constant while varying only `funct3`; separately vary only `funct7` where applicable. Include every listed valid encoding and reserved encoding.
+2. **Immediate-format selection and ALU input controls:** Check I, S, B, U, and J format selections using loads/JALR, stores, branches, LUI/AUIPC, and JAL. Check `alu_src_imm`, `alu_a_pc`, and `alu_a_zero` for each class, including that PC, zero, and register-operand selections are not confused.
+3. **ALU operation selection:** Exercise every ALU selector with its corresponding instruction encoding. For RV32M, test both variants of each shared selector and verify that only `alu_imm_sel` changes between variants while all other controls remain as specified. For conditional branches, verify `alu_op = "0000"`, `alu_a_pc = '1'`, and B-type immediate selection. For OP-IMM shifts, vary the required function bits to distinguish SLLI/SRLI/SRAI and invalid encodings.
+4. **Branch selection:** For each branch `funct3`, test conditions that are true and false by changing only the relevant comparison input. For inverse conditions, include exact `'0'` and `'1'`, and non-binary inputs. Hold the other comparison inputs fixed while varying the relevant one. Confirm that inverse conditions are true for non-binary inputs, `branch` stays asserted for either outcome, and all non-branch control outputs remain unchanged.
+5. **Register-write, memory, and writeback controls:** Check register-writing and non-register-writing classes, load versus store controls, every width encoding used, each `wb_sel` value used by a supported instruction, and `load_funct3` for all five loads. Compare the complete output vector to detect stale or incorrectly routed values.
+6. **Reserved and non-binary inputs:** For each instruction family, vary one unsupported function field at a time and require the exact default vector. Include unsupported opcodes, noncanonical OP and shift-immediate function codes, and instruction words containing non-binary bits. Vary comparison inputs independently to confirm they cannot activate control flow for unsupported instructions.
+
+At the component level, tests may directly check `control_unit` outputs such as `alu_op` and `alu_imm_sel`. Tests using only the CPU’s public ports shall check architectural behavior and shall not claim to directly observe internal selectors.

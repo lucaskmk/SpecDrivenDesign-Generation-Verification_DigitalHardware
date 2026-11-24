@@ -1,0 +1,53 @@
+{
+  "foco": "rv32ui-p-add",
+  "fonte_hash": "9f41c0d37b18fc71262255ab9939ac768e3e520ad1723745148eec0293c56d1a",
+  "bloqueados": {},
+  "concluidos": {},
+  "ativado": true,
+  "official_execution": {
+    "report": ".rvgen/sessao-20261123-233958/tracos_oficiais/rv32ui_p_add/report.json",
+    "vcd": ".rvgen/sessao-20261123-233958/tracos_oficiais/rv32ui_p_add/rv32ui-p-add/wave.vcd",
+    "trace": ".rvgen/sessao-20261123-233958/tracos_oficiais/rv32ui_p_add/rv32ui-p-add/trace.json",
+    "cycle": 79,
+    "pc": "0x00000568",
+    "tohost": "0x00000011",
+    "test_case": 8
+  },
+  "hypotheses": [
+    {
+      "file": "src/cpu.vhd",
+      "hypothesis": "The failing ADD case is caused by LUI failing to produce its U-immediate value. In the observed case-8 setup, the instruction at PC 0x00000114 is LUI x12 with U=0x00008000, followed by ADDI x12,x12,-1. The VCD shows LUI selecting ALU operation 01010, which the current ALU implements as MUL; with the LUI source register zero, this produces zero instead of 0x00008000. The setup therefore does not supply the intended ADD operand.",
+      "evidence": [
+        "The official failure identifies test case 8, whose expected ADD is 0x00000000 + 0x00007FFF = 0x00007FFF.",
+        "The official trace shows PC 0x00000114 executing instruction 0x00008637 (LUI x12, U=0x00008000), then PC 0x00000118 executing ADDI x12,x12,-1.",
+        "The bounded VCD shows ALU operation 01010 during LUI; the inspected ALU assigns that operation to multiplication, not to passing through the U-immediate.",
+        "Execution reaches the case-8 comparison and then the failure handler. This is consistent with incorrect test-operand construction; it does not by itself establish an ADD arithmetic defect."
+      ],
+      "test_plan": "Run one short public-port program after asynchronous reset: `addi x1, x0, 1`; `sw x1, 0(x0)`; `lui x1, 0x8`; `sw x1, 4(x0)`; `halt: jal x0, 0`. The external memory model should record the two word stores and assert that the first is address 0x00000000 with data 0x00000001, and the second is address 0x00000004 with data 0x00008000. Use the first store as a control for the observable store path, and inspect the second store at the LUI result boundary.",
+      "failure_meaning": "If the first store is correct but the second store is not address 0x00000004 with data 0x00008000, the experiment supports the hypothesis that LUI does not produce the required U-immediate value at this boundary. It does not establish an ADD failure.",
+      "pass_meaning": "If both stores match their expected address and data, this LUI boundary works for U=0x00008000 and the proposed cause is refuted or narrowed; investigate another cause for the official ADD failure.",
+      "target_pending": true,
+      "official_anchor": null,
+      "signature": "2266ffc620dd73ff1e439e70d141a3858fae345ead9bd5fe236bca3b14102e4d",
+      "status": "refuted",
+      "attempts": 1,
+      "test": ".rvgen/sessao-20261123-233958/exploracoes_cpu/test_rv32ui_p_add_hypothesis_01.py",
+      "result_detail": "loading VPI module '/usr/local/lib/python3.11/dist-packages/cocotb/libs/libcocotbvpi_ghdl.so'\n     -.--ns INFO     gpi                                ..mbed/gpi_embed.cpp:93   in _embed_init_python              Using Python 3.11.9 interpreter at /usr/bin/python3\n     -.--ns INFO     gpi                                ../gpi/GpiCommon.cpp:79   in gpi_print_registered_impl       VPI registered\nVPI module loaded!\n     0.00ns INFO     cocotb                             Running on GHDL version 2.0.0 (Debian 2.0.0+dfsg-6.2) [Dunoon edition]\n     0.00ns WARNING  gpi                                vpi_iterate returned NULL for type vpiInstance for object NULL\n     0.00ns INFO     cocotb                             Seeding Python random module with 1795480980\n     0.00ns INFO     cocotb                             Initialized cocotb v2.0.0 from /usr/local/lib/python3.11/dist-packages/cocotb\n     0.00ns INFO     cocotb                             Running tests\n     0.00ns INFO     cocotb.regression                  running test_rv32ui_p_add_hypothesis_01.diagnose_lui_value_at_store_boundary (1/1)\n../../src/ieee2008/numeric_std-body.vhdl:3036:7:@0ms:(assertion warning): NUMERIC_STD.TO_INTEGER: metavalue detected, returning 0\n../../src/ieee2008/numeric_std-body.vhdl:3036:7:@0ms:(assertion warning): NUMERIC_STD.TO_INTEGER: metavalue detected, returning 0\n../../src/ieee2008/numeric_std-body.vhdl:1347:7:@0ms:(assertion warning): NUMERIC_STD.\"<\": metavalue detected, returning FALSE\n../../src/ieee2008/numeric_std-body.vhdl:1320:7:@0ms:(assertion warning): NUMERIC_STD.\"<\": metavalue detected, returning FALSE\n../../src/ieee2008/numeric_std-body.vhdl:3036:7:@0ms:(assertion warning): NUMERIC_STD.TO_INTEGER: metavalue detected, returning 0\n../../src/ieee2008/numeric_std-body.vhdl:1347:7:@0ms:(assertion warning): NUMERIC_STD.\"<\": metavalue detected, returning FALSE\n../../src/ieee2008/numeric_std-body.vhdl:1320:7:@0ms:(assertion warning): NUMERIC_STD.\"<\": metavalue detected, returning FALSE\n../../src/ieee2008/numeric_std-body.vhdl:3036:7:@0ms:(assertion warning): NUMERIC_STD.TO_INTEGER: metavalue detected, returning 0\n    46.00ns INFO     cocotb.regression                  test_rv32ui_p_add_hypothesis_01.diagnose_lui_value_at_store_boundary passed\n    46.00ns INFO     cocotb.regression                  ******************************************************************************************************************************\n                                                        ** TEST                                                                  STATUS  SIM TIME (ns)  REAL TIME (s)  RATIO (ns/s) **\n                                                        ******************************************************************************************************************************\n                                                        ** test_rv32ui_p_add_hypothesis_01.diagnose_lui_value_at_store_boundary   PASS          46.00           0.03       1678.39  **\n                                                        ******************************************************************************************************************************\n                                                        ** TESTS=1 PASS=1 FAIL=0 SKIP=0                                                         46.00           0.04       1227.53  **\n                                                        ******************************************************************************************************************************\n",
+      "vcd_summary": ".rvgen/sessao-20261123-233958/vcd/rv32ui_p_add_hypothesis_01.summary.json",
+      "review": {
+        "verdict": "inconclusive",
+        "rationale": "The internal VPI probe is permitted for diagnostic use, but the stimulus does not preserve the stated source-register condition and can make the suspected MUL implementation yield the expected U value. The passing assertion and store sample therefore do not directly confirm or refute the stated hypothesis. The observed test result is inconclusive.",
+        "evidence": [
+          "The diagnostic assembles `lui x1, 0x8`, not the stated case-8 sequence with `lui x12, 0x00008000` followed by `addi x12, x12, -1`. In this encoding, instruction bits 19:15 select x1, and the preceding `addi x1, x0, 1` sets x1 to 1. If LUI is mistakenly implemented as MUL with U=0x00008000, this setup can produce 1 × 0x00008000 = 0x00008000 and mask the suspected defect.",
+          "The bounded VCD sample at 35 ns shows a word store to address 0x00000004 with data 0x00008000. That confirms the observed store result for this stimulus, but does not refute the proposed failure mechanism because the stimulus supplies the multiplicand 1.",
+          "The 25 ns sample shows `alu_result` = 0x40000000 while `instr_data` is the LUI instruction, but `instr_addr` is already 0x0000000C. This is a post-edge sample, not direct evidence of the ALU value used when LUI wrote its destination. The test’s sampled internal ALU value is not included in the bounded VCD samples."
+        ],
+        "diagnostic_test_valid": true,
+        "normative_approval_allowed": false,
+        "next_test_needed": false,
+        "next_hypothesis": "",
+        "next_test_plan": ""
+      }
+    }
+  ]
+}

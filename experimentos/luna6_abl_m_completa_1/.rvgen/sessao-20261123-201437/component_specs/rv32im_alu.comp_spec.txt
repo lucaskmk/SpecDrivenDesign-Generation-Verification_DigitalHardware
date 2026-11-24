@@ -1,0 +1,114 @@
+# Component semantic contract: rv32im_alu
+
+## Public interface
+```vhdl
+entity rv32im_alu is
+    port(
+        opcode : in std_logic_vector(6 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        funct7 : in std_logic_vector(6 downto 0);
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end rv32im_alu;
+```
+
+## Responsibility
+Performs RV32I integer register and immediate arithmetic, shifts, comparisons, and logic, plus all RV32M multiply, divide, and remainder operations, including defined divide-by-zero and signed-overflow results.
+
+## Timing
+
+`rv32im_alu` is purely combinational. For any change to an input, `result` must reflect the corresponding behavior after combinational settling, without a clock edge or retained state.
+
+## Reset
+
+None. The component has no reset input and no reset behavior.
+
+## Behavior
+
+The component performs the operation selected by `opcode`, `funct3`, and, where specified, `funct7`, using `operand_a` and `operand_b`. It returns the 32-bit result in `result`.
+
+For `opcode = 0010011` (OP-IMM), `operand_b` is the already-formed 32-bit immediate operand. The ALU does not form or sign-extend instruction immediates. For immediate shifts, the shift amount is `operand_b[4:0]`; all higher bits of `operand_b` are ignored for the shift amount.
+
+For `opcode = 0110011` (OP), both operands are full 32-bit register values. For M-extension operations, both operands are full 32-bit register values.
+
+All results are 32 bits. Arithmetic addition, subtraction, and multiplication results are reduced to the specified 32-bit result; no arithmetic overflow exception or additional state is produced. Comparisons return `0x00000001` when true and `0x00000000` when false.
+
+Any opcode or selector combination not specified under **Operations**, including unsupported `funct7` values for operations that require a specific value, produces `0x00000000`. Inputs containing non-binary `std_logic` values are outside the defined input domain.
+
+## Operations
+
+Opcode encodings are:
+
+- `0010011` (`0x13`): OP-IMM operations.
+- `0110011` (`0x33`): OP and RV32M operations.
+
+For `opcode = 0010011`:
+
+| Operation | `funct3` | `funct7` requirement | Result |
+|---|---:|---:|---|
+| ADDI | `000` | Ignored | `operand_a + operand_b` |
+| SLLI | `001` | `0000000` | `operand_a` shifted left logically by `operand_b[4:0]` |
+| SLTI | `010` | Ignored | `1` if signed `operand_a < signed operand_b`, else `0` |
+| SLTIU | `011` | Ignored | `1` if unsigned `operand_a < unsigned operand_b`, else `0` |
+| XORI | `100` | Ignored | `operand_a XOR operand_b` |
+| SRLI | `101` | `0000000` | `operand_a` shifted right logically by `operand_b[4:0]` |
+| SRAI | `101` | `0100000` | `operand_a` shifted right arithmetically by `operand_b[4:0]` |
+| ORI | `110` | Ignored | `operand_a OR operand_b` |
+| ANDI | `111` | Ignored | `operand_a AND operand_b` |
+
+For `opcode = 0110011` and `funct7 = 0000000`:
+
+| Operation | `funct3` | Result |
+|---|---:|---|
+| ADD | `000` | `operand_a + operand_b` |
+| SLL | `001` | `operand_a` shifted left logically by `operand_b[4:0]` |
+| SLT | `010` | `1` if signed `operand_a < signed operand_b`, else `0` |
+| SLTU | `011` | `1` if unsigned `operand_a < unsigned operand_b`, else `0` |
+| XOR | `100` | `operand_a XOR operand_b` |
+| SRL | `101` | `operand_a` shifted right logically by `operand_b[4:0]` |
+| OR | `110` | `operand_a OR operand_b` |
+| AND | `111` | `operand_a AND operand_b` |
+
+For `opcode = 0110011` and `funct7 = 0100000`, only these operations are defined:
+
+| Operation | `funct3` | Result |
+|---|---:|---|
+| SUB | `000` | `operand_a - operand_b` |
+| SRA | `101` | `operand_a` shifted right arithmetically by `operand_b[4:0]` |
+
+For `opcode = 0110011` and `funct7 = 0000001`:
+
+| Operation | `funct3` | Result |
+|---|---:|---|
+| MUL | `000` | Bits `[31:0]` of the 64-bit product |
+| MULH | `001` | Bits `[63:32]` of the signed × signed 64-bit product |
+| MULHSU | `010` | Bits `[63:32]` of the signed `operand_a` × unsigned `operand_b` 64-bit product |
+| MULHU | `011` | Bits `[63:32]` of the unsigned × unsigned 64-bit product |
+| DIV | `100` | Signed quotient, rounded toward zero |
+| DIVU | `101` | Unsigned quotient |
+| REM | `110` | Signed remainder, with the sign of `operand_a` |
+| REMU | `111` | Unsigned remainder |
+
+## Edge cases
+
+- Shift amounts use only the low five bits of the relevant operand. The result for a shift amount of zero is the unshifted `operand_a`. Logical shifts fill vacated bits with zero. Arithmetic right shifts replicate the sign bit of `operand_a`.
+- Signed comparisons interpret each operand as a two’s-complement 32-bit signed value; unsigned comparisons interpret each operand as an unsigned 32-bit value.
+- `MUL` returns the low 32 bits of the product regardless of signed interpretation. The high-half multiply operations use exactly the signedness specified in **Operations**.
+- `DIV` and `DIVU` with `operand_b = 0` return `0xFFFFFFFF`. `REM` and `REMU` with `operand_b = 0` return `operand_a`.
+- For `DIV` with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, the result is `0x80000000`. For `REM` with those operands, the result is `0x00000000`.
+- Signed division truncates toward zero; signed remainder has the dividend’s sign. No operation produces a trap or exception result.
+- An unsupported selector combination produces zero, including OP encodings with unsupported `funct7`/`funct3` combinations and immediate-shift encodings with unsupported `funct7`.
+
+## Test strategy
+
+Tests shall drive the public inputs directly, allow combinational settling after each change, and compare `result` against the specified 32-bit value without requiring a clock. Each test shall change one semantic factor at a time while holding the other relevant inputs fixed. Where an operation selects between operands, signedness, shift direction, or result portions, use values whose candidate results differ so an incorrect selection cannot pass.
+
+- **Opcode and operation decode:** For every row in **Operations**, apply its opcode and selector values and verify the stated result. For each selector family, hold operands fixed and vary only the selector to exercise each listed operation. Also exercise unsupported opcodes, unsupported OP `funct7`/`funct3` combinations, and invalid immediate-shift `funct7` values; each must produce zero.
+- **Addition and subtraction:** Check OP and OP-IMM addition separately using non-equal operands such as `0x00000013` and `0x00000007`. Check subtraction with operands whose order matters, such as `0x00000013` and `0x00000007`. Check wraparound with values including `0xFFFFFFFF + 1` and `0 - 1`. Change only the opcode or operation selector between corresponding register and immediate cases.
+- **Logic:** For XOR, OR, and AND in both applicable opcode classes, use operands with different, overlapping, and disjoint set bits (for example `0xA5A50F0F` and `0x3C3C3333`). Verify each operation independently and vary only `funct3` when comparing the logical operations.
+- **Comparisons:** For signed and unsigned comparisons, test less-than, equal, and greater-than pairs. Include `0xFFFFFFFF` against `0x00000001` to distinguish signed from unsigned interpretation, and reverse the operands while holding the selector fixed. Verify that true produces exactly `0x00000001` and false exactly `0x00000000`. Test SLT/SLTU and SLTI/SLTIU with the same operand values, changing only opcode or comparison selector as appropriate.
+- **Shifts:** Test left, logical-right, and arithmetic-right shifts with a non-symmetric pattern such as `0x81234567`, and check shift amounts `0`, `1`, `31`, and values whose low five bits match but higher bits differ. For arithmetic right shift, include both a negative operand and a non-negative operand. Test register and immediate forms with equivalent low-five-bit shift amounts, changing only the operation class. Verify that immediate shifts ignore `operand_b[31:5]`.
+- **Multiply:** Test MUL, MULH, MULHSU, and MULHU with operand pairs selected to yield distinct low and high halves and to distinguish signed from unsigned interpretation. Include positive operands, negative signed values, and `0xFFFFFFFF`/`0x80000000` boundary values. For each pair, vary only `funct3` to verify the selected product interpretation and result half.
+- **Division and remainder:** Test DIV, DIVU, REM, and REMU with positive operands, negative signed operands, and operands whose signed and unsigned interpretations differ. Include nonzero divisions with nonzero remainders to distinguish quotient from remainder, and verify truncation toward zero and dividend-sign remainder behavior. Test each operation with divisor zero and verify the specified result. Test the signed overflow pair `0x80000000` and `0xFFFFFFFF` for DIV and REM. Change only `funct3` when comparing operations on the same operands.

@@ -1,0 +1,62 @@
+# Component semantic contract: immediate_generator
+
+## Public interface
+```vhdl
+entity immediate_generator is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0)
+    );
+end immediate_generator;
+```
+
+## Responsibility
+Generates sign-extended I, S, B, and J immediates and the zero-extended U immediate from an instruction.
+
+## Timing
+
+`immediate_generator` is purely combinational. After `instr` changes, all five outputs must reflect the new instruction without requiring a clock edge. Once signal propagation has settled, each output must equal its specified value. There is no requirement on values during propagation.
+
+## Reset
+
+None. The component has no reset input or reset behavior.
+
+## Behavior
+
+For every 32-bit value of `instr`, all five outputs are produced simultaneously and independently according to their respective immediate formats. The component has no opcode or selector input: it does not decode instructions or choose one immediate output over another.
+
+All output bits must be defined for every input value.
+
+## Operations
+
+There is no encoded selector. The output mappings are:
+
+- **I immediate (`imm_i`)**: `imm_i[11:0] = instr[31:20]`; `imm_i[31:12]` is the sign extension of `instr[31]`.
+- **S immediate (`imm_s`)**: `imm_s[4:0] = instr[11:7]`, `imm_s[11:5] = instr[31:25]`; `imm_s[31:12]` is the sign extension of `instr[31]`.
+- **B immediate (`imm_b`)**: `imm_b[0] = 0`, `imm_b[4:1] = instr[11:8]`, `imm_b[10:5] = instr[30:25]`, `imm_b[11] = instr[7]`, and `imm_b[12] = instr[31]`; `imm_b[31:13]` is the sign extension of `instr[31]`.
+- **U immediate (`imm_u`)**: `imm_u[11:0] = 0`; `imm_u[31:12] = instr[31:12]`. This is zero extension of the 20-bit field shifted left by 12, not sign extension.
+- **J immediate (`imm_j`)**: `imm_j[0] = 0`, `imm_j[10:1] = instr[30:21]`, `imm_j[11] = instr[20]`, `imm_j[19:12] = instr[19:12]`, and `imm_j[20] = instr[31]`; `imm_j[31:21]` is the sign extension of `instr[31]`.
+
+## Edge cases
+
+- All 32-bit instruction words are valid inputs to this component; opcode and other instruction fields do not affect the mappings.
+- For I, S, B, and J, a clear sign bit (`instr[31] = 0`) produces zero-filled upper bits; a set sign bit produces one-filled upper bits.
+- For U, `instr[31]` is part of the immediate payload, not a sign bit: it maps to `imm_u[31]`, and `imm_u[11:0]` remains zero.
+- `imm_b[0]` and `imm_j[0]` are always zero, regardless of input.
+- Input fields used by different outputs may overlap. Each output must still follow its own mapping; no output is selected in place of another.
+
+## Test strategy
+
+Use a Cocotb test with a reference oracle that computes all five expected outputs directly from the bit mappings in **Operations**. Apply each input, wait for combinational settling, and assert equality of every output to its oracle value. There is no clock or reset sequence.
+
+Run these tests:
+
+1. **Zero and all-ones inputs:** Apply `0x00000000` and `0xFFFFFFFF`. Check all five outputs. These establish zero/sign-fill behavior, U’s zero-filled low bits, and the fixed zero low bit of B and J.
+2. **Every instruction bit’s routing:** For each bit position `k` from 0 through 31, apply the one-hot input `1 << k` and then the input with only bit `k` cleared from `0xFFFFFFFF`. Check all five outputs against the oracle after each application. These distinguish source-bit routing, fixed bits, and zero versus sign extension without relying on matching neighboring source values.
+3. **Asymmetric field patterns:** Apply several words whose immediate source fields have different, non-palindromic patterns—for example, use distinct patterns in `instr[31:25]`, `instr[24:20]`, `instr[19:15]`, `instr[14:12]`, `instr[11:7]`, and `instr[6:0]`. Change one field at a time while holding all other bits fixed. Check all five outputs each time; this ensures a wrong field selection cannot pass merely because two fields happen to contain equal values.
+4. **Sign boundaries, one factor at a time:** Starting from words with `instr[31] = 0` and otherwise asymmetric fields, toggle only `instr[31]` to 1, then restore it. Check that the I, S, B, and J upper bits follow the sign bit, while U changes only according to its payload mapping. Separately toggle each other source bit used by each immediate while holding the remaining bits fixed, checking the exact output bits specified by the oracle.
+5. **Format-specific assembly:** For I, S, B, U, and J in turn, construct inputs that set each source field to a distinct pattern while leaving unrelated fields unchanged. Check the entire corresponding output and all other outputs. In particular, verify B and J’s split fields and implicit low zero, and verify that U’s low 12 bits remain zero for every tested payload.

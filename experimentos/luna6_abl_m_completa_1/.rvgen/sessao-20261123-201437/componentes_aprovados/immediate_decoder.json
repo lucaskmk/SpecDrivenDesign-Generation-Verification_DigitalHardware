@@ -1,0 +1,8 @@
+{
+  "bloco": "immediate_decoder",
+  "arquivo": "src/immediate_decoder.vhd",
+  "hash_vhdl": "2255c28d35326ba61fcc9343bfc2b09059db550f08da97ac07468deabb14cded",
+  "testes": [
+    "testes/test_immediate_decoder.py"
+  ]
+}

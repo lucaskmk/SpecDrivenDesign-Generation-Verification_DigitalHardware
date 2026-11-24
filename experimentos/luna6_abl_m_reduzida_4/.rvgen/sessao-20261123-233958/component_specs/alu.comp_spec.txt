@@ -1,0 +1,93 @@
+# Component semantic contract: alu
+
+## Public interface
+```vhdl
+entity alu is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        alu_op : in std_logic_vector(4 downto 0);
+        result : out std_logic_vector(31 downto 0);
+        equal : out std_logic;
+        signed_less : out std_logic;
+        unsigned_less : out std_logic
+    );
+end alu;
+```
+
+## Responsibility
+Executes RV32I arithmetic, logic, shifts, and comparisons, plus RV32M multiplication, division, and remainder operations; provides equality and signed and unsigned less-than flags for branches.
+
+## Timing
+
+`alu` is purely combinational. Each output must reflect the current `operand_a`, `operand_b`, and `alu_op` after combinational settling, with no clock, handshake, or retained state. Changes to any input may change the outputs without a clock edge.
+
+## Reset
+
+None. The component has no reset input or reset behavior.
+
+## Behavior
+
+`operand_a` and `operand_b` are 32-bit operand bit patterns. `alu_op` is this component’s five-bit operation selector; the encodings below are local to `alu` and do not impose an encoding on any other component. `result` is the selected operation’s 32-bit result.
+
+The three flags are always computed from the current operands, independently of `alu_op`:
+
+- `equal` is `'1'` exactly when `operand_a` and `operand_b` have identical 32-bit values; otherwise it is `'0'`.
+- `signed_less` is `'1'` exactly when `operand_a`, interpreted as a two’s-complement signed 32-bit integer, is less than `operand_b` interpreted the same way; otherwise it is `'0'`.
+- `unsigned_less` is `'1'` exactly when `operand_a`, interpreted as an unsigned 32-bit integer, is less than `operand_b` interpreted the same way; otherwise it is `'0'`.
+
+## Operations
+
+All selectors are five-bit binary values. Arithmetic results are reduced modulo \(2^{32}\) when the operation’s result is 32 bits. The comparison operations produce `0x00000001` when true and `0x00000000` when false.
+
+| `alu_op` | Operation | `result` |
+|---|---|---|
+| `00000` | ADD | `operand_a + operand_b` |
+| `00001` | SUB | `operand_a - operand_b` |
+| `00010` | SLL | `operand_a` shifted left by `operand_b[4:0]`, inserting zeros |
+| `00011` | SLT | `1` if signed `operand_a < operand_b`, else `0` |
+| `00100` | SLTU | `1` if unsigned `operand_a < operand_b`, else `0` |
+| `00101` | XOR | Bitwise XOR of the operands |
+| `00110` | SRL | `operand_a` shifted right by `operand_b[4:0]`, inserting zeros |
+| `00111` | SRA | `operand_a` shifted right arithmetically by `operand_b[4:0]`, replicating its sign bit |
+| `01000` | OR | Bitwise OR of the operands |
+| `01001` | AND | Bitwise AND of the operands |
+| `01010` | MUL | Low 32 bits of the product of the operands |
+| `01011` | MULH | High 32 bits of the product of signed `operand_a` and signed `operand_b` |
+| `01100` | MULHSU | High 32 bits of the product of signed `operand_a` and unsigned `operand_b` |
+| `01101` | MULHU | High 32 bits of the product of unsigned `operand_a` and unsigned `operand_b` |
+| `01110` | DIV | Signed quotient of `operand_a` divided by `operand_b`, rounded toward zero |
+| `01111` | DIVU | Unsigned quotient of `operand_a` divided by `operand_b` |
+| `10000` | REM | Signed remainder of `operand_a` divided by `operand_b` |
+| `10001` | REMU | Unsigned remainder of `operand_a` divided by `operand_b` |
+
+For `DIV` and `REM`, operands are interpreted as signed two’s-complement values. For `DIVU` and `REMU`, they are interpreted as unsigned values. Division and remainder results are returned in their corresponding 32-bit representation.
+
+Selectors `10010` through `11111` are reserved. For any reserved selector, `result` is `0x00000000`; the three flags retain their operand-defined behavior.
+
+## Edge cases
+
+- Shift amounts use only `operand_b[4:0]`; values in `operand_b[31:5]` do not affect a shift result. A shift amount of zero leaves `operand_a` unchanged.
+- ADD and SUB wrap modulo \(2^{32}\), with no overflow exception or saturation.
+- For `DIV` and `DIVU` with a zero divisor, `result` is `0xFFFFFFFF`.
+- For `REM` and `REMU` with a zero divisor, `result` is `operand_a`.
+- For signed `DIV` of `0x80000000` by `0xFFFFFFFF` (the signed minimum divided by `-1`), `result` is `0x80000000`. The corresponding signed `REM` result is `0x00000000`.
+- A signed remainder has the sign of the dividend when nonzero. Its magnitude is less than the divisor’s magnitude.
+- Multiplication high results are the upper 32 bits of the specified 64-bit product; MUL is the lower 32 bits.
+- MUL, MULH, and MULHU are commutative: reversing their operands cannot distinguish operand order. MULHSU is not generally commutative because its first operand is signed and its second is unsigned.
+- All flag comparisons use the complete 32-bit operands, regardless of the selected operation, including for reserved selectors.
+- The contract applies to binary input values. Behavior for `std_logic` values containing `U`, `X`, `Z`, `W`, `L`, `H`, or `-` is unspecified.
+
+## Test strategy
+
+Use an executable Cocotb test that drives the inputs, waits for combinational settling, and checks `result`, `equal`, `signed_less`, and `unsigned_less` against an independent Python reference model. Drive only binary values. For every check, verify all four outputs, not just the operation result. Keep each directed comparison to one changed semantic factor at a time unless a listed pair is explicitly a joint boundary case.
+
+- **Selector decoding and reserved selectors:** For each of the 18 defined selector values, drive `operand_a=0x12345678` and `operand_b=0x00000003`, check the result against that selector’s table entry, and check flags against the operands. Then hold those operands fixed and iterate through every reserved selector, checking a zero result and unchanged flags.
+- **ADD and SUB:** With each selector fixed, check `(A,B)` pairs `(0x00000005,0x00000003)`, `(0x00000003,0x00000005)`, `(0xFFFFFFFF,0x00000001)`, and `(0x00000000,0x00000001)`. These check operand order and wraparound. Also repeat cases while changing only `A`, and cases while changing only `B`.
+- **Bitwise operations:** For XOR, OR, and AND separately, check `(0xA55AA55A,0x3CC33CC3)`, then change only `B` to `0x00000000`, then restore only `B` to `0x3CC33CC3`, and finally change only `A` to `0xFFFFFFFF`. The separate restore check ensures each transition changes just one operand.
+- **Shifts:** For SLL, SRL, and SRA separately, use `A=0x81234567` with shift amounts `B=0`, `1`, `7`, and `31`; verify each result against a 32-bit reference operation, changing only `B` between cases. Then hold the low five bits of `B` at `7` and vary only its upper bits, using `B=0x00000007` and `B=0xFFFFFFE7`. Also test `A=0x01234567` at shift amount `7` for each shift selector to distinguish arithmetic sign fill from zero fill and direction.
+- **SLT and SLTU:** For each selector, check operand pairs `(0xFFFFFFFF,0x00000001)`, `(0x00000001,0xFFFFFFFF)`, `(0x80000000,0x00000000)`, `(0x00000000,0x80000000)`, and `(0x12345678,0x12345678)`. Independently check the one-bit comparison result encoding and the continuously available flags.
+- **MUL and high products:** For each multiplication selector, check `(0xFFFFFFFF,0x00000002)`, `(0x80000000,0xFFFFFFFF)`, `(0x12345678,0x00000003)`, and `(0x00000003,0x12345678)` against a reference product using that selector’s specified signedness and slice. These cases exercise signedness and product results; do not treat reversed pairs as an operand-order test for MUL, MULH, or MULHU. For MULHSU, the reversed pair `(0xFFFFFFFF,0x00000002)` and `(0x00000002,0xFFFFFFFF)` does distinguish operand order. Also check zero and all-ones operands, changing one operand at a time where practical.
+- **DIV, DIVU, REM, and REMU:** For each selector, check `(0xFFFFFFF9,0x00000003)`, `(0x00000007,0x00000003)`, `(0x80000000,0xFFFFFFFF)`, and `(0x00000007,0x00000000)` against the specified signed or unsigned quotient/remainder rules. For signed reference calculations, implement quotient rounding toward zero rather than Python’s default floor division for negative operands. For nonzero divisors, also include `(0x00000017,0x00000005)` and `(0xFFFFFFE9,0x00000005)`. Keep the selector fixed while varying operands, and keep operands fixed while varying only the selector among the four division/remainder operations.
+- **Flags independent of selector:** For each of the operand pairs `(0,0)`, `(1,0)`, `(0,1)`, `(0x80000000,0)`, and `(0,0x80000000)`, hold the operands fixed and iterate every defined and reserved selector. Confirm the flags are identical for every selector and match equality, signed comparison, and unsigned comparison of the operands.
+- **Output settling and independence:** After each drive, check outputs after combinational settling without applying a clock. Change `operand_a` alone, then `operand_b` alone, then `alu_op` alone in separate checks, confirming each output matches the reference model for the current inputs. This verifies dependence on all public inputs and that no prior vector affects the current result.

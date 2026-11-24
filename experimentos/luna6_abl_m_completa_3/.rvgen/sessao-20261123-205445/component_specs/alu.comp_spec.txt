@@ -1,0 +1,136 @@
+# Component semantic contract: alu
+
+## Public interface
+```vhdl
+entity alu is
+    port(
+        opcode : in std_logic_vector(6 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        funct7 : in std_logic_vector(6 downto 0);
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        result : out std_logic_vector(31 downto 0);
+        branch_taken : out std_logic
+    );
+end alu;
+```
+
+## Responsibility
+Perform RV32I integer arithmetic, logic, shifts, signed and unsigned comparisons, and all RV32M multiply, divide, and remainder operations. Produce branch comparison results for all six conditional branch types.
+
+## Timing
+
+`alu` is purely combinational. For binary input values, `result` and `branch_taken` shall reflect the current inputs after combinational propagation. There is no clock, latency, retained state, or handshake.
+
+## Reset
+
+None. The component has no reset input and no reset behavior.
+
+## Behavior
+
+`opcode`, `funct3`, and `funct7` select the operation as specified below. `operand_a` and `operand_b` are 32-bit operands supplied by the caller. Arithmetic results are 32-bit values; additions and subtractions wrap modulo \(2^{32}\).
+
+For every non-branch operation, `branch_taken` shall be `'0'`. For branch operations, `result` shall be all zeroes, and `branch_taken` shall indicate whether the selected comparison is true.
+
+An unsupported opcode or unsupported selector combination shall produce `result = 0` and `branch_taken = '0'`. Inputs containing non-binary values are outside this contract.
+
+## Operations
+
+Opcode values are seven-bit encodings:
+
+- `0110011` (`0x33`): register-register operations.
+- `0010011` (`0x13`): immediate operations. `operand_b` is the already-prepared 32-bit immediate or shift amount.
+- `1100011` (`0x63`): conditional branches. `operand_a` and `operand_b` are the values to compare.
+
+For opcode `0x33`, the required `funct3`/`funct7` combinations are:
+
+| Operation | `funct3` | `funct7` |
+|---|---:|---:|
+| ADD | `000` | `0000000` (`0x00`) |
+| SUB | `000` | `0100000` (`0x20`) |
+| SLL | `001` | `0000000` (`0x00`) |
+| SLT | `010` | `0000000` (`0x00`) |
+| SLTU | `011` | `0000000` (`0x00`) |
+| XOR | `100` | `0000000` (`0x00`) |
+| SRL | `101` | `0000000` (`0x00`) |
+| SRA | `101` | `0100000` (`0x20`) |
+| OR | `110` | `0000000` (`0x00`) |
+| AND | `111` | `0000000` (`0x00`) |
+| MUL | `000` | `0000001` (`0x01`) |
+| MULH | `001` | `0000001` (`0x01`) |
+| MULHSU | `010` | `0000001` (`0x01`) |
+| MULHU | `011` | `0000001` (`0x01`) |
+| DIV | `100` | `0000001` (`0x01`) |
+| DIVU | `101` | `0000001` (`0x01`) |
+| REM | `110` | `0000001` (`0x01`) |
+| REMU | `111` | `0000001` (`0x01`) |
+
+All other `funct3`/`funct7` combinations for opcode `0x33` are unsupported.
+
+For opcode `0x13`, the required operations are:
+
+| Operation | `funct3` | `funct7` requirement |
+|---|---:|---:|
+| ADDI | `000` | Ignored |
+| SLTI | `010` | Ignored |
+| SLTIU | `011` | Ignored |
+| XORI | `100` | Ignored |
+| ORI | `110` | Ignored |
+| ANDI | `111` | Ignored |
+| SLLI | `001` | `0000000` (`0x00`) |
+| SRLI | `101` | `0000000` (`0x00`) |
+| SRAI | `101` | `0100000` (`0x20`) |
+
+Other `funct3` values are unsupported for opcode `0x13`. For shift operations, the shift amount is `operand_b(4 downto 0)`; upper bits of `operand_b` do not affect the result.
+
+For opcode `0x63`, `funct3` selects the branch and `funct7` is ignored:
+
+| Branch | `funct3` | `branch_taken` condition |
+|---|---:|---|
+| BEQ | `000` | `operand_a = operand_b` |
+| BNE | `001` | `operand_a /= operand_b` |
+| BLT | `100` | signed(`operand_a`) < signed(`operand_b`) |
+| BGE | `101` | signed(`operand_a`) >= signed(`operand_b`) |
+| BLTU | `110` | unsigned(`operand_a`) < unsigned(`operand_b`) |
+| BGEU | `111` | unsigned(`operand_a`) >= unsigned(`operand_b`) |
+
+The other branch `funct3` values are unsupported.
+
+Operation results are defined as follows:
+
+- ADD/ADDI: `operand_a + operand_b`; SUB: `operand_a - operand_b`.
+- SLL/SLLI: logical left shift by the low five bits of `operand_b`.
+- SRL/SRLI: logical right shift by the low five bits of `operand_b`.
+- SRA/SRAI: arithmetic right shift of signed(`operand_a`) by the low five bits of `operand_b`.
+- SLT/SLTI: `1` if signed(`operand_a`) < signed(`operand_b`), otherwise `0`.
+- SLTU/SLTIU: `1` if unsigned(`operand_a`) < unsigned(`operand_b`), otherwise `0`.
+- XOR/XORI, OR/ORI, AND/ANDI: bitwise operation on the two operands.
+- MUL: low 32 bits of the 64-bit product; operand signedness does not affect these low bits.
+- MULH: bits `[63:32]` of signed(`operand_a`) × signed(`operand_b`).
+- MULHSU: bits `[63:32]` of signed(`operand_a`) × unsigned(`operand_b`), in that operand order.
+- MULHU: bits `[63:32]` of unsigned(`operand_a`) × unsigned(`operand_b`).
+- DIV: signed quotient rounded toward zero.
+- DIVU: unsigned quotient.
+- REM: signed remainder, with the sign of `operand_a`.
+- REMU: unsigned remainder.
+
+## Edge cases
+
+- Addition and subtraction retain only the low 32 result bits; signed overflow does not change the specified result.
+- Shift amounts use only `operand_b(4 downto 0)`. A shift amount of zero leaves the shifted operand unchanged.
+- Signed and unsigned comparisons interpret the same bit patterns differently; signed comparisons use two’s-complement interpretation.
+- For DIV and DIVU with a zero divisor, the result is `0xFFFFFFFF`. For REM and REMU with a zero divisor, the result is `operand_a`.
+- For DIV with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, the result is `0x80000000`. For REM with those operands, the result is zero.
+- No overflow exception, trap, or other status output is produced.
+
+## Test strategy
+
+Use a Cocotb test that drives the `alu` inputs with binary values, waits for combinational settling after each drive, and checks both outputs against an independently calculated reference. No clock or reset stimulus is required.
+
+- **Opcode decoding and defaults:** Exercise defined selector combinations for opcodes `0x33`, `0x13`, and `0x63`, then exercise unsupported opcode values. Check both outputs for every case. Check unsupported selector combinations and require zero result and false branch output.
+- **Arithmetic, logic, and comparison:** Check every defined operation against exact expected results. Include signed and unsigned comparisons using `0xFFFFFFFF` and `0x00000001`, for which the signed and unsigned outcomes differ. For immediate operations other than shifts, vary `funct7` while holding the other inputs fixed and verify that the result is unchanged.
+- **`funct7` selection:** For opcode `0x33`, check ADD versus SUB, SRL versus SRA, and all RV32M operations. Check unsupported `funct7` values for zero result and false branch output. For opcode `0x13`, check the required shift encodings and unsupported shift encodings.
+- **Shifts:** For SLL, SRL, SRA, SLLI, SRLI, and SRAI, test shift amounts 0, 1, and 31 with `operand_a = 0x80000001` and `operand_a = 0x00000081`. Repeat with `operand_b` values that have the same low five bits but different upper bits; results must match.
+- **Branches:** Check taken and not-taken cases for BEQ, BNE, BLT, BGE, BLTU, and BGEU. Include equal operands and `0xFFFFFFFF` versus `0x00000001` for signed/unsigned distinctions. Check that `result` is zero for supported and unsupported branch selectors, unsupported selectors produce `branch_taken = '0'`, and changing `funct7` does not affect branch behavior.
+- **Multiplication:** Check MUL, MULH, MULHSU, and MULHU, including `0xFFFFFFFF × 0xFFFFFFFF`. For this pair the high-word results are respectively: MULH `0x00000000`, MULHSU `0xFFFFFFFF`, and MULHU `0xFFFFFFFE`; it therefore distinguishes the signed, mixed-signed, and unsigned high products. Do not use `0x80000000 × 0x80000000` to distinguish MULH from MULHU, since both produce `0x40000000`. Also test MULHSU with `operand_a = 0xFFFFFFFF` and `operand_b = 0x00000002` to check operand order and mixed signedness. Check complete 32-bit results.
+- **Division and remainder:** For DIV, DIVU, REM, and REMU, check positive operands, negative signed dividends and divisors, and cases where signed and unsigned interpretations differ. Use `0xFFFFFFF9` and `0x00000002` to check truncation toward zero and remainder sign. Separately check divisor zero for all four operations and the signed overflow pair `0x80000000` and `0xFFFFFFFF` for DIV and REM.

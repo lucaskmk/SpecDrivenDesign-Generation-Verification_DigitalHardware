@@ -1,0 +1,70 @@
+# Component semantic contract: register_file
+
+## Public interface
+```vhdl
+entity register_file is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        rs1_addr : in std_logic_vector(4 downto 0);
+        rs2_addr : in std_logic_vector(4 downto 0);
+        rd_addr : in std_logic_vector(4 downto 0);
+        rd_data : in std_logic_vector(31 downto 0);
+        rd_write : in std_logic;
+        rs1_data : out std_logic_vector(31 downto 0);
+        rs2_data : out std_logic_vector(31 downto 0)
+    );
+end register_file;
+```
+
+## Responsibility
+Implements 32 32-bit integer registers with two asynchronous read ports, one rising-edge write port, asynchronous active-high reset, and hardwired x0 reads and writes.
+
+## Timing
+
+- `rs1_data` and `rs2_data` are asynchronous outputs. Each reflects the register selected by its corresponding address without waiting for a clock edge.
+- A write occurs only on a rising edge of `clk` when `rd_write = '1'`, `rst = '0'`, and `rd_addr` is nonzero. The value written is the `rd_data` present at that edge.
+- After a successful write, reads of the written register reflect the new value after the edge, with normal signal-update settling.
+- When `rd_write = '0'`, no register is written. Changes to `rd_addr` or `rd_data` alone do not change stored register values.
+
+## Reset
+
+- Reset is asynchronous, active high. Asserting `rst = '1'` immediately sets all registers to zero; it does not require a clock edge.
+- While reset is asserted, both read outputs are zero for every address, and writes are suppressed, including at rising clock edges.
+- Deasserting reset does not itself change register values or cause a write. Register values remain zero until subsequently written.
+- Before reset has first been asserted, values of registers other than x0 are unspecified. Tests must assert reset before relying on their values.
+
+## Behavior
+
+- The component provides 32 integer registers, each 32 bits wide, addressed by 5-bit values.
+- `rs1_data` is the value selected by `rs1_addr`; `rs2_data` is the value selected by `rs2_addr`. The two read ports operate independently and may select the same or different registers.
+- Register x0 always reads as zero. Writes addressed to x0 are ignored, regardless of `rd_write` or `rd_data`.
+- For nonzero `rd_addr`, a write enabled at a rising clock edge stores `rd_data` in the selected register. Other registers retain their values.
+
+## Operations
+
+- `rs1_addr`, `rs2_addr`, and `rd_addr` use the same unsigned register-address encoding:
+  - `00000` selects x0.
+  - `00001` through `11111` select x1 through x31, respectively; the encoded unsigned value is the register number.
+- `rd_write = '0'` disables writing; `rd_write = '1'` enables writing at the next rising clock edge, subject to reset and the x0 rule.
+- There are no opcode or operation selectors.
+
+## Edge cases
+
+- x0 reads as zero even if a write to x0 is enabled with nonzero `rd_data`.
+- Reads of x0 return zero independently on both read ports, including when the other port selects a nonzero register.
+- A write while reset is asserted has no effect. Reset takes precedence over an otherwise enabled write.
+- Address `11111` selects x31; it is a valid address on all three address ports.
+- Addresses are always 5 bits, so every possible address value selects a defined register. There are no out-of-range addresses.
+
+## Test strategy
+
+- Assert reset between clock edges. Check that both outputs are zero while selecting x0 and nonzero addresses; this demonstrates asynchronous clearing and reset output behavior. Deassert reset without a clock edge and confirm outputs remain zero.
+- To test each write address, first write distinct, nonzero values to x1–x31. Then, for each address from `00001` through `11111`, set `rd_addr` to that address, `rd_data` to a value different from the selected register’s current value, and `rd_write` to `'1'`. Confirm reads still show the old value before the rising edge, then show the new value after it. Check that every other register retains its prior, distinct value. Keep reset deasserted and vary only the destination address between cases.
+- To test write enable, select one nonzero destination and a new `rd_data` value. With `rd_write = '0'`, apply a rising edge and confirm the destination is unchanged. Change only `rd_write` to `'1'`, apply a rising edge, and confirm the destination changes to `rd_data`.
+- To test write-data sampling, hold the destination and enable fixed, present one value at a rising edge, then present a different value only for a later rising edge. Confirm the register takes the value present at each respective edge, not a value presented only between edges.
+- To test reset priority over writes, first populate a nonzero register. Assert reset while `rd_write = '1'` and `rd_addr` selects that register; check outputs become zero before a clock edge, apply a rising edge with reset still asserted, then deassert reset and confirm the register remains zero. This distinguishes asynchronous reset, suppression of writes during reset, and reset precedence.
+- To test x0, enable writes to `rd_addr = 00000` at rising edges with several distinguishable nonzero `rd_data` values. Confirm reads of x0 remain zero on both ports. Also write a nonzero register and confirm that its value is unaffected by the x0 writes.
+- To test `rs1_addr` selection, initialize x1–x31 with pairwise-distinct values. Hold `rs2_addr` fixed at a different nonzero register, then step `rs1_addr` through every encoding from `00000` to `11111`. Check `rs1_data` against the selected value and confirm `rs2_data` remains unchanged. The value expected for x0 is zero.
+- To test `rs2_addr` selection, use the same distinct register values. Hold `rs1_addr` fixed at a different nonzero register, then step `rs2_addr` through every encoding from `00000` to `11111`. Check `rs2_data` against the selected value and confirm `rs1_data` remains unchanged.
+- To test independent simultaneous reads, select two different nonzero registers containing distinguishable values and check both outputs in the same observation. Change only one read address and confirm only its corresponding output changes. Also test both ports selecting the same nonzero register and both selecting x0.

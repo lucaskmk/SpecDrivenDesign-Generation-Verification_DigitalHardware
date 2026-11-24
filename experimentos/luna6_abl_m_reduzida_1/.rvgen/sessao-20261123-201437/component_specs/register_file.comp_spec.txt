@@ -1,0 +1,67 @@
+# Component semantic contract: register_file
+
+## Public interface
+```vhdl
+entity register_file is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        read_addr1 : in std_logic_vector(4 downto 0);
+        read_addr2 : in std_logic_vector(4 downto 0);
+        read_data1 : out std_logic_vector(31 downto 0);
+        read_data2 : out std_logic_vector(31 downto 0);
+        write_enable : in std_logic;
+        write_addr : in std_logic_vector(4 downto 0);
+        write_data : in std_logic_vector(31 downto 0)
+    );
+end register_file;
+```
+
+## Responsibility
+Provide 32 32-bit integer registers with asynchronous reads, synchronous writes, asynchronous active-high reset, and hardwired-zero x0.
+
+## Timing
+
+- `read_addr1` and `read_addr2` select register values asynchronously. A change to either address, or to the selected register’s value, is reflected on its corresponding read output without requiring a clock edge.
+- A write is committed on a rising edge of `clk` only when `rst = '0'`, `write_enable = '1'`, and `write_addr` is nonzero. The committed value is the `write_data` present at that edge.
+- Before a qualifying rising edge, asserting a write request does not change the stored value or read outputs. There is no write-through behavior.
+- After a qualifying edge updates a register, any read port selecting that register reflects the new value.
+- Falling edges do not commit writes. Without a qualifying write or reset, register values remain unchanged.
+
+## Reset
+
+- `rst` is active high and asynchronous. When asserted, every register other than hardwired-zero `x0` becomes zero without waiting for a clock edge.
+- While `rst = '1'`, writes are suppressed, including at rising clock edges.
+- Deasserting reset does not itself change register values. Writes may occur at the next rising edge when the conditions in **Timing** are met.
+- `x0` reads as zero at all times and is never changed by reset or writes.
+
+## Behavior
+
+- The component provides two independent asynchronous read ports and one synchronous write port.
+- Each 5-bit address is an unsigned register number from 0 through 31. `read_addr1` selects `read_data1`, `read_addr2` selects `read_data2`, and `write_addr` selects the destination of a qualifying write.
+- Address 0 selects `x0`, whose read value is always `x"00000000"`. Writes to address 0 have no effect, regardless of `write_enable` or `write_data`.
+- Addresses 1 through 31 select `x1` through `x31`, respectively. A read returns the current 32-bit value of the selected register.
+- A qualifying write stores all 32 bits of `write_data` in the selected nonzero register. It changes no other register.
+
+## Operations
+
+- Register-address encodings are the unsigned values `00000` through `11111`, inclusive: `00000` selects `x0`, and `00001` through `11111` select `x1` through `x31`, respectively.
+- `write_enable = '1'` requests a write subject to the reset and `x0` rules above. `write_enable = '0'` requests no write.
+- No other opcode or operation selector is present.
+
+## Edge cases
+
+- Reads of `x0` return zero even if a write to address 0 is requested with nonzero data.
+- A write to a nonzero address with `write_enable = '0'` does not change that register.
+- A read matching a pending write address returns the pre-write value until the qualifying rising edge, then returns the written value.
+- If both read addresses are equal, both outputs return the same selected value. If they differ, each output returns the value selected by its own address.
+- Reset assertion takes effect independently of the clock. If reset is high at a rising edge, no write occurs. If reset is asserted while a write is requested, reset clears the registers and the write is not retained.
+- All 32-bit data patterns are valid register values. No sign interpretation, truncation, extension, or byte/halfword selection is applied.
+
+## Test strategy
+
+- **Asynchronous reads and routing:** Check `x0` and a representative nonzero register (for example, `x1`). Change each read address without a clock edge and require the corresponding output to update; keep the other address fixed and verify its output remains correct. Check that both ports can select the same register and can select different registers.
+- **Synchronous write and isolation:** Initialize two representative nonzero registers to distinguishable values. Request a write to one of them and verify that its read value remains unchanged before the rising edge, changes after the edge, and is visible on both read ports. Verify the other register retains its value. Also verify that a falling edge alone does not commit a write.
+- **Write enable and `x0`:** With `write_enable = '0'`, request a write to a representative nonzero register across a rising edge and verify no change. Request writes to `x0` with nonzero data and verify that both read ports still return zero. Confirm a subsequent write to a nonzero register succeeds.
+- **Asynchronous reset:** Initialize a representative nonzero register to a nonzero value, assert reset between clock edges, and verify that it reads as zero without a clock edge; also verify `x0` reads as zero. Request a write while reset is high and apply a rising edge; verify the register remains zero. Deassert reset without a clock edge and verify the value remains zero, then confirm a write after deassertion succeeds.
+- **Data preservation:** Write and read back representative patterns including zero, all ones, alternating bits, and values with only the most- or least-significant bit set. Require exact 32-bit equality on both read ports.

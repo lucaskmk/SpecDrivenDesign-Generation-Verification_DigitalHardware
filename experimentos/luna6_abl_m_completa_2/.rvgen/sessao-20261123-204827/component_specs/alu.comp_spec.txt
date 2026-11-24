@@ -1,0 +1,99 @@
+# Component semantic contract: alu
+
+## Public interface
+```vhdl
+entity alu is
+    port(
+        opcode : in std_logic_vector(6 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        funct7 : in std_logic_vector(6 downto 0);
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        result : out std_logic_vector(31 downto 0);
+        branch_taken : out std_logic
+    );
+end alu;
+```
+
+## Responsibility
+Decode opcode, funct3, and funct7 to perform RV32I integer and address arithmetic, shifts, signed and unsigned comparisons, branch-condition evaluation, and all RV32M multiplication, division, and remainder operations, including defined divide-by-zero and signed-overflow results.
+
+## Timing
+
+`alu` is purely combinational. For every change to an input, `result` and `branch_taken` must reflect the corresponding behavior after combinational propagation, without requiring a clock edge. The component has no clock input and retains no state.
+
+## Reset
+
+None. The component has no reset input or reset behavior.
+
+## Behavior
+
+All operands and results are 32-bit values. Arithmetic results wrap modulo \(2^{32}\). Unless stated otherwise, `branch_taken` is `'0'`.
+
+`opcode`, `funct3`, and `funct7` select the operation as specified in **Operations**. Unrecognized opcodes and reserved or unsupported selector combinations produce `result = 0` and `branch_taken = '0'`.
+
+For a supported branch encoding with opcode `0x63`, `result` is `operand_a + operand_b` modulo \(2^{32}\), whether or not the branch is taken. `branch_taken` indicates the selected branch condition. An unsupported branch `funct3` produces the default outputs: `result = 0` and `branch_taken = '0'`. For all non-branch opcodes, `branch_taken` is `'0'`.
+
+Comparisons treat operands as signed two’s-complement values for signed operations and as unsigned values for unsigned operations. A comparison result is `0x00000001` when true and `0x00000000` when false.
+
+For supported `JALR` encoding (`opcode = 0x67`, `funct3 = 0x0`), `result` is `(operand_a + operand_b) & 0xFFFFFFFE`. Other `funct3` values for this opcode are unsupported and produce the default outputs. `funct7` does not select the `JALR` operation. For `JAL` opcode `0x6F`, `result` is `operand_a + operand_b` modulo \(2^{32}\). These opcodes do not assert `branch_taken`; unconditional control-flow handling is outside this component.
+
+## Operations
+
+All encodings below are hexadecimal values of the corresponding fields. Encodings not listed as supported produce the default outputs specified in **Behavior**.
+
+- **OP, opcode `0x33`:**
+  - With `funct7 = 0x00`: `funct3 = 0x0` ADD; `0x1` SLL; `0x2` SLT; `0x3` SLTU; `0x4` XOR; `0x5` SRL; `0x6` OR; `0x7` AND.
+  - With `funct7 = 0x20`: `funct3 = 0x0` SUB; `funct3 = 0x5` SRA.
+  - With `funct7 = 0x01`: RV32M operations: `funct3 = 0x0` MUL; `0x1` MULH; `0x2` MULHSU; `0x3` MULHU; `0x4` DIV; `0x5` DIVU; `0x6` REM; `0x7` REMU.
+
+- **OP-IMM, opcode `0x13`:**
+  - `funct3 = 0x0` ADDI; `0x2` SLTI; `0x3` SLTIU; `0x4` XORI; `0x6` ORI; `0x7` ANDI. For these operations, `funct7` does not select the operation.
+  - `funct3 = 0x1` SLLI is supported only with `funct7 = 0x00`.
+  - `funct3 = 0x5` SRLI is supported with `funct7 = 0x00`; SRAI is supported with `funct7 = 0x20`.
+  - Shift operations use `operand_b(4 downto 0)` as the shift amount.
+
+- **Loads, opcode `0x03`, and stores, opcode `0x23`:** all `funct3` and `funct7` values select ADD; `result = operand_a + operand_b` modulo \(2^{32}\).
+
+- **AUIPC, opcode `0x17`:** ADD; `result = operand_a + operand_b` modulo \(2^{32}\).
+
+- **LUI, opcode `0x37`:** pass through `operand_b` to `result`.
+
+- **Branches, opcode `0x63`:** `funct3 = 0x0` BEQ; `0x1` BNE; `0x4` BLT; `0x5` BGE; `0x6` BLTU; `0x7` BGEU. These select the corresponding equality, inequality, signed comparison, or unsigned comparison for `branch_taken`. Other `funct3` values are unsupported and produce the default outputs.
+
+- **JAL, opcode `0x6F`:** ADD as specified in **Behavior**; `funct3` and `funct7` do not select the operation.
+
+- **JALR, opcode `0x67`:** supported only with `funct3 = 0x0`; ADD with bit zero cleared as specified in **Behavior**. `funct7` does not select the operation. Other `funct3` values are unsupported and produce the default outputs.
+
+For shifts, the amount is the low five bits of `operand_b`. SLL shifts left and fills with zeros; SRL shifts right and fills with zeros; SRA shifts right while replicating the sign bit.
+
+For RV32M multiplication, MUL returns product bits `[31:0]`; MULH returns bits `[63:32]` of signed-by-signed multiplication; MULHSU returns bits `[63:32]` of signed `operand_a` times unsigned `operand_b`; MULHU returns bits `[63:32]` of unsigned-by-unsigned multiplication.
+
+For RV32M division and remainder, signed results truncate toward zero. DIV and REM interpret both operands as signed; DIVU and REMU interpret both as unsigned.
+
+## Edge cases
+
+- Calculations producing a result wider than 32 bits retain only the low 32 bits, except high-half multiplication operations, which return the specified upper product bits.
+- A shift amount is always `operand_b(4 downto 0)`; higher bits of `operand_b` do not affect the shift.
+- DIV and DIVU with `operand_b = 0` return `0xFFFFFFFF`.
+- REM and REMU with `operand_b = 0` return `operand_a`.
+- Signed DIV with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF` returns `0x80000000`.
+- Signed REM with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF` returns `0x00000000`.
+- For branch comparisons, equality compares all 32 bits; signed comparisons use two’s-complement interpretation, and unsigned comparisons use the full 32-bit unsigned values.
+- `JALR` with `funct3 = 0x0` clears bit zero of the sum; any other `funct3` value is unsupported and returns default outputs.
+- Reserved OP, OP-IMM, or branch selector combinations, and unsupported opcodes, return zero outputs as specified in **Behavior**.
+
+## Test strategy
+
+Use combinational tests: change inputs without clocking and check outputs after propagation. For each vector, check both outputs. Where a behavior does not select `branch_taken`, require it to remain `'0'`.
+
+- **Opcode and selector decoding:** Exercise every supported opcode and each supported `funct3`/`funct7` combination listed in **Operations**, plus unsupported combinations. For each operation, choose operands for which its result differs from the results of neighboring operations; for example, distinguish ADD from SUB, SRL from SRA, SLT from SLTU, and every M operation from the others. Hold operands fixed while changing one selector field at a time, then hold selectors fixed while changing one operand at a time. Require unsupported combinations to produce both default outputs.
+- **Arithmetic and address results:** For ADD, ADDI, SUB, load/store ADD, AUIPC, JAL, and supported JALR, use non-equal operands with distinct bit patterns and independently calculate the expected 32-bit result. Include carry, borrow, wraparound, and odd/even JALR sums. Change only one operand per comparison vector. For LUI, use a nonzero operand value with a pattern that distinguishes pass-through from addition or zero.
+- **Logic operations:** For XOR, OR, and AND, use operands with distinct mixed bit patterns that make all three results different. Change one operand at a time and compare against the exact bitwise result.
+- **Shifts:** Test SLL, SRL, and SRA with shift amounts `0`, `1`, `31`, and values whose upper bits are set but whose low five bits match those amounts. Use operands with both the top bit and low bits set so logical fill, arithmetic fill, and direction are distinguishable. Test immediate and register forms separately, changing only the operation selector, shift amount, or shifted operand in each comparison.
+- **Comparisons:** Test SLT and SLTU, and SLTI and SLTIU, with operand pairs whose signed and unsigned orderings differ, as well as equal operands and adjacent values. Require exact `0`/`1` results. Change one operand or the signed/unsigned selector at a time.
+- **Branches:** For each supported branch selector, test taken and not-taken operand pairs, including equality, inequality, signed-boundary values, and unsigned-boundary values. Require the branch target sum in `result` for both taken and not-taken cases. Change one operand or branch selector at a time; use operand pairs that make signed and unsigned comparisons disagree. Also test unsupported branch `funct3` values and require both outputs to be zero.
+- **Multiplication:** For MUL, MULH, MULHSU, and MULHU, test zero, one, maximum unsigned values, negative signed values, and products with nonzero upper and lower halves. Use operand patterns that distinguish signed-by-signed, signed-by-unsigned, and unsigned-by-unsigned results. Swap operands where relevant to verify that MULHSU preserves its specified operand order. Change one operand or the M-operation selector at a time.
+- **Division and remainder:** Test DIV, DIVU, REM, and REMU with positive and negative signed values, non-exact quotients, both operand signs, zero dividend, divisor one, divide by zero, and signed overflow. Verify quotient truncation toward zero and remainder sign. Use values for which signed and unsigned results differ, and change one operand or operation selector at a time.
+- **Default outputs:** Test unsupported opcodes, invalid OP `funct7`/`funct3` pairs, invalid shift-immediate encodings, unsupported branch `funct3` values, and JALR with each nonzero `funct3` value. Use nonzero, distinguishable operands and require `result = 0` and `branch_taken = '0'` in every case.
+- **Input responsiveness:** With each control class represented, change each operand independently while keeping all other inputs fixed. Require the outputs to correspond to the new inputs without a clock edge; also change each selector independently while holding operands fixed.

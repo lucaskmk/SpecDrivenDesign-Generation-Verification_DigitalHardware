@@ -1,0 +1,129 @@
+# Component semantic contract: control_unit
+
+## Public interface
+```vhdl
+entity control_unit is
+    port(
+        opcode : in std_logic_vector(6 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        rd_write : out std_logic;
+        mem_write : out std_logic;
+        load_enable : out std_logic;
+        data_width : out std_logic_vector(1 downto 0);
+        load_signed : out std_logic;
+        alu_a_pc : out std_logic;
+        alu_b_imm : out std_logic;
+        wb_sel : out std_logic_vector(1 downto 0);
+        branch_enable : out std_logic;
+        jal : out std_logic;
+        jalr : out std_logic
+    );
+end control_unit;
+```
+
+## Responsibility
+Decode the instruction opcode and funct3 to produce register-write, memory-write, load, memory-width, signed-load, ALU operand-source, writeback-source, branch, and jump controls.
+
+## Timing
+
+`control_unit` is purely combinational and has no clock. Its outputs must reflect the current `opcode` and `funct3` after combinational propagation; they must not depend on prior inputs or elapsed clock cycles. Changing either input may change outputs without a clock edge.
+
+## Reset
+
+None. The component has no reset input or reset state.
+
+## Behavior
+
+The inputs are `opcode` and `funct3`, interpreted as the corresponding instruction fields. Outputs are active high unless otherwise specified.
+
+For a supported encoding listed below, outputs have the stated values. Outputs not stated as asserted for that encoding are deasserted. For every unlisted opcode, and every reserved load, store, branch, or JALR `funct3` encoding, the component produces these inactive defaults:
+
+- `rd_write = '0'`
+- `mem_write = '0'`
+- `load_enable = '0'`
+- `data_width = "10"`
+- `load_signed = '0'`
+- `alu_a_pc = '0'`
+- `alu_b_imm = '0'`
+- `wb_sel = "00"`
+- `branch_enable = '0'`
+- `jal = '0'`
+- `jalr = '0'`
+
+The defaults also apply when an input contains a non-binary `std_logic` value that prevents it from matching a supported encoding.
+
+| Instruction class | Opcode | `rd_write` | `mem_write` | `load_enable` | `data_width` | `load_signed` | `alu_a_pc` | `alu_b_imm` | `wb_sel` | `branch_enable` | `jal` | `jalr` |
+|---|---|---:|---:|---:|---|---:|---:|---:|---|---:|---:|---:|
+| OP | `0110011` | 1 | 0 | 0 | `10` | 0 | 0 | 0 | `00` | 0 | 0 | 0 |
+| OP-IMM | `0010011` | 1 | 0 | 0 | `10` | 0 | 0 | 1 | `00` | 0 | 0 | 0 |
+| LUI | `0110111` | 1 | 0 | 0 | `10` | 0 | 0 | 1 | `00` | 0 | 0 | 0 |
+| AUIPC | `0010111` | 1 | 0 | 0 | `10` | 0 | 1 | 1 | `00` | 0 | 0 | 0 |
+| Valid load | `0000011` | 1 | 0 | 1 | Per `funct3` | Per `funct3` | 0 | 1 | `01` | 0 | 0 | 0 |
+| Valid store | `0100011` | 0 | 1 | 0 | Per `funct3` | 0 | 0 | 1 | `00` | 0 | 0 | 0 |
+| Valid branch | `1100011` | 0 | 0 | 0 | `10` | 0 | 0 | 0 | `00` | 1 | 0 | 0 |
+| JAL | `1101111` | 1 | 0 | 0 | `10` | 0 | 1 | 1 | `10` | 0 | 1 | 0 |
+| Valid JALR | `1100111` | 1 | 0 | 0 | `10` | 0 | 0 | 1 | `10` | 0 | 0 | 1 |
+
+The selector values are this component’s output contract: `wb_sel = "00"` denotes the ALU result, `"01"` denotes load data, and `"10"` denotes `PC + 4`; `"11"` is reserved and never produced. A consumer may use a different private encoding internally and must adapt it explicitly. `alu_a_pc` selects the PC instead of the register operand for the ALU’s first operand; `alu_b_imm` selects the immediate instead of the register operand for its second operand. These controls are asserted as shown even when another result is selected for writeback.
+
+## Operations
+
+For loads (`opcode = 0000011`), `funct3` selects access width and signedness:
+
+| `funct3` | Load operation | `data_width` | `load_signed` |
+|---|---|---|---:|
+| `000` | LB | `00` | 1 |
+| `001` | LH | `01` | 1 |
+| `010` | LW | `10` | 0 |
+| `100` | LBU | `00` | 0 |
+| `101` | LHU | `01` | 0 |
+
+For stores (`opcode = 0100011`), `funct3` selects access width:
+
+| `funct3` | Store operation | `data_width` |
+|---|---|---|
+| `000` | SB | `00` |
+| `001` | SH | `01` |
+| `010` | SW | `10` |
+
+For branches (`opcode = 1100011`), these `funct3` encodings enable a branch:
+
+| `funct3` | Branch operation | `branch_enable` |
+|---|---|---:|
+| `000` | BEQ | 1 |
+| `001` | BNE | 1 |
+| `100` | BLT | 1 |
+| `101` | BGE | 1 |
+| `110` | BLTU | 1 |
+| `111` | BGEU | 1 |
+
+For JALR (`opcode = 1100111`), only `funct3 = 000` is supported. Other `funct3` values produce the inactive defaults.
+
+For JAL (`opcode = 1101111`), `funct3` does not select an operation: all values produce the JAL controls because those bits belong to the J immediate.
+
+For OP, OP-IMM, LUI, and AUIPC, `funct3` does not alter these control outputs. The component does not validate other instruction fields.
+
+## Edge cases
+
+- Load `funct3` values `011`, `110`, and `111` are reserved and produce the inactive defaults, including `data_width = "10"`.
+- Store `funct3` values `011`, `100`, `101`, `110`, and `111` are reserved and produce the inactive defaults, including `data_width = "10"`.
+- Branch `funct3` values `010` and `011` are reserved and produce the inactive defaults.
+- JALR with any `funct3` other than `000` produces the inactive defaults.
+- JAL is recognized for every `funct3` value.
+- `data_width` is meaningful for supported loads and stores; its specified default for other encodings is `"10"`.
+- `load_signed` is asserted only for LB and LH. LBU, LHU, LW, stores, and all other encodings leave it deasserted.
+
+## Test strategy
+
+Apply each input pair, allow combinational propagation, and check every output against this contract. Change one semantic factor at a time: when testing a `funct3` selector, hold `opcode` fixed; when testing opcode-class behavior, hold `funct3` fixed unless checking `funct3` invariance.
+
+1. **Opcode-class controls:** Apply each supported opcode from the behavior table with `funct3 = 000`. Check every output, including defaults. Also apply representative unsupported opcodes and check the complete inactive-default vector. Change only `opcode` between cases.
+2. **Load width and signedness selectors:** Hold `opcode = 0000011`; apply each supported load `funct3` and check the complete output vector against the contract. Apply each reserved load `funct3` and check the complete inactive-default vector. Change only `funct3` between cases.
+3. **Store width selector:** Hold `opcode = 0100011`; apply each supported store `funct3` and check the complete output vector against the contract. Apply each reserved store `funct3` and check the complete inactive-default vector. Change only `funct3` between cases.
+4. **Branch decoding:** Hold `opcode = 1100011`; apply all six supported branch `funct3` values and check the complete output vector against the branch row. Apply `010` and `011` and check the complete inactive-default vector. Change only `funct3` between cases.
+5. **JALR decoding:** Hold `opcode = 1100111`; check `funct3 = 000` against the JALR row, then check every other `funct3` value against the inactive defaults. Change only `funct3` between cases.
+6. **JAL `funct3` invariance:** Hold `opcode = 1101111`; apply all eight `funct3` values and require the complete output vector to match the JAL row. Change only `funct3` between cases.
+7. **Irrelevant `funct3` invariance:** For OP, OP-IMM, LUI, and AUIPC separately, hold the opcode fixed and apply all eight `funct3` values. Require each class’s complete output vector to match its behavior-table row.
+8. **Writeback and operand-source selector outputs:** For each class using `wb_sel`, check its exact specified encoding (`"00"`, `"01"`, or `"10"`) and check `alu_a_pc` and `alu_b_imm` against the behavior table. These checks observe only `control_unit` outputs; they do not assert dependent datapath behavior. Verify datapath behavior separately in an integration test that includes the relevant datapath and connections.
+9. **Load/store selector outputs:** For every supported load and store `funct3`, check `data_width` and the other control outputs against the operations and behavior tables. Check `load_signed` for each supported load. These checks observe only selector outputs; they do not assert memory-access or load-extension behavior. Verify those behaviors separately in an integration test that includes the relevant datapath and connections.
+10. **Combinational response and history independence:** With no clock, change inputs between supported and default cases and check outputs after each change. Repeat selected input pairs after intervening pairs; the outputs must match their earlier results. Use one-input-at-a-time changes to attribute output changes to `opcode` or `funct3`.

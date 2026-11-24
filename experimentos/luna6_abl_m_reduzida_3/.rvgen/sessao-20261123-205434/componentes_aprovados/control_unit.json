@@ -1,0 +1,8 @@
+{
+  "bloco": "control_unit",
+  "arquivo": "src/control_unit.vhd",
+  "hash_vhdl": "9d71c4028fbad7b0eddabe4c956b4cbe1af99d7cd5a44839c999cb5690fab22a",
+  "testes": [
+    "testes/test_control_unit.py"
+  ]
+}

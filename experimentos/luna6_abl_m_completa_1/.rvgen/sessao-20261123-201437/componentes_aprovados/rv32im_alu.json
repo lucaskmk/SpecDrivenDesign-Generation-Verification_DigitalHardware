@@ -1,0 +1,8 @@
+{
+  "bloco": "rv32im_alu",
+  "arquivo": "src/rv32im_alu.vhd",
+  "hash_vhdl": "530d38da5182560f6cdcc10fbd7afe5e1018f44080e47768af3f20371d777c74",
+  "testes": [
+    "testes/test_rv32im_alu.py"
+  ]
+}

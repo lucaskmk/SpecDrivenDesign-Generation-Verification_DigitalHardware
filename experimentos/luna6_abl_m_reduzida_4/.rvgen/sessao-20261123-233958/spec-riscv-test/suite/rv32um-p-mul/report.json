@@ -1,0 +1,195 @@
+{
+  "cycle": 125,
+  "last_instruction": {
+    "decoded": "store(funct3=2) x3, 5+imm",
+    "word": "0x0032a023"
+  },
+  "message": "riscv-tests reportou FAIL; o valor de tohost codifica o caso interno",
+  "pc": "0x00000550",
+  "status": "failed",
+  "test": "rv32um-p-mul",
+  "test_case": 36,
+  "tohost": "0x00000049",
+  "tohost_raw": 73,
+  "trace": [
+    {
+      "cycle": 110,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x3, x0, 35",
+      "instruction": "0x02300193",
+      "pc": "0x000001b4"
+    },
+    {
+      "cycle": 111,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x11, x0, -1",
+      "instruction": "0xfff00593",
+      "pc": "0x000001b8"
+    },
+    {
+      "cycle": 112,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x12, x0, -1",
+      "instruction": "0xfff00613",
+      "pc": "0x000001bc"
+    },
+    {
+      "cycle": 113,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op x14, x11, x12",
+      "instruction": "0x02c58733",
+      "pc": "0x000001c0"
+    },
+    {
+      "cycle": 114,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x7, x0, 1",
+      "instruction": "0x00100393",
+      "pc": "0x000001c4"
+    },
+    {
+      "cycle": 115,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "branch(funct3=1) x14, x7",
+      "instruction": "0x36771e63",
+      "pc": "0x000001c8"
+    },
+    {
+      "cycle": 116,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x3, x0, 36",
+      "instruction": "0x02400193",
+      "pc": "0x000001cc"
+    },
+    {
+      "cycle": 117,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x11, x0, -1",
+      "instruction": "0xfff00593",
+      "pc": "0x000001d0"
+    },
+    {
+      "cycle": 118,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x12, x0, 1",
+      "instruction": "0x00100613",
+      "pc": "0x000001d4"
+    },
+    {
+      "cycle": 119,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op x14, x11, x12",
+      "instruction": "0x02c58733",
+      "pc": "0x000001d8"
+    },
+    {
+      "cycle": 120,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x7, x0, -1",
+      "instruction": "0xfff00393",
+      "pc": "0x000001dc"
+    },
+    {
+      "cycle": 121,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "branch(funct3=1) x14, x7",
+      "instruction": "0x36771263",
+      "pc": "0x000001e0"
+    },
+    {
+      "cycle": 122,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=1) x3, x3, 1",
+      "instruction": "0x00119193",
+      "pc": "0x00000544"
+    },
+    {
+      "cycle": 123,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=6) x3, x3, 1",
+      "instruction": "0x0011e193",
+      "pc": "0x00000548"
+    },
+    {
+      "cycle": 124,
+      "data_addr": "0x00000000",
+      "data_read_address": "0x00000000",
+      "data_read_data": "0x00000093",
+      "data_width": 2,
+      "data_write": 0,
+      "decoded": "op-imm(funct3=0) x5, x0, 1392",
+      "instruction": "0x57000293",
+      "pc": "0x0000054c"
+    },
+    {
+      "cycle": 125,
+      "data_addr": "0x00000570",
+      "data_read_address": "0x00000570",
+      "data_read_data": "0x00000000",
+      "data_width": 2,
+      "data_write": 1,
+      "decoded": "store(funct3=2) x3, 5+imm",
+      "instruction": "0x0032a023",
+      "pc": "0x00000550",
+      "write_address": "0x00000570",
+      "write_value": "0x00000049",
+      "write_width": 2
+    }
+  ]
+}

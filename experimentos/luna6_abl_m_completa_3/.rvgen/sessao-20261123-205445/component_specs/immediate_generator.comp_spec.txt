@@ -1,0 +1,70 @@
+# Component semantic contract: immediate_generator
+
+## Public interface
+```vhdl
+entity immediate_generator is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0)
+    );
+end immediate_generator;
+```
+
+## Responsibility
+Generate correctly sign-extended I, S, B, and J immediates and the zero-extended U immediate from the instruction word.
+
+## Timing
+
+`immediate_generator` is purely combinational. Whenever `instr` changes, all five outputs must update to the corresponding values without waiting for a clock edge. There is no required relative ordering among the output updates.
+
+## Reset
+
+None. The component has no reset input or reset-dependent behavior.
+
+## Behavior
+
+For every value of `instr`, including words with unsupported or arbitrary opcodes, produce all five immediate outputs concurrently. The opcode and all fields not listed in the immediate mappings below do not affect the outputs.
+
+All outputs are 32-bit vectors:
+
+- `imm_i` is the sign-extended I immediate.
+- `imm_s` is the sign-extended S immediate.
+- `imm_b` is the sign-extended B immediate, with bit 0 equal to zero.
+- `imm_u` is the zero-extended U immediate.
+- `imm_j` is the sign-extended J immediate, with bit 0 equal to zero.
+
+## Operations
+
+There is no encoded selector: the component always produces all five immediate formats.
+
+For `instr(31 downto 0)`:
+
+- I immediate: `imm_i(11 downto 0) = instr(31 downto 20)`; `imm_i(31 downto 12)` are copies of `instr(31)`.
+- S immediate: `imm_s(4 downto 0) = instr(11 downto 7)`; `imm_s(11 downto 5) = instr(31 downto 25)`; `imm_s(31 downto 12)` are copies of `instr(31)`.
+- B immediate: `imm_b(0) = 0`; `imm_b(4 downto 1) = instr(11 downto 8)`; `imm_b(10 downto 5) = instr(30 downto 25)`; `imm_b(11) = instr(7)`; `imm_b(12) = instr(31)`; `imm_b(31 downto 13)` are copies of `instr(31)`.
+- U immediate: `imm_u(11 downto 0) = 0`; `imm_u(31 downto 12) = instr(31 downto 12)`.
+- J immediate: `imm_j(0) = 0`; `imm_j(10 downto 1) = instr(30 downto 21)`; `imm_j(11) = instr(20)`; `imm_j(19 downto 12) = instr(19 downto 12)`; `imm_j(20) = instr(31)`; `imm_j(31 downto 21)` are copies of `instr(31)`.
+
+## Edge cases
+
+- When `instr(31) = 0`, the upper sign-extension bits of `imm_i`, `imm_s`, `imm_b`, and `imm_j` are zero. When `instr(31) = 1`, those bits are one.
+- `imm_u` is never sign-extended: its bits `11 downto 0` are always zero, regardless of `instr(31)`.
+- `imm_b(0)` and `imm_j(0)` are always zero, regardless of any instruction bit.
+- Immediate bit positions not sourced by the mappings in `Operations` must have the specified constant value; no opcode or other instruction field may change them.
+- There are no invalid instruction values for this component. Every 32-bit input has defined outputs.
+
+## Test strategy
+
+Run the component without a clock or reset. After each input assignment, wait for combinational outputs to settle and assert all five outputs against the mappings in `Operations`. Use exact 32-bit comparisons.
+
+1. **Opcode independence:** Test inputs from each of the seven-bit opcode classes `instr(6 downto 0) = 0x00` through `0x7F`. For each opcode, hold all immediate-source bits constant and assert that all five outputs are identical. Vary only the opcode between these tests.
+2. **I immediate packing and sign extension:** Set all bits to zero, then toggle each source bit `instr(31 downto 20)` individually. For each toggle, require the corresponding `imm_i(11 downto 0)` bit to toggle and require all other low immediate bits to remain zero. Separately test `instr(31) = 0` and `instr(31) = 1` while holding `instr(30 downto 20)` fixed; assert that `imm_i(31 downto 12)` equals the sign bit and that `imm_i(11 downto 0)` equals `instr(31 downto 20)`. Use patterns with distinct bit positions set so an incorrect source-bit ordering cannot pass.
+3. **S immediate packing and sign extension:** From an all-zero input, toggle each source bit in `instr(11 downto 7)` and `instr(31 downto 25)` one at a time. Assert its exact destination bit in `imm_s` changes and that unrelated immediate bits do not change. Test both values of `instr(31)` with `instr(30 downto 25)` and `instr(11 downto 7)` held fixed; assert `imm_s(31 downto 12)` is all copies of `instr(31)`. Use distinct source-bit patterns across the low and high S fields to expose field swaps or incorrect bit order.
+4. **B immediate packing, implicit zero, and sign extension:** From an all-zero input, toggle each of `instr(11 downto 8)`, `instr(30 downto 25)`, `instr(7)`, and `instr(31)` individually. Assert the exact mapped destination bits in `imm_b`; for each test also assert `imm_b(0) = 0`. Test `instr(31) = 1` and `instr(31) = 0` while holding all other B-source bits fixed, and assert `imm_b(31 downto 13)` and `imm_b(12)` equal `instr(31)`. Use distinct source-bit patterns so swapped B-field bits are observable.
+5. **U immediate packing and zero extension:** From an all-zero input, toggle each source bit `instr(31 downto 12)` individually and assert that only the corresponding `imm_u(31 downto 12)` bit changes. Assert `imm_u(11 downto 0) = 0` for every test. Include inputs with `instr(31) = 1` and the other U bits zero to prove the upper bit is not sign-extended into the lower twelve bits.
+6. **J immediate packing, implicit zero, and sign extension:** From an all-zero input, toggle each of `instr(30 downto 21)`, `instr(20)`, `instr(19 downto 12)`, and `instr(31)` individually. Assert each mapped destination bit in `imm_j`; for each test also assert `imm_j(0) = 0`. Test both values of `instr(31)` with all other J-source bits held fixed; assert `imm_j(31 downto 21)` and `imm_j(20)` equal `instr(31)`. Use distinct patterns in the J fields so field swaps or incorrect bit ordering are observable.
+7. **Concurrent outputs and isolation:** Use inputs with distinct, non-symmetric patterns across all instruction fields and assert all five outputs against their respective formulas on the same settled input. Then change exactly one immediate-source bit at a time and assert the resulting change in every affected output and no change in outputs or bits not sourced by that input bit. This detects unintended coupling between immediate formats.

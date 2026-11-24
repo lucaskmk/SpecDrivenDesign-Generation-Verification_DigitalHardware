@@ -1,0 +1,12 @@
+{
+  "component": "cpu",
+  "testbench": "/repo/experimentos/luna6_abl_m_reduzida_3/.rvgen/sessao-20261123-205434/testes/test_cpu.py",
+  "compilacao": {
+    "ok": false
+  },
+  "passed": false,
+  "detail": "CalledProcessError: Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu']' returned non-zero exit status 1.",
+  "log": "/repo/experimentos/luna6_abl_m_reduzida_3/.rvgen/sessao-20261123-205434/sim/componente-cpu/sim.log",
+  "diagnostico": "/repo/experimentos/luna6_abl_m_reduzida_3/src/cpu.vhd:136:9: signal \"load_data\" is not a variable to be assigned\n        load_data := (others => '0');\n        ^\n",
+  "segundos": 0.4
+}

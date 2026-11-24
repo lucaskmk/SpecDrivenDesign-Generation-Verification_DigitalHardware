@@ -1,0 +1,70 @@
+# Component semantic contract: register_file
+
+## Public interface
+```vhdl
+entity register_file is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        rs1_addr : in std_logic_vector(4 downto 0);
+        rs2_addr : in std_logic_vector(4 downto 0);
+        rs1_data : out std_logic_vector(31 downto 0);
+        rs2_data : out std_logic_vector(31 downto 0);
+        rd_addr : in std_logic_vector(4 downto 0);
+        rd_data : in std_logic_vector(31 downto 0);
+        rd_write : in std_logic
+    );
+end register_file;
+```
+
+## Responsibility
+Implement the 32-entry RV32 register file with two asynchronous read ports, one synchronous write port, asynchronous reset, and hardwired x0 reads and writes.
+
+## Timing
+
+- `rs1_data` and `rs2_data` are asynchronous outputs. Each reflects the register selected by its corresponding address without waiting for a clock edge.
+- A write is committed on the rising edge of `clk` only when `rd_write = '1'` and `rst = '0'`.
+- Before a qualifying rising edge, reads of the destination register return its previous value. After the edge, they return the written value, except that reads of x0 always return zero.
+- Changing either read address changes only its corresponding output; no clock edge is required.
+- Reset assertion takes effect asynchronously. Reset deassertion does not itself change register contents.
+
+## Reset
+
+- `rst` is active high and asynchronous.
+- While `rst = '1'`, registers x1 through x31 contain zero, and both read outputs are zero.
+- Reset assertion clears x1 through x31 without waiting for a clock edge. Writes are ignored while reset is asserted.
+- Deasserting reset preserves the cleared state until subsequent writes.
+- x0 reads as zero at all times, independently of reset.
+
+## Behavior
+
+- The component provides 32 registers, x0 through x31, each 32 bits wide.
+- `rs1_addr` and `rs2_addr` independently select the values presented on `rs1_data` and `rs2_data`.
+- `rd_addr` selects the destination of a synchronous write of `rd_data` when `rd_write = '1'`.
+- Writes to x0 are ignored. Reads from x0 always return zero, regardless of reset or write inputs.
+- When `rd_write = '0'`, a clock edge does not modify any register. When `rd_write = '1'`, the selected nonzero register is written at the rising edge unless reset is asserted.
+- The read ports may select the same or different registers. If they select the same register, both outputs show the same value.
+- Every 5-bit address is valid and selects exactly one register.
+
+## Operations
+
+- There is no opcode. Each address port is a 5-bit unsigned binary register index: `00000` selects x0, `00001` selects x1, and so on through `11111` selecting x31.
+- This encoding specifies the public address ports of `register_file`. The component has no generated dependencies.
+
+## Edge cases
+
+- Reads of x0 return `0x00000000`, including when `rd_addr` is x0 and `rd_write = '1'` with nonzero `rd_data`.
+- A write to x0 does not change any register.
+- A write to a nonzero register while reset is asserted is ignored.
+- With `rd_write = '0'`, changing `rd_addr` or `rd_data` does not modify state.
+- If a read address equals the destination during a write, the output shows the old value before the active rising edge and the new value after the write takes effect.
+- The two read ports operate independently; changing one port’s address does not change the other port’s selected value.
+
+## Test strategy
+
+- Use representative cases rather than enumerating every register or every nonzero write destination. Include x0 for its distinct behavior and at least one nonzero register. Add a boundary address only if its behavior differs.
+- Check asynchronous read selection by changing each read address without clocking. Use different values in at least two nonzero registers to check independent routing and same-address reads.
+- Check a synchronous write to a representative nonzero register: verify the old value before the rising edge and the new value after it, while confirming another register is unchanged.
+- Check that `rd_write = '0'` prevents a write and that a write to x0 changes neither x0 nor a nonzero register.
+- Check asynchronous reset by asserting it between rising edges and confirming the representative nonzero registers read as zero. While reset is asserted, attempt a write and confirm it is ignored; after deassertion, confirm a normal enabled write takes effect on a rising edge.
+- These component checks observe only the public ports. Do not infer or assert internal selectors.

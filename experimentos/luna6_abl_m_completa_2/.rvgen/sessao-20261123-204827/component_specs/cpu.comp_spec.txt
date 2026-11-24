@@ -1,0 +1,169 @@
+# Component semantic contract: cpu
+
+## Public interface
+```vhdl
+entity cpu is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        instr_addr : out std_logic_vector(31 downto 0);
+        instr_data : in std_logic_vector(31 downto 0);
+        data_addr : out std_logic_vector(31 downto 0);
+        data_write : out std_logic;
+        data_width : out std_logic_vector(1 downto 0);
+        data_write_data : out std_logic_vector(31 downto 0);
+        data_read_data : in std_logic_vector(31 downto 0)
+    );
+end cpu;
+```
+
+## Responsibility
+Implement the exact external CPU bus contract and single-cycle control. Maintain the PC; decode instructions and form I, S, B, U, and J immediates; select operands; instantiate the register_file and alu; implement LUI, AUIPC, JAL, JALR, and conditional branches; calculate byte-addressed load/store addresses; drive store width, data, and write enable; select and extend load data according to width, address offset, and signedness; select register writeback data; and advance the PC with the specified priority. Reset the PC asynchronously to zero.
+
+## Timing
+
+- `cpu` is a single-cycle RV32IM processor. `instr_addr` continuously presents the current PC. `instr_data` is read asynchronously, and the current instruction determines combinational outputs and next state.
+- Each supported instruction completes on one rising edge of `clk`: the PC updates, a permitted register write takes effect, and the external memory commits a store if requested. There is no additional instruction latency.
+- The normal next PC is `PC + 4` modulo \(2^{32}\). Next-PC priority is JAL or JALR, then a taken conditional branch, then `PC + 4`.
+- `data_addr`, `data_width`, `data_write`, and `data_write_data` are combinational outputs for the current instruction. The external memory commits a store on a rising edge for which `data_write = '1'`.
+- `data_read_data` is asynchronous. A legal load selects and extends its value combinationally and writes the result to `rd` on the rising edge.
+- The CPU instantiates exactly one `register_file` and exactly one `alu`. It does not reimplement either dependency’s behavior. Register-file reads are asynchronous and writes synchronous, as specified by the register-file contract. The ALU is combinational, as specified by the ALU contract.
+- Register-file addresses are the five-bit instruction register fields. ALU selector encodings are private to the ALU interface: the CPU derives the ALU selector inputs from the instruction fields according to the ALU contract. For the specified ALU, the corresponding `opcode`, `funct3`, and `funct7` fields are supplied unchanged. This does not require different dependencies to use a shared numeric selector encoding.
+- The public CPU interface has no register-read ports. Register state is observable only through subsequent instructions and their public effects, such as store data, effective addresses, and control flow.
+
+## Reset
+
+- Reset is asynchronous and active high.
+- While `rst = '1'`, `instr_addr` is `0x00000000`, the register file is cleared, and `data_write` is `'0'`. No instruction or store completes while reset is asserted.
+- Reset assertion clears the PC and registers without waiting for a clock edge. Register writes and external store requests are suppressed while reset is asserted.
+- Deasserting reset does not itself change the PC or register state. Execution resumes at PC zero on a subsequent rising edge.
+- Reset does not alter the ALU’s behavior; the ALU has no reset input.
+
+## Behavior
+
+- Instruction register numbers are the five-bit `rs1`, `rs2`, and `rd` fields. The CPU supplies these fields to the corresponding register-file address ports. The register-file address encoding is five-bit binary: `00000` selects `x0` through `11111` selecting `x31`.
+- Reads of `x0` always return zero; writes to `x0` have no effect. Other registers retain their values until reset or written by an instruction.
+- The CPU gates instruction legality and side effects independently of ALU behavior. An ALU address-add result for a load or store opcode does not make an unsupported load or store encoding legal.
+- The CPU supplies ALU operands according to the operation: source-register values or the appropriate immediate for arithmetic and comparisons; base register and effective-address immediate for load/store address calculation; U for LUI; `PC` and U for AUIPC; `PC` and J for JAL; and `rs1` and I for JALR. For a conditional branch, the ALU receives `rs1` and `rs2` to produce the branch condition; the CPU forms the branch target `PC + B` separately.
+- I-immediates are the sign extension of `instr[31:20]`; S-immediates are the sign extension of `instr[31:25] || instr[11:7]`.
+- B-immediates are the sign extension of `instr[31] || instr[7] || instr[30:25] || instr[11:8] || 0`.
+- U-immediates are `instr[31:12] || 12'b0`, without sign extension.
+- J-immediates are the sign extension of `instr[31] || instr[19:12] || instr[20] || instr[30:21] || 0`.
+- Integer arithmetic results are 32 bits and wrap modulo \(2^{32}\). Signed comparisons use two’s-complement interpretation; unsigned comparisons use the full 32-bit unsigned values.
+- LUI writes U to `rd`. AUIPC writes `PC + U` to `rd`.
+- JAL writes `PC + 4` to `rd` and selects `PC + J` as the next PC.
+- JALR writes `PC + 4` to `rd` and selects `(rs1 + I) & 0xFFFFFFFE` as the next PC. It clears bit zero only; it does not clear bit one.
+- A taken conditional branch selects `PC + B` as the next PC. A branch that is not taken selects `PC + 4`.
+- For the load opcode (`0x03`), `data_addr` is the effective byte address `rs1 + I`. For the store opcode (`0x23`), `data_addr` is the effective byte address `rs1 + S`. These addresses retain their low bits, including for unsupported `funct3` encodings; unsupported encodings still have no register-write or store side effect.
+- `data_read_data` is the 32-bit little-endian word whose base address is `data_addr & 0xFFFFFFFC`. Byte offset `00`, `01`, `10`, or `11` selects bits `7:0`, `15:8`, `23:16`, or `31:24`, respectively. A halfword at offset `00` selects bits `15:0`; a halfword at offset `10` selects bits `31:16`.
+- Legal loads write the selected value to `rd`. LB and LH sign-extend; LBU and LHU zero-extend; LW writes all 32 bits unchanged. For legal loads, `data_width` identifies the access size: `"00"` for LB/LBU, `"01"` for LH/LHU, and `"10"` for LW.
+- Legal stores drive the unshifted `rs2` value on `data_write_data`; the external memory consumes the low 8, 16, or 32 bits according to `data_width`. Store width is `"00"` for byte, `"01"` for halfword, and `"10"` for word.
+- `data_write` is `'1'` for a legal SB, SH, or SW when reset is deasserted, and `'0'` for every other instruction. For legal stores, `data_width` and `data_write_data` have the values specified above.
+- For deterministic outputs, default `data_width` to `"10"` and `data_write_data` to zero. Override `data_width` for each legal load or store according to its access size, and override `data_write_data` for legal stores with the unshifted `rs2` value. For instructions outside the load and store opcode classes, `data_addr` is zero. Load and store opcode classes drive their effective byte address even for unsupported `funct3` values.
+- Unsupported opcodes and reserved or unsupported selector combinations have no register-write or store side effect and select `PC + 4`.
+- Behavior for non-binary control or instruction inputs is unspecified.
+
+## Operations
+
+All encodings below are binary values in the indicated instruction fields. Unsupported encodings have no register-write or store side effect and advance to `PC + 4`.
+
+- **LUI**, opcode `0110111` (`0x37`): write U to `rd`.
+- **AUIPC**, opcode `0010111` (`0x17`): write `PC + U` to `rd`.
+- **JAL**, opcode `1101111` (`0x6F`): write `PC + 4` to `rd`; next PC is `PC + J`.
+- **JALR**, opcode `1100111` (`0x67`), `funct3 = 000`: write `PC + 4` to `rd`; next PC is `(rs1 + I) & 0xFFFFFFFE`. Other `funct3` values are unsupported.
+- **Conditional branches**, opcode `1100011` (`0x63`):
+  - `funct3 = 000`: BEQ, taken when `rs1 = rs2`.
+  - `funct3 = 001`: BNE, taken when `rs1 ≠ rs2`.
+  - `funct3 = 100`: BLT, taken when signed `rs1 < rs2`.
+  - `funct3 = 101`: BGE, taken when signed `rs1 ≥ rs2`.
+  - `funct3 = 110`: BLTU, taken when unsigned `rs1 < rs2`.
+  - `funct3 = 111`: BGEU, taken when unsigned `rs1 ≥ rs2`.
+  - Branches do not write a register. Other `funct3` values are unsupported.
+- **Loads**, opcode `0000011` (`0x03`):
+  - `funct3 = 000`: LB, byte, sign-extended, `data_width = "00"`.
+  - `funct3 = 001`: LH, halfword, sign-extended, `data_width = "01"`.
+  - `funct3 = 010`: LW, word, `data_width = "10"`.
+  - `funct3 = 100`: LBU, byte, zero-extended, `data_width = "00"`.
+  - `funct3 = 101`: LHU, halfword, zero-extended, `data_width = "01"`.
+  - Other `funct3` values are unsupported.
+- **Stores**, opcode `0100011` (`0x23`):
+  - `funct3 = 000`: SB, byte, `data_width = "00"`.
+  - `funct3 = 001`: SH, halfword, `data_width = "01"`.
+  - `funct3 = 010`: SW, word, `data_width = "10"`.
+  - Other `funct3` values are unsupported.
+- **OP-IMM**, opcode `0010011` (`0x13`):
+  - `funct3 = 000`: ADDI.
+  - `funct3 = 010`: SLTI, signed comparison.
+  - `funct3 = 011`: SLTIU, unsigned comparison.
+  - `funct3 = 100`: XORI.
+  - `funct3 = 110`: ORI.
+  - `funct3 = 111`: ANDI.
+  - `funct3 = 001`, `instr[31:25] = 0000000`: SLLI.
+  - `funct3 = 101`, `instr[31:25] = 0000000`: SRLI.
+  - `funct3 = 101`, `instr[31:25] = 0100000`: SRAI.
+  - Immediate shifts use `instr[24:20]` as the five-bit shift amount. Other shift encodings and unsupported `funct3` values are unsupported.
+- **OP**, opcode `0110011` (`0x33`):
+  - With `funct7 = 0000000`: `funct3 = 000` ADD; `001` SLL; `010` SLT; `011` SLTU; `100` XOR; `101` SRL; `110` OR; `111` AND.
+  - With `funct7 = 0100000`: `funct3 = 000` SUB; `funct3 = 101` SRA.
+  - With `funct7 = 0000001`: `funct3 = 000` MUL; `001` MULH; `010` MULHSU; `011` MULHU; `100` DIV; `101` DIVU; `110` REM; `111` REMU.
+  - Register shifts use `rs2[4:0]` as the shift amount. Other `funct7`/`funct3` combinations are unsupported.
+
+## Edge cases
+
+- All PC and integer arithmetic wraps modulo \(2^{32}\). Branch and JAL offsets have a zero low bit from their encoding. JALR clears bit zero of its target, including when the sum is odd.
+- Accesses are assumed to be naturally aligned. Misaligned halfword and word accesses are outside this contract.
+- Load and store effective addresses retain their byte offsets. Store data is not shifted according to the address offset; the external memory consumes the low bits selected by `data_width`.
+- `x0` reads as zero and cannot be changed, including by loads or link instructions targeting `x0`.
+- MUL returns the low 32 bits of the product. MULH returns the high 32 bits of signed-by-signed multiplication; MULHSU returns the high 32 bits of signed `rs1` times unsigned `rs2`; MULHU returns the high 32 bits of unsigned-by-unsigned multiplication.
+- DIV and REM are signed and truncate division toward zero; the remainder has the sign of the dividend. DIVU and REMU are unsigned.
+- DIV and DIVU with a zero divisor return `0xFFFFFFFF`. REM and REMU with a zero divisor return the dividend.
+- DIV of `0x80000000` by `0xFFFFFFFF` returns `0x80000000`; REM of those operands returns zero.
+- Stores have no register writeback. Branches and stores do not modify the register file. Instructions that do not write a destination do not modify the register file.
+
+## Test strategy
+
+Use Cocotb tests that drive `instr_data` and `data_read_data` asynchronously, observe public outputs before clock edges, and check the PC and external side effects after rising edges. The CPU has no public register-read ports: do not inspect internal registers directly. Verify register values through subsequent instructions that expose them through public behavior, such as store data, effective addresses, arithmetic, or control flow. Public-port tests do not directly observe internal ALU or register-file selectors.
+
+1. **Reset, PC, and instruction timing**
+   - Assert reset without a clock edge after executing instructions; require `instr_addr = 0` and `data_write = '0'`. After deasserting reset, verify through observable effects that registers cleared to zero.
+   - While reset remains asserted, present a store instruction and apply rising edges; require no store request or memory change. Deassert reset without a clock edge and require the PC to remain at zero until a rising edge.
+   - Execute sequential instructions and require `instr_addr` to advance by exactly four per edge. Change `instr_data` while holding the PC fixed and require combinational public outputs to follow the new instruction before the next edge.
+   - Change `data_read_data` while holding a load instruction and address fixed; require the selected load value to be exposed by a follow-up instruction after the load’s rising edge, with no register-state change before that edge.
+
+2. **Instruction decoding and register selection**
+   - Execute each supported instruction encoding in **Operations** with distinguishable source values. Check its observable result, PC behavior, and bus outputs. Change one instruction field at a time; verify the resulting behavior or that an unsupported encoding has no side effect.
+   - Exercise each register number independently as `rs1`, `rs2`, and `rd` in suitable programs. Establish distinct register values, then verify source selection through arithmetic, branch, address, or store-data effects. Verify destination selection by writing a value and using follow-up instructions to observe the selected register and confirm other tested registers retain their values.
+   - Explicitly test `x0` as each source and destination. Verify reads of `x0` through instruction effects, and verify that writes targeting `x0` do not change subsequent observable behavior.
+   - For unsupported opcodes and reserved selector combinations, use nonzero source values and a nonzero `rd`; require no register write, no store, and sequential PC advance. For unsupported load/store `funct3` values, also check the load/store-class effective address and require no register-write or store side effect.
+
+3. **Immediate formation and arithmetic/control-flow transformations**
+   - For I- and S-immediates, test positive, zero, and negative offsets with unique bit patterns. Check arithmetic results or effective addresses that differ if an immediate bit is misplaced; vary only the immediate encoding between trials.
+   - For B- and J-immediates, test positive and negative offsets with separately exercised immediate bits, including the sign bit and each rearranged field. Check the exact target and sequential path; vary one encoded immediate bit at a time.
+   - For U-immediates, use values with multiple distinct upper bits and verify LUI and AUIPC through follow-up observable effects. Change only the immediate or instruction form between comparisons.
+   - Test JAL and JALR link values and targets independently. For JALR, use sums with bit zero both clear and set and require only bit zero to be cleared. Change one operand or immediate at a time.
+   - For each branch selector, test taken and not-taken conditions. Use equal and unequal values for BEQ/BNE, signed-boundary pairs for BLT/BGE, and unsigned-boundary pairs for BLTU/BGEU. Include pairs for which signed and unsigned ordering disagree. Require the precise target when taken and `PC + 4` otherwise.
+   - For ADD/ADDI/SUB and address calculations, include carry, borrow, positive and negative operands, and wraparound. Check exact low 32-bit results through later observable effects; change only one operand or operation selector per comparison.
+   - For shifts, test SLL/SLLI, SRL/SRLI, and SRA/SRAI at amounts 0, 1, and 31. Use operands with both high and low bits set, and register shift operands with different upper bits but identical low five bits. Verify results through follow-up instructions and distinguish logical from arithmetic fill.
+   - For SLT/SLTI and SLTU/SLTIU, test equal operands, adjacent values, and pairs whose signed and unsigned ordering differs. Verify zero or one results through follow-up effects.
+   - For XOR, OR, and AND, use mixed, distinguishable bit patterns that produce different results; verify each result through follow-up effects.
+
+4. **Load address, selection, width, and extension**
+   - For LB and LBU, exercise byte offsets 0 through 3 with four distinct bytes in `data_read_data`. Check `data_addr`, require `data_width = "00"`, and verify the selected byte and sign or zero extension through follow-up observable effects.
+   - For LH and LHU, exercise offsets 0 and 2 with distinct low and high halfwords. Check `data_addr`, require `data_width = "01"`, and test values with bit 15 set to distinguish sign extension from zero extension.
+   - For LW, use a word with all four bytes distinct, check `data_addr`, require `data_width = "10"`, and verify all 32 bits unchanged through follow-up observable effects.
+   - For every legal load class, vary the base register and immediate separately; require `data_addr` to equal the exact byte address, including its low bits. Confirm that loads never assert `data_write`.
+   - Use distinct source-word patterns so a wrong byte or halfword selection cannot pass.
+
+5. **Store routing, width, and data**
+   - Execute SB, SH, and SW with distinguishable source-register contents. Check `data_write = '1'`, exact byte address, width code, and unshifted `data_write_data`. Check through the external memory model that only the low 8, 16, or 32 bits are consumed according to width.
+   - For byte stores, vary only the address offset across all four byte positions; for halfword stores, test offsets 0 and 2. Check that `data_addr` retains the offset and that the memory changes only the addressed bytes.
+   - For each store width, vary only the source register/value, offset, or width selector per comparison. Check that non-store instructions always have `data_write = '0'`.
+
+6. **RV32M arithmetic**
+   - Test MUL, MULH, MULHSU, and MULHU with zero, one, maximum unsigned values, negative signed values, and products with distinguishable high and low halves. Verify results through follow-up instructions and public effects. Use patterns where signed and unsigned products differ; swap operands for MULHSU to verify its specified operand order.
+   - Test DIV, DIVU, REM, and REMU with positive and negative values, non-exact quotients, both signs, zero dividend, divisor one, zero divisor, and signed overflow. Verify truncation toward zero, remainder sign, and the defined exceptional results through follow-up effects. Use operands for which signed and unsigned results differ.
+
+7. **Writeback and side-effect isolation**
+   - For every register-writing instruction class, verify the selected `rd` by using it in a subsequent instruction with an observable public effect. Check other initialized registers by probing them in turn and confirming that only the specified destination changed. Repeat with `rd = x0`.
+   - For branches and stores, verify that no register changes by probing relevant registers with follow-up instructions. For all non-stores, require the memory model to observe no write. For stores, verify that no register changes.
+   - Check public outputs and memory state before each rising edge; then check the PC and external memory after the edge. Verify register updates using subsequent instructions, not internal state access. Include falling edges and input changes between rising edges to confirm that they do not commit instruction state.

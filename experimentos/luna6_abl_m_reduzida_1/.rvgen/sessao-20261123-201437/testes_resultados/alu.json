@@ -1,0 +1,12 @@
+{
+  "component": "alu",
+  "testbench": "/repo/experimentos/luna6_abl_m_reduzida_1/.rvgen/sessao-20261123-201437/testes/test_alu.py",
+  "compilacao": {
+    "ok": false
+  },
+  "passed": false,
+  "detail": "CalledProcessError: Command '['ghdl', '-m', '--work=top', '--std=08', 'alu']' returned non-zero exit status 1.",
+  "log": "/repo/experimentos/luna6_abl_m_reduzida_1/.rvgen/sessao-20261123-201437/sim/componente-alu/sim.log",
+  "diagnostico": "/repo/experimentos/luna6_abl_m_reduzida_1/src/alu.vhd:49:13: missing choice(s)\n            when \"0000\" =>\n            ^\n",
+  "segundos": 0.1
+}

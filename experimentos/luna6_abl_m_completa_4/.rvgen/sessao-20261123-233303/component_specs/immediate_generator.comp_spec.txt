@@ -1,0 +1,60 @@
+# Component semantic contract: immediate_generator
+
+## Public interface
+```vhdl
+entity immediate_generator is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0)
+    );
+end immediate_generator;
+```
+
+## Responsibility
+Generate sign-extended I-, S-, B-, and J-type immediates and the zero-extended U-type immediate from the instruction word.
+
+## Timing
+
+`immediate_generator` is purely combinational. Each output reflects the current `instr` value after combinational propagation, without a clock edge or handshake. There is no retained state or ordering requirement between changes to `instr`.
+
+## Reset
+
+None. The interface has no reset input, and no reset behavior is defined.
+
+## Behavior
+
+For every 32-bit `instr` value, all five outputs are produced simultaneously from the instruction bits specified below. The outputs are not gated by or selected according to the opcode or any other instruction field. All outputs are 32 bits.
+
+- **I-type:** `imm_i(11 downto 0) = instr(31 downto 20)`; `imm_i(31 downto 12)` is filled with `instr(31)`.
+- **S-type:** `imm_s(4 downto 0) = instr(11 downto 7)`; `imm_s(11 downto 5) = instr(31 downto 25)`; `imm_s(31 downto 12)` is filled with `instr(31)`.
+- **B-type:** `imm_b(0) = '0'`; `imm_b(4 downto 1) = instr(11 downto 8)`; `imm_b(10 downto 5) = instr(30 downto 25)`; `imm_b(11) = instr(7)`; `imm_b(12) = instr(31)`; `imm_b(31 downto 13)` is filled with `instr(31)`.
+- **U-type:** `imm_u(31 downto 12) = instr(31 downto 12)`; `imm_u(11 downto 0) = 0`.
+- **J-type:** `imm_j(0) = '0'`; `imm_j(10 downto 1) = instr(30 downto 21)`; `imm_j(11) = instr(20)`; `imm_j(19 downto 12) = instr(19 downto 12)`; `imm_j(20) = instr(31)`; `imm_j(31 downto 21)` is filled with `instr(31)`.
+
+No additional transformation is applied.
+
+## Operations
+
+None. There is no encoded selector: every immediate output is generated for every input instruction.
+
+## Edge cases
+
+- The sign bit for I-, S-, B-, and J-type immediates is `instr(31)`. A zero sign bit fills the specified extension bits with zero; a one sign bit fills them with one.
+- U-type copies `instr(31 downto 12)` directly to its upper 20 output bits and sets its lower 12 bits to zero. It does not replicate `instr(31)` into other output bits.
+- B- and J-type bit 0 is always zero, independent of all instruction bits.
+- Every binary input bit pattern is valid, including unsupported opcode encodings. Opcode values do not affect any output mapping.
+- Behavior for inputs containing non-binary `std_logic` values is unspecified.
+
+## Test strategy
+
+Use an executable Cocotb plan that drives `instr`, waits for combinational settling after each drive, and checks all five outputs against expected values calculated independently from the mappings in **Behavior**. No clock or reset stimulus is required.
+
+1. **Check source selection, packing, and bit placement.** Drive zero, then each one-hot instruction word (`1 << k`, for `k = 0..31`); check all outputs after each drive. Drive all ones, then each word with only bit `k` cleared; check all outputs again. These sweeps verify source bits, fixed-zero positions, destination positions, and sign-extension behavior. Calculate B- and J-type expected values independently from their stated mappings.
+2. **Check rearranged bits and sign extension.** Use asymmetric instruction patterns so neighboring source bits differ. For each of I, S, B, and J, hold `instr(30 downto 0)` fixed and toggle `instr(31)`; verify the extension bits change accordingly and that the non-extension source bits retain their specified mappings. Repeat with distinct lower-bit patterns. For U, verify toggling only `instr(31)` changes only `imm_u(31)`.
+3. **Check fixed-zero positions and U-type mapping.** Vary `instr(31 downto 12)` while holding `instr(11 downto 0)` fixed; verify the U upper bits copy the source bits and its lower 12 bits stay zero. Across varied inputs, verify `imm_b(0)` and `imm_j(0)` always remain zero.
+4. **Check opcode independence.** Hold `instr(31 downto 7)` at a non-symmetric pattern and drive every value from 0 through 127 on `instr(6 downto 0)`. Check all five outputs against the same source-bit mappings. Repeat with a different fixed upper-bit pattern.
+5. **Check whole-word patterns.** Check `0x00000000`, `0xFFFFFFFF`, and deterministic asymmetric words with both values of `instr(31)`. For each word, compare every output bit, including extension bits and fixed-zero positions, against independently calculated expected values.

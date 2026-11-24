@@ -1,0 +1,118 @@
+# Component semantic contract: alu
+
+## Public interface
+```vhdl
+entity alu is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        opcode : in std_logic_vector(6 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        funct7 : in std_logic_vector(6 downto 0);
+        result : out std_logic_vector(31 downto 0)
+    );
+end alu;
+```
+
+## Responsibility
+Implement RV32I arithmetic, logic, shifts, and signed and unsigned comparisons, plus all RV32M multiply, divide, and remainder operations, selected by opcode, funct3, and funct7.
+
+## Timing
+
+`alu` is purely combinational. After any input changes, `result` must settle to the value specified below without a clock or handshake. There is no retained state or latency.
+
+## Reset
+
+None. The component has no reset input and requires no reset sequence.
+
+## Behavior
+
+Inputs are 32-bit bit patterns. `opcode`, `funct3`, and `funct7` select the operation as specified in **Operations**; `operand_a` and `operand_b` are the operation’s two data operands. `result` is the 32-bit result.
+
+All arithmetic results are modulo \(2^{32}\) unless the operation explicitly returns a comparison bit or a selected high product half. A comparison result is `0x00000001` when true and `0x00000000` when false.
+
+Unsupported opcodes and unsupported selector combinations produce `0x00000000`. For OP (`opcode = 0x33`), unsupported `funct7`/`funct3` combinations produce zero. For OP-IMM (`opcode = 0x13`), `funct7` is ignored for non-shift operations; shift encodings are restricted as specified below.
+
+## Operations
+
+The selector fields are interpreted as binary values. Encodings are shown in hexadecimal.
+
+| Opcode | `funct3` | `funct7` | Operation and result |
+|---|---:|---:|---|
+| `0x33` | `0x0` | `0x00` | ADD: `operand_a + operand_b` |
+| `0x33` | `0x0` | `0x20` | SUB: `operand_a - operand_b` |
+| `0x33` | `0x1` | `0x00` | SLL: shift `operand_a` left by `operand_b[4:0]`, filling with zeros |
+| `0x33` | `0x2` | `0x00` | SLT: 1 if signed `operand_a < operand_b`, otherwise 0 |
+| `0x33` | `0x3` | `0x00` | SLTU: 1 if unsigned `operand_a < operand_b`, otherwise 0 |
+| `0x33` | `0x4` | `0x00` | XOR: bitwise XOR of the operands |
+| `0x33` | `0x5` | `0x00` | SRL: shift `operand_a` right by `operand_b[4:0]`, filling with zeros |
+| `0x33` | `0x5` | `0x20` | SRA: arithmetic right shift of signed `operand_a` by `operand_b[4:0]` |
+| `0x33` | `0x6` | `0x00` | OR: bitwise OR of the operands |
+| `0x33` | `0x7` | `0x00` | AND: bitwise AND of the operands |
+| `0x33` | `0x0` | `0x01` | MUL: low 32 bits of the unsigned product |
+| `0x33` | `0x1` | `0x01` | MULH: high 32 bits of signed × signed product |
+| `0x33` | `0x2` | `0x01` | MULHSU: high 32 bits of signed `operand_a` × unsigned `operand_b` product |
+| `0x33` | `0x3` | `0x01` | MULHU: high 32 bits of the unsigned × unsigned product |
+| `0x33` | `0x4` | `0x01` | DIV: signed quotient, rounded toward zero |
+| `0x33` | `0x5` | `0x01` | DIVU: unsigned quotient |
+| `0x33` | `0x6` | `0x01` | REM: signed remainder; a nonzero remainder has the sign of `operand_a` |
+| `0x33` | `0x7` | `0x01` | REMU: unsigned remainder |
+| `0x13` | `0x0` | Any | ADDI: `operand_a + operand_b` |
+| `0x13` | `0x1` | `0x00` | SLLI: shift `operand_a` left by `operand_b[4:0]`, filling with zeros |
+| `0x13` | `0x2` | Any | SLTI: 1 if signed `operand_a < operand_b`, otherwise 0 |
+| `0x13` | `0x3` | Any | SLTIU: 1 if unsigned `operand_a < operand_b`, otherwise 0 |
+| `0x13` | `0x4` | Any | XORI: bitwise XOR of the operands |
+| `0x13` | `0x5` | `0x00` | SRLI: shift `operand_a` right by `operand_b[4:0]`, filling with zeros |
+| `0x13` | `0x5` | `0x20` | SRAI: arithmetic right shift of signed `operand_a` by `operand_b[4:0]` |
+| `0x13` | `0x6` | Any | ORI: bitwise OR of the operands |
+| `0x13` | `0x7` | Any | ANDI: bitwise AND of the operands |
+
+For immediate operations, `operand_b` is the immediate value already supplied as a 32-bit operand. SLTIU compares that 32-bit value as unsigned. Shift operations use only the low five bits of `operand_b`.
+
+## Edge cases
+
+- Addition, subtraction, and multiplication wrap modulo \(2^{32}\); they do not signal overflow.
+- Shift amounts are `operand_b[4:0]`, so amounts from 32 through 63 act as amounts from 0 through 31. A zero shift returns `operand_a`.
+- SRL and SLL shift in zeros. SRA replicates the sign bit of `operand_a`; shifting a negative value by 31 produces all ones.
+- Signed comparisons interpret operands as two’s-complement values; unsigned comparisons interpret the same bit patterns as values from 0 through \(2^{32}-1\).
+- DIV by zero returns `0xFFFFFFFF`; REM by zero returns `operand_a`. DIVU by zero returns `0xFFFFFFFF`; REMU by zero returns `operand_a`.
+- Signed DIV of `0x80000000` by `0xFFFFFFFF` returns `0x80000000`. Signed REM for that pair returns zero.
+- Invalid opcode or selector combinations return zero. In particular, OP shift, comparison, and logic encodings with an unsupported `funct7` return zero; OP-IMM shifts with a `funct7` other than `0x00` or `0x20` as listed return zero.
+- The contract applies to binary input values; behavior for inputs containing unknown or high-impedance logic values is unspecified.
+
+## Test strategy
+
+Use a Cocotb reference model implementing the operations and edge cases in this contract. After driving inputs, allow combinational settling, then compare all 32 bits of `result` with the model. Keep all non-target inputs fixed when varying a single semantic factor.
+
+1. **Operation selection and invalid encodings**
+   - For every listed OP and OP-IMM encoding, drive its selector tuple and a discriminating operand pair, then require the corresponding operation’s reference result.
+   - For OP, vary `funct3` while holding opcode, `funct7`, and operands fixed; use operand pairs for which the candidate operations produce distinct results. For each `funct3`, vary `funct7` alone to distinguish valid ADD/SUB, SRL/SRA, and RV32M selections from invalid encodings.
+   - For OP-IMM, vary `funct3` alone to check each operation. For non-shift operations, vary `funct7` alone and require the result to remain unchanged. For shifts, vary `funct7` alone among `0x00`, `0x20`, and other values and require the specified operation or zero.
+   - Vary opcode alone between `0x33`, `0x13`, and unsupported values while holding the other inputs fixed. Use operands and selector values that distinguish the expected operation from zero and from the other opcode’s operation.
+   - Check unsupported opcode, `funct3`, and `funct7` combinations for a zero result.
+
+2. **Operand dependence and arithmetic/logical transforms**
+   - For ADD, ADDI, SUB, XOR/XORI, OR/ORI, and AND/ANDI, use operands with different, nontrivial bit patterns (for example, `0x13579BDF` and `0xA5C36E71`). Check each result against the reference model. Change only `operand_a`, then only `operand_b`, and verify the corresponding result change.
+   - Include zero operands, all-ones operands, carry/borrow across bit 31, and wraparound cases. For example, check `0xFFFFFFFF + 1 = 0` and `0 - 1 = 0xFFFFFFFF`.
+   - Choose logic operands whose bitwise AND, OR, and XOR are pairwise distinguishable; do not use operands for which two of these operations happen to return the same value.
+
+3. **Shifts**
+   - For SLL, SLLI, SRL, SRLI, SRA, and SRAI, use both a value with bit 31 set and a value with bit 31 clear, with nonzero low and high bits. Check amounts 0, 1, 15, 31, 32, and 63 by changing only `operand_b` between cases; amounts 32 and 63 must match 0 and 31 respectively.
+   - For each shift, hold the amount fixed and change only `operand_a` to verify the shifted source. Use negative `operand_a` values to distinguish arithmetic right shift from logical right shift, and positive values to check their common behavior.
+   - For immediate shift selector checks, hold operands fixed while changing only `funct7`; confirm that `0x00` selects logical shifting, `0x20` selects arithmetic right shifting where applicable, and unsupported values return zero.
+
+4. **Comparisons**
+   - For SLT, SLTU, SLTI, and SLTIU, test less-than, equal, and greater-than pairs; use values whose signed and unsigned ordering differs, including `0x80000000`, `0xFFFFFFFF`, `0`, and `1`.
+   - Change only one operand at a time around equality and signed/unsigned boundaries. Require exactly 0 or 1, with all upper result bits zero.
+   - For immediate unsigned comparison, include negative two’s-complement bit patterns for `operand_b` to confirm it is compared as an unsigned 32-bit value.
+
+5. **Multiplication**
+   - For each MUL variant, use pairs with nonzero, distinguishable high and low product halves. Include positive values, negative signed values, and values with bit 31 set; compare each result to the correctly signed or unsigned 64-bit product’s specified half.
+   - Change only `operand_a` and then only `operand_b` to check operand dependence. Include cases that distinguish MULH, MULHSU, and MULHU, such as `operand_a = 0xFFFFFFFF`, `operand_b = 0x80000001`.
+   - Check zero, one, all-ones, and products that overflow 32 bits. For MUL, verify only the low half is returned; for high-product operations, verify the high half.
+
+6. **Division and remainder**
+   - For DIV, DIVU, REM, and REMU, test positive, negative, mixed-sign, exact-division, and nonzero-remainder cases using operands that distinguish signed from unsigned results.
+   - Change only the divisor to check quotient and remainder dependence, including divisors 1, `0xFFFFFFFF`, zero, and values with bit 31 set. Change only the dividend to check the corresponding dependence.
+   - Check divide-by-zero results for all four operations and the signed overflow pair `0x80000000 / 0xFFFFFFFF`, including its remainder.
+   - Verify signed division rounds toward zero and signed remainder has the dividend’s sign, using cases with negative dividends and nonzero remainders.

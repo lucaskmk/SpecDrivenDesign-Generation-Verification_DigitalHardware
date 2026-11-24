@@ -1,0 +1,100 @@
+# Component semantic contract: control_unit
+
+## Public interface
+```vhdl
+entity control_unit is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0);
+        reg_write : out std_logic;
+        mem_write : out std_logic;
+        mem_width : out std_logic_vector(1 downto 0);
+        is_load : out std_logic;
+        load_funct3 : out std_logic_vector(2 downto 0);
+        alu_src_imm : out std_logic;
+        writeback_sel : out std_logic_vector(1 downto 0)
+    );
+end control_unit;
+```
+
+## Responsibility
+Decode instruction fields and generate sign-extended I, S, B, U, and J immediates, register-write and memory controls, load/store sizing, operand selection, and writeback selection for RV32I and RV32M instructions.
+
+## Timing
+
+`control_unit` is purely combinational. For every binary `instr` value, each output is determined solely by that value and updates after combinational propagation; there is no clock, state, or cycle-based latency.
+
+This component has no generated dependencies. Its decoding and output behavior are defined directly by this contract.
+
+## Reset
+
+There is no reset input and no reset behavior.
+
+## Behavior
+
+The instruction fields are `opcode = instr(6 downto 0)`, `funct3 = instr(14 downto 12)`, and `funct7 = instr(31 downto 25)`.
+
+All five immediate outputs are generated from their specified instruction bit positions, regardless of opcode:
+
+- `imm_i` is the sign-extension of `instr(31 downto 20)` to 32 bits.
+- `imm_s` is the sign-extension of `instr(31 downto 25) & instr(11 downto 7)` to 32 bits.
+- `imm_b` is the sign-extension of `instr(31) & instr(7) & instr(30 downto 25) & instr(11 downto 8) & '0'` to 32 bits.
+- `imm_u` is `instr(31 downto 12) & x"000"`. It is not sign-extended.
+- `imm_j` is the sign-extension of `instr(31) & instr(19 downto 12) & instr(20) & instr(30 downto 21) & '0'` to 32 bits.
+
+For control outputs, an instruction is valid only when its opcode and, where applicable, its `funct3` and `funct7` form a supported RV32I or RV32M encoding. Unsupported opcodes and invalid encodings have no register or memory side effects.
+
+For instructions not assigned a different value below, the control defaults are: `reg_write = '0'`, `mem_write = '0'`, `mem_width = "10"`, `is_load = '0'`, `load_funct3 = "000"`, `alu_src_imm = '0'`, and `writeback_sel = "00"`.
+
+- `reg_write` is `'1'` for valid LUI, AUIPC, JAL, JALR, loads, OP-IMM, OP, and RV32M instructions. It is `'0'` for branches, stores, unsupported instructions, and invalid encodings.
+- `mem_write` is `'1'` only for valid SB, SH, and SW instructions.
+- `is_load` is `'1'` only for valid LB, LH, LW, LBU, and LHU instructions.
+- For a valid load, `load_funct3` equals `instr(14 downto 12)`; otherwise it is `"000"`.
+- For a valid load or store, `mem_width` gives its access size: `"00"` for byte, `"01"` for halfword, and `"10"` for word. For all other instructions it is `"10"`.
+- `alu_src_imm` is `'1'` for valid OP-IMM, loads, stores, AUIPC, and JALR instructions. It is `'0'` otherwise. This selects the immediate as the ALU’s second operand for immediate arithmetic or address calculation; it does not select an immediate for branch comparisons or JAL target generation.
+- When `reg_write = '1'`, `writeback_sel` selects the architectural value written to `rd`: `"00"` selects the ALU result, `"01"` selects load data, `"10"` selects `PC + 4`, and `"11"` selects the U-immediate. LUI selects `"11"`; loads select `"01"`; JAL and JALR select `"10"`; other valid register-writing instructions select `"00"`. When `reg_write = '0'`, `writeback_sel` is `"00"`.
+
+## Operations
+
+The selector encodings and their required meanings are:
+
+- `mem_width`: `"00"` = byte, `"01"` = halfword, `"10"` = word. `"11"` is not assigned to a valid load or store.
+- `writeback_sel`: `"00"` = ALU result, `"01"` = load data, `"10"` = `PC + 4`, `"11"` = U-immediate.
+- Load `funct3` encodings:
+  - `"000"` = LB, `"001"` = LH, `"010"` = LW, `"100"` = LBU, `"101"` = LHU.
+- Store `funct3` encodings:
+  - `"000"` = SB, `"001"` = SH, `"010"` = SW.
+- OP (`opcode = "0110011"`) is valid for:
+  - `funct7 = "0000001"` with any `funct3`, selecting an RV32M operation.
+  - `funct7 = "0000000"` with any `funct3`.
+  - `funct7 = "0100000"` only with `funct3 = "000"` (SUB) or `"101"` (SRA).
+  - All other OP `funct7`/`funct3` combinations are invalid.
+- OP-IMM (`opcode = "0010011"`) is valid for `funct3` `"000"`, `"010"`, `"011"`, `"100"`, `"110"`, and `"111"` without an additional `funct7` restriction. For `funct3 = "001"`, it is valid only when `funct7 = "0000000"` (SLLI). For `funct3 = "101"`, it is valid only when `funct7` is `"0000000"` (SRLI) or `"0100000"` (SRAI).
+- Branch (`opcode = "1100011"`) has valid `funct3` values `"000"`, `"001"`, `"100"`, `"101"`, `"110"`, and `"111"`. Branch instructions do not assert register-write or memory controls.
+- Load (`opcode = "0000011"`) has the five valid load `funct3` values listed above. Store (`opcode = "0100011"`) has the three valid store `funct3` values listed above.
+- JALR (`opcode = "1100111"`) is valid only with `funct3 = "000"`.
+- LUI (`"0110111"`), AUIPC (`"0010111"`), and JAL (`"1101111"`) are valid for any values in their other instruction fields.
+
+## Edge cases
+
+- Each immediate output is derived directly from its specified instruction bits even when the instruction opcode does not use that immediate format.
+- B- and J-immediates always have bit zero equal to zero. Their sign is extended from instruction bit 31. U-immediate low 12 bits are always zero; U-immediates are not sign-extended.
+- Invalid load or store `funct3` values do not assert `is_load` or `mem_write`; they use the stated control defaults, including `mem_width = "10"`.
+- Invalid OP, OP-IMM, or JALR encodings do not assert `reg_write` or `alu_src_imm`.
+- Unsupported opcodes, including system and fence opcodes, use the stated control defaults.
+- Behavior for `instr` containing non-binary `std_logic` values is unspecified.
+
+## Test strategy
+
+Use an executable Cocotb plan that drives one instruction at a time, waits for combinational outputs to settle, and checks every output. For each comparison, hold all instruction fields constant except the factor being varied. Use distinguishable field patterns so that an incorrect source bit, immediate format, selector, or instruction class cannot accidentally produce the expected value. Test `control_unit` outputs directly; CPU public-port tests do not directly observe internal selectors.
+
+- **Immediate extraction and extension:** For I, S, B, and J, encode immediates including zero, the largest positive representable value, and the smallest negative value; check the exact 32-bit output against the specified bit mapping and sign-extension rule. For U, test zero and a high-bit-set value, such as `instr(31 downto 12) = 20'h80000`, and check that the result is exactly `0x80000000`: its low 12 bits are zero and it is not sign-extended. For every format, also use a pattern with distinguishable values in the contributing instruction fields so that swapped or mis-indexed bits are observable. Change only immediate bits between paired cases and check that the other four immediate outputs still match their own mappings.
+- **Register-write and writeback decoding:** Drive a valid representative of each register-writing class—LUI, AUIPC, JAL, JALR, each valid load, OP-IMM, OP, and each RV32M `funct3`—and check `reg_write` and `writeback_sel`. Check all four selector encodings against their specified meanings. For each class with validity restrictions, change only the restricted `funct3` or `funct7` field to create an invalid encoding and check that register writing is disabled and the selector returns to `"00"`.
+- **Memory decoding and sizing:** Drive every required valid load and store encoding, including `funct3 = "000"` for LB and SB. Check `is_load`, `mem_write`, `mem_width`, and `load_funct3` for each case. Do not require a different nonzero `funct3` for each case: `"000"` is valid, and there are more valid cases than available nonzero encodings. Check byte, halfword, and word sizing independently for both loads and stores. Drive every invalid `funct3` for each opcode and check that there is no memory side effect, `load_funct3 = "000"`, and the default width is `"10"`.
+- **Immediate-operand selection:** Drive valid OP-IMM, load, store, AUIPC, and JALR instructions and check `alu_src_imm = '1'`. Drive valid register-register OP/M instructions, LUI, JAL, every valid branch, and representative unsupported instructions and check `alu_src_imm = '0'`. For paired cases, keep all fields fixed except the opcode or validity field being tested, so the expected change is attributable to that factor.
+- **Branch and jump class decoding:** Drive each valid branch `funct3` and check that no register-write or memory control is asserted and that the other control outputs have their specified defaults. Change only `funct3` to each invalid branch encoding and check the same no-side-effect behavior. Drive JAL and JALR separately and check their distinct writeback selections; vary only JALR `funct3` to confirm that nonzero values make the encoding invalid.
+- **Default behavior:** Drive representative unsupported opcodes and invalid encodings from OP, OP-IMM, loads, stores, branches, and JALR. Check all control outputs against the stated defaults while independently checking all five immediate outputs against their bit mappings for each driven instruction.

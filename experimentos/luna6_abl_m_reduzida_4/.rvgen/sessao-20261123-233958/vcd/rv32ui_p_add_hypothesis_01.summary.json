@@ -1,0 +1,67 @@
+{
+  "vcd": "/repo/experimentos/luna6_abl_m_reduzida_4/.rvgen/sessao-20261123-233958/vcd/rv32ui_p_add_hypothesis_01.vcd",
+  "clock": "dut.clk",
+  "failure_time_ns": 45.0,
+  "selected": [
+    "dut.alu_result",
+    "dut.clk",
+    "dut.data_addr",
+    "dut.data_read_data",
+    "dut.data_width",
+    "dut.data_write",
+    "dut.data_write_data",
+    "dut.instr_addr",
+    "dut.instr_data",
+    "dut.rst"
+  ],
+  "missing": [],
+  "samples": [
+    {
+      "time_ns": 25.0,
+      "values": {
+        "dut.alu_result": "0x40000000",
+        "dut.clk": "0x1",
+        "dut.data_addr": "0x00000000",
+        "dut.data_read_data": "0x00000000",
+        "dut.data_width": "0x2",
+        "dut.data_write": "0x0",
+        "dut.data_write_data": "0x00000000",
+        "dut.instr_addr": "0x0000000C",
+        "dut.instr_data": "0x000080B7",
+        "dut.rst": "0x0"
+      }
+    },
+    {
+      "time_ns": 35.0,
+      "values": {
+        "dut.alu_result": "0x00000004",
+        "dut.clk": "0x1",
+        "dut.data_addr": "0x00000004",
+        "dut.data_read_data": "0x00000000",
+        "dut.data_width": "0x2",
+        "dut.data_write": "0x1",
+        "dut.data_write_data": "0x00008000",
+        "dut.instr_addr": "0x00000010",
+        "dut.instr_data": "0x00102223",
+        "dut.rst": "0x0"
+      }
+    },
+    {
+      "time_ns": 45.0,
+      "values": {
+        "dut.alu_result": "0x00000010",
+        "dut.clk": "0x1",
+        "dut.data_addr": "0x00000000",
+        "dut.data_read_data": "0x00000000",
+        "dut.data_width": "0x2",
+        "dut.data_write": "0x0",
+        "dut.data_write_data": "0x00000000",
+        "dut.instr_addr": "0x00000010",
+        "dut.instr_data": "0x0000006F",
+        "dut.rst": "0x0"
+      }
+    }
+  ],
+  "test": ".rvgen/sessao-20261123-233958/exploracoes_cpu/test_rv32ui_p_add_hypothesis_01.py",
+  "assertion_context": "*****************************************************************************************************\n                                                        ** TEST                                                                  STATUS  SIM TIME (ns)  REAL TIME (s)  RATIO (ns/s) **\n                                                        ******************************************************************************************************************************\n                                                        ** test_rv32ui_p_add_hypothesis_01.diagnose_lui_value_at_store_boundary   PASS          46.00           0.03       1678.39  **\n                                                        ******************************************************************************************************************************\n                                                        ** TESTS=1 PASS=1 FAIL=0 SKIP=0                                                         46.00           0.04       1227.53  **\n                                                        ******************************************************************************************************************************\n"
+}

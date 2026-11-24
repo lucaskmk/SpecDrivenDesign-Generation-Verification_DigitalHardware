@@ -1,0 +1,64 @@
+# Component semantic contract: immediate_gen
+
+## Public interface
+```vhdl
+entity immediate_gen is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0)
+    );
+end immediate_gen;
+```
+
+## Responsibility
+Generate sign-extended I, S, B, and J immediates and the zero-extended U immediate from the instruction word.
+
+## Timing
+
+`immediate_gen` is combinational. For every change to `instr`, all five outputs must reflect that input after combinational propagation; no clock or transaction boundary is involved. Outputs are always defined, including when `instr` does not encode a recognized instruction.
+
+## Reset
+
+None. The component has no reset input or reset-dependent behavior.
+
+## Behavior
+
+For every input word, produce all five outputs independently and simultaneously:
+
+- `imm_i` is the sign-extended I immediate: `instr(31:20)`, sign-extended from 12 bits to 32 bits.
+- `imm_s` is the sign-extended S immediate: `instr(31:25) & instr(11:7)`, sign-extended from 12 bits to 32 bits.
+- `imm_b` is the sign-extended B immediate, assembled as `instr(31) & instr(7) & instr(30:25) & instr(11:8) & '0'`, sign-extended from 13 bits to 32 bits.
+- `imm_u` is the zero-extended U immediate: `instr(31:12) & x"000"`.
+- `imm_j` is the sign-extended J immediate, assembled as `instr(31) & instr(19:12) & instr(20) & instr(30:21) & '0'`, sign-extended from 21 bits to 32 bits.
+
+The bit at position zero of `imm_b` and `imm_j` is always zero. The sign bit for `imm_i`, `imm_s`, `imm_b`, and `imm_j` is `instr(31)`; sign extension fills every more-significant output bit with that value. `imm_u(31:12)` equals `instr(31:12)` and `imm_u(11:0)` is zero.
+
+No output is selected by opcode, funct fields, or any other input: all five immediates are produced for every `instr` value.
+
+## Operations
+
+There is no encoded selector. The five outputs are always produced concurrently.
+
+## Edge cases
+
+- `instr = x"00000000"` produces five zero outputs.
+- A clear sign bit (`instr(31) = '0'`) produces zero-extension above each immediate’s sign bit for I, S, B, and J.
+- A set sign bit (`instr(31) = '1'`) produces one-extension above each immediate’s sign bit for I, S, B, and J.
+- The minimum and maximum signed immediate encodings are accepted: I/S range from −2048 to 2047; B ranges from −4096 to 4094 in steps of two; J ranges from −1048576 to 1048574 in steps of two.
+- U is always zero-extended, even when `instr(31) = '1'`.
+- Bits not named in an output’s assembly have no effect on that output. There are no invalid instruction encodings or exceptional input values.
+
+## Test strategy
+
+Use a combinational Cocotb test: drive `instr`, allow combinational propagation, and assert all five outputs against the equations in **Behavior**. Do not use a clock or reset. Check every test word, including words that are not valid instruction encodings.
+
+1. **Bit mapping and independence:** For each of the 32 instruction bit positions, drive a word with only that bit set, then a word with only that bit clear from an all-ones word. Recompute and check all five expected outputs for each word. These single-bit and single-clear-bit cases vary one input bit at a time and distinguish every source position from every other position; they also verify that bits outside an output’s specified sources do not affect it.
+2. **Packed-field ordering:** For each immediate, drive words whose relevant source bits form a non-symmetric pattern, with neighboring and non-neighboring source positions carrying distinguishable values. Check the exact concatenation and output placement from **Behavior**. Include separate cases that change only one source position at a time. This detects swapped, omitted, or duplicated packed bits.
+3. **Sign extension:** For I, S, B, and J separately, test an immediate with its sign bit clear and one with its sign bit set, while holding the other immediate bits fixed. Assert every output bit, including all bits above the immediate sign position. In each format, also test its minimum and maximum signed encodings.
+4. **Implicit low zero:** For B and J, vary each encoded immediate source bit independently and assert that output bit zero remains zero; assert that each source bit appears at its specified output position.
+5. **U zero extension:** Test `instr(31:12)` patterns with both top bit values and distinguishable internal bits. Assert exact equality of `imm_u(31:12)` to the input field and zero for every bit of `imm_u(11:0)`, including when `instr(31) = '1'`.
+6. **All-input behavior and combined patterns:** Test all-zero and all-one words, then a deterministic set of words with distinct, non-symmetric bit patterns across the instruction. For each word, assert all five outputs simultaneously. Include words with arbitrary opcode and function fields to confirm that output behavior is not opcode-qualified.

@@ -1,0 +1,27 @@
+{
+  "veredito": "aprovado",
+  "objetivo_atingido": true,
+  "placar": "48/48 casos",
+  "iteracoes": 1,
+  "chamadas": 84,
+  "tokens_entrada": 851149,
+  "tokens_saida": 134360,
+  "segundos": 1605.8,
+  "provedor": "openrouter",
+  "modelo": "openai/gpt-6-luna",
+  "microarquitetura": "monociclo",
+  "isa": "rv32im",
+  "testes_componentes": true,
+  "regressoes_componentes": true,
+  "gates_componentes": true,
+  "exemplo": null,
+  "descricao": null,
+  "relatorio": ".rvgen/sessao-20261123-202746/spec-riscv-test/suite/report.json",
+  "sessao": {
+    "chamadas": 84,
+    "tokens_entrada": 851149,
+    "tokens_saida": 134360,
+    "segundos_modelo": 1280.9,
+    "execucoes": 1
+  }
+}

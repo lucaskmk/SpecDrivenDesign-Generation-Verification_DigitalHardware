@@ -1,0 +1,159 @@
+# Component semantic contract: execution_unit
+
+## Public interface
+```vhdl
+entity execution_unit is
+    port(
+        opcode : in std_logic_vector(6 downto 0);
+        funct3 : in std_logic_vector(2 downto 0);
+        funct7 : in std_logic_vector(6 downto 0);
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        result : out std_logic_vector(31 downto 0);
+        branch_taken : out std_logic
+    );
+end execution_unit;
+```
+
+## Responsibility
+Execute RV32I integer register and immediate operations, AUIPC addition, RV32M multiply/divide/remainder operations, and branch comparisons. Return the arithmetic or logical result and whether the selected branch condition is true.
+
+## Timing
+
+`execution_unit` is purely combinational. After any input changes, `result` and `branch_taken` must reflect the semantics below once combinational propagation has settled. No clock or sampling edge is required, and outputs must remain stable while inputs remain stable.
+
+## Reset
+
+None. The component has no reset input or reset state.
+
+## Behavior
+
+- `operand_a` and `operand_b` are 32-bit values whose meaning depends on the selected operation. For register operations and branches, they are the two source values. For immediate operations, `operand_b` is the already-formed immediate. For AUIPC, `operand_a` is the PC and `operand_b` is the already-formed upper immediate.
+- All arithmetic results are modulo \(2^{32}\), unless an operation explicitly returns the high product word.
+- `result` carries the arithmetic or logical result for supported non-branch operations. For a supported branch, `result` is zero.
+- `branch_taken` reports the selected branch comparison for a supported branch. For every non-branch operation, unsupported opcode, or unsupported encoding, it is `'0'`.
+- An unsupported opcode or selector encoding produces `result = 0` and `branch_taken = '0'`. This includes reserved `funct3` or `funct7` combinations.
+- This component does not execute LUI. Opcode `0110111` (`0x37`) is unsupported and produces the default outputs, `result = 0` and `branch_taken = '0'`. Its inputs do not cause LUI behavior.
+- Branch immediates are not calculated by this component.
+
+## Operations
+
+Opcode and selector values are binary encodings of the corresponding instruction fields.
+
+| Operation class | `opcode` | Selector and operation |
+|---|---|---|
+| AUIPC addition | `0010111` (`0x17`) | `result = operand_a + operand_b` |
+| OP register | `0110011` (`0x33`) | See OP selector table below |
+| OP-IMM | `0010011` (`0x13`) | See OP-IMM selector table below |
+| Branch comparison | `1100011` (`0x63`) | See branch selector table below |
+
+For OP register instructions (`opcode = 0110011`):
+
+| `funct3` | `funct7` | Operation and result |
+|---|---|---|
+| `000` | `0000000` | ADD: `operand_a + operand_b` |
+| `000` | `0100000` | SUB: `operand_a - operand_b` |
+| `001` | `0000000` | SLL: `operand_a` shifted left logically by `operand_b[4:0]` |
+| `010` | `0000000` | SLT: `1` if signed `operand_a < operand_b`, otherwise `0` |
+| `011` | `0000000` | SLTU: `1` if unsigned `operand_a < operand_b`, otherwise `0` |
+| `100` | `0000000` | XOR |
+| `101` | `0000000` | SRL: `operand_a` shifted right logically by `operand_b[4:0]` |
+| `101` | `0100000` | SRA: `operand_a` shifted right arithmetically by `operand_b[4:0]` |
+| `110` | `0000000` | OR |
+| `111` | `0000000` | AND |
+| `000` | `0000001` | MUL: low 32 bits of the product |
+| `001` | `0000001` | MULH: high 32 bits of signed × signed product |
+| `010` | `0000001` | MULHSU: high 32 bits of signed `operand_a` × unsigned `operand_b` product |
+| `011` | `0000001` | MULHU: high 32 bits of unsigned × unsigned product |
+| `100` | `0000001` | DIV: signed quotient, rounded toward zero |
+| `101` | `0000001` | DIVU: unsigned quotient |
+| `110` | `0000001` | REM: signed remainder, with the sign of `operand_a` |
+| `111` | `0000001` | REMU: unsigned remainder |
+
+All other OP register `funct3`/`funct7` combinations are unsupported.
+
+For OP-IMM instructions (`opcode = 0010011`), `operand_b` is the immediate value. Non-shift operations do not use `funct7` to select the operation.
+
+| `funct3` | `funct7` requirement | Operation and result |
+|---|---|---|
+| `000` | Any | ADDI: `operand_a + operand_b` |
+| `001` | `0000000` | SLLI: `operand_a` shifted left logically by `operand_b[4:0]` |
+| `010` | Any | SLTI: `1` if signed `operand_a < operand_b`, otherwise `0` |
+| `011` | Any | SLTIU: `1` if unsigned `operand_a < operand_b`, otherwise `0` |
+| `100` | Any | XORI |
+| `101` | `0000000` | SRLI: `operand_a` shifted right logically by `operand_b[4:0]` |
+| `101` | `0100000` | SRAI: `operand_a` shifted right arithmetically by `operand_b[4:0]` |
+| `110` | Any | ORI |
+| `111` | Any | ANDI |
+
+Other OP-IMM selector combinations are unsupported.
+
+For branches (`opcode = 1100011`), `funct7` is not a selector; branch immediates occupy those instruction bits and are outside this component’s inputs.
+
+| `funct3` | Branch condition |
+|---|---|
+| `000` | BEQ: `branch_taken = '1'` iff `operand_a = operand_b` |
+| `001` | BNE: `branch_taken = '1'` iff `operand_a /= operand_b` |
+| `100` | BLT: `branch_taken = '1'` iff signed `operand_a < operand_b` |
+| `101` | BGE: `branch_taken = '1'` iff signed `operand_a >= operand_b` |
+| `110` | BLTU: `branch_taken = '1'` iff unsigned `operand_a < operand_b` |
+| `111` | BGEU: `branch_taken = '1'` iff unsigned `operand_a >= operand_b` |
+
+For every supported branch, `result = 0`. Other branch `funct3` values are unsupported.
+
+## Edge cases
+
+- Addition, subtraction, and AUIPC addition wrap modulo \(2^{32}\); overflow does not change the result.
+- Shift amounts are exactly the low five bits of `operand_b`. Higher bits do not affect the amount. A shift amount of zero leaves the shifted value unchanged.
+- Arithmetic right shifts replicate the sign of `operand_a`; logical right shifts fill with zero.
+- Signed comparisons interpret operands as two’s-complement 32-bit values. Unsigned comparisons interpret them as values from `0` through \(2^{32} - 1\).
+- MUL returns the low 32 product bits regardless of operand signedness. MULH, MULHSU, and MULHU return product bits `[63:32]` under the signedness specified in the operation table.
+- DIV and REM truncate toward zero; a nonzero signed remainder has the sign of the dividend (`operand_a`).
+- For DIV and DIVU with `operand_b = 0`, `result = 0xFFFFFFFF`. For REM and REMU with `operand_b = 0`, `result = operand_a`.
+- For DIV with `operand_a = 0x80000000` and `operand_b = 0xFFFFFFFF`, `result = 0x80000000`. For REM with those operands, `result = 0`.
+- For SLT, SLTU, SLTI, and SLTIU, `result` is exactly `0x00000001` when the comparison is true and `0x00000000` otherwise.
+- Unsupported encodings, including LUI opcode `0x37`, always produce the defined default outputs, independent of the operand values.
+
+## Test strategy
+
+Use a combinational component-level testbench: drive the listed inputs, allow propagation to settle, and check both outputs for every case. When testing selector behavior, hold operands fixed while changing only the selector field under test. When testing operand behavior, hold the opcode and selectors fixed and change only the operand specified. Use distinct operand values unless a test explicitly requires equality, zero, or a boundary value.
+
+1. **Opcode decoding and defaults**
+   - With fixed distinct operands `operand_a = 0x80000003` and `operand_b = 0x00000005`, test each supported opcode class and check its specified result or branch output.
+   - Test unsupported opcode `0x37` (LUI) and another unsupported opcode; check that both outputs are zero.
+   - Separately test unsupported selector classes: OP encodings with an unsupported `funct7`, OP-IMM shift encodings with unsupported `funct7`, and branch `funct3=010` and `011`. Check both outputs are zero for each unsupported case.
+   - For every non-branch supported operation, check `branch_taken='0'`. For every supported branch, check `result=0`.
+
+2. **OP and OP-IMM arithmetic, comparisons, and logic**
+   - For each listed ADD, SUB, XOR, OR, and AND selector, hold operands at distinct nontrivial values, check the exact result, then hold selectors fixed and change only `operand_a`, followed by changing only `operand_b`, checking the recomputed result each time.
+   - For ADD and SUB, include `0xFFFFFFFF + 1` and `0 - 1` to verify wraparound.
+   - For signed comparisons, use `0xFFFFFFFF` and `0x00000001` in both operand orders so signed ordering is distinguishable from unsigned ordering. For unsigned comparisons, use the same pair and check the opposite ordering. Check both true and false outcomes for each comparison selector.
+   - For OP-IMM arithmetic, logic, and comparison selectors, repeat the corresponding checks with `operand_b` treated as the immediate; include a negative immediate bit pattern such as `0xFFFFFFFF` for signed and unsigned comparison cases.
+   - Check every comparison result is exactly zero or one, not merely nonzero for true.
+
+3. **Shift selection and amount**
+   - Test SLL, SRL, and SRA, plus SLLI, SRLI, and SRAI, with a value containing both high and low set bits (for example `operand_a = 0x80000005`) and shift amounts `0`, `1`, `31`, and a value whose low five bits equal `1` but whose upper bits are nonzero.
+   - Keep the operation selector fixed while changing only the shift amount; then keep the amount fixed and change only `operand_a`.
+   - Check SRL fills with zero and SRA fills with the source sign bit. Check SRA/SRAI and SRL/SRLI selector distinctions using the same operands and amount so their expected results differ.
+   - For shift encodings, vary only `funct7` between each supported encoding and an unsupported encoding while holding all other inputs fixed; check the unsupported case returns zero on both outputs.
+
+4. **AUIPC**
+   - With the AUIPC opcode fixed, check `operand_a + operand_b` for distinct nonzero operands, then vary only `operand_a` and only `operand_b` in separate tests.
+   - Check wraparound with `operand_a = 0xFFFFFFFF`, `operand_b = 0x00000001`.
+
+5. **Branches**
+   - For each supported branch `funct3`, test equal operands, `operand_a < operand_b`, and `operand_a > operand_b` as applicable, checking both taken and not-taken results.
+   - Use `operand_a = 0xFFFFFFFF` and `operand_b = 0x00000001` (and then swap them) for signed and unsigned branches, ensuring the signed and unsigned branch conditions produce distinguishable outcomes.
+   - For each branch test, verify `result=0`; for each non-branch opcode test, verify `branch_taken='0'`.
+   - Hold operands fixed while changing only `funct3` to verify each branch selector independently.
+
+6. **RV32M multiplication**
+   - Check MUL, MULH, MULHSU, and MULHU using the same operands `0xFFFFFFFF` and `0xFFFFFFFF`, and check each exact result. Include `0x80000000 × 0x80000000` for high-product signedness distinctions and a positive/negative pair for MULHSU that distinguishes the signed first operand from the unsigned second operand.
+   - For each multiplication selector, change only one operand at a time and check the corresponding full-product result or selected product word. Keep opcode and `funct7` fixed while changing only `funct3` to verify all four M selectors.
+   - Check that `branch_taken='0'` for every multiplication case.
+
+7. **RV32M division and remainder**
+   - Check DIV, DIVU, REM, and REMU with `operand_a = 0xFFFFFFF9`, `operand_b = 0x00000002`, verifying respectively `0xFFFFFFFD`, `0x7FFFFFFC`, `0xFFFFFFFF`, and `0x00000001`.
+   - Check positive and negative dividends and divisors so signed quotient truncation toward zero and signed remainder sign are distinguished from unsigned results.
+   - For each division/remainder selector, test a zero divisor and check the specified result. Test the signed overflow pair `0x80000000 / 0xFFFFFFFF` for DIV and REM and check their specified results.
+   - Keep operands fixed while changing only `funct3` to verify each M selector; check `branch_taken='0'` for every case.

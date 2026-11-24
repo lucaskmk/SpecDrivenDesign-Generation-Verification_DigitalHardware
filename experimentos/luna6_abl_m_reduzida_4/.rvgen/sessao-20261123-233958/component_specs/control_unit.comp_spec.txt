@@ -1,0 +1,197 @@
+# Component semantic contract: control_unit
+
+## Public interface
+```vhdl
+entity control_unit is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        reg_write : out std_logic;
+        mem_write : out std_logic;
+        data_width : out std_logic_vector(1 downto 0);
+        alu_src_a_pc : out std_logic;
+        alu_src_b_imm : out std_logic;
+        alu_op : out std_logic_vector(4 downto 0);
+        wb_sel : out std_logic_vector(1 downto 0);
+        imm_sel : out std_logic_vector(2 downto 0);
+        branch : out std_logic;
+        jal : out std_logic;
+        jalr : out std_logic
+    );
+end control_unit;
+```
+
+## Responsibility
+Decodes the instruction into register-write, memory-write, memory-width, operand-selection, ALU-operation, writeback-selection, immediate-selection, branch, and jump controls.
+
+## Timing
+
+`control_unit` is purely combinational. After `instr` changes, every output must reflect the decoded instruction after combinational propagation. There is no clock, latency, or stored state.
+
+## Reset
+
+None. The interface has no reset input, and the component has no reset behavior.
+
+## Behavior
+
+`instr` is the complete 32-bit instruction word. The component decodes its opcode and, where specified under **Operations**, its `funct3` and `funct7` fields. Instruction fields not specified as decode criteria do not affect the outputs.
+
+This component has no generated dependencies. All selector encodings and their meanings are defined in this contract.
+
+The output meanings are:
+
+- `reg_write`: requests a register write for this instruction. It is asserted for every valid instruction that writes a destination register, including one whose `rd` field is `x0`. Handling `x0` is outside this component’s contract.
+- `mem_write`: requests a memory write.
+- `data_width`: memory access width, with encodings defined under **Operations**.
+- `alu_src_a_pc`: `0` selects the `rs1` operand; `1` selects the current PC.
+- `alu_src_b_imm`: `0` selects the `rs2` operand; `1` selects the immediate selected by `imm_sel`.
+- `alu_op`: ALU operation selector, as defined under **Operations**.
+- `wb_sel`: register writeback-source selector, as defined under **Operations**.
+- `imm_sel`: immediate-format selector, as defined under **Operations**.
+- `branch`: identifies a valid conditional branch instruction.
+- `jal`: identifies a valid `JAL` instruction.
+- `jalr`: identifies a valid `JALR` instruction.
+
+For every valid instruction, outputs not specifically called out below have these canonical values: `mem_write='0'`, `data_width="10"`, `branch='0'`, `jal='0'`, and `jalr='0'`. The instruction classes below specify their remaining control outputs.
+
+- **Register-register integer and M instructions** (`opcode="0110011"`, with a valid `funct3`/`funct7` combination): `reg_write='1'`, `mem_write='0'`, `alu_src_a_pc='0'`, `alu_src_b_imm='0'`, `wb_sel="00"`, and `imm_sel="000"`. `alu_op` is selected as specified under **Operations**.
+- **Immediate integer instructions** (`opcode="0010011"`, with a valid `funct3` and, for shifts, valid upper instruction bits): `reg_write='1'`, `alu_src_a_pc='0'`, `alu_src_b_imm='1'`, `wb_sel="00"`, and `imm_sel="001"`. `alu_op` is selected as specified under **Operations**.
+- **Loads** (`opcode="0000011"`, with a supported `funct3`): `reg_write='1'`, `alu_src_a_pc='0'`, `alu_src_b_imm='1'`, `alu_op="00000"` (ADD), `wb_sel="01"`, and `imm_sel="001"`. `data_width` follows the load width mapping under **Operations**.
+- **Stores** (`opcode="0100011"`, with a supported `funct3`): `reg_write='0'` and `mem_write='1'`. Also, `alu_src_a_pc='0'`, `alu_src_b_imm='1'`, `alu_op="00000"` (ADD), `wb_sel="00"`, and `imm_sel="010"`. `data_width` follows the store width mapping under **Operations**.
+- **Conditional branches** (`opcode="1100011"`, with a supported `funct3`): `reg_write='0'`, `branch='1'`, `alu_src_a_pc='0'`, `alu_src_b_imm='0'`, `wb_sel="00"`, and `imm_sel="011"`. `alu_op` selects the branch comparison specified under **Operations**.
+- **`LUI`** (`opcode="0110111"`): `reg_write='1'`, `alu_src_a_pc='0'`, `alu_src_b_imm='1'`, `alu_op="01010"` (PASS_B), `wb_sel="00"`, and `imm_sel="100"`.
+- **`AUIPC`** (`opcode="0010111"`): `reg_write='1'`, `alu_src_a_pc='1'`, `alu_src_b_imm='1'`, `alu_op="00000"` (ADD), `wb_sel="00"`, and `imm_sel="100"`.
+- **`JAL`** (`opcode="1101111"`): `reg_write='1'`, `alu_src_a_pc='1'`, `alu_src_b_imm='1'`, `alu_op="00000"` (ADD), `wb_sel="10"`, `imm_sel="101"`, and `jal='1'`.
+- **`JALR`** (`opcode="1100111"` and `funct3="000"`): `reg_write='1'`, `alu_src_a_pc='0'`, `alu_src_b_imm='1'`, `alu_op="00000"` (ADD), `wb_sel="10"`, `imm_sel="001"`, and `jalr='1'`.
+
+An unsupported or malformed instruction produces this complete default output tuple, in port order from `reg_write` through `jalr`:
+
+`('0', '0', "10", '0', '0', "00000", "00", "000", '0', '0', '0')`.
+
+This default also applies if any bit of `instr` is not `'0'` or `'1'`.
+
+## Operations
+
+### Selector encodings
+
+`data_width`:
+
+| Encoding | Meaning |
+|---|---|
+| `"00"` | Byte |
+| `"01"` | Halfword |
+| `"10"` | Word |
+| `"11"` | Reserved; never selected |
+
+For loads and stores, `funct3="000"` selects byte, `"001"` selects halfword, and `"010"` selects word. Load `funct3="100"` (LBU) selects byte; load `funct3="101"` (LHU) selects halfword. Other load/store `funct3` values are invalid.
+
+`wb_sel`:
+
+| Encoding | Meaning |
+|---|---|
+| `"00"` | ALU result |
+| `"01"` | Memory read result |
+| `"10"` | `PC + 4` |
+| `"11"` | Reserved; never selected |
+
+`imm_sel`:
+
+| Encoding | Meaning |
+|---|---|
+| `"000"` | No immediate |
+| `"001"` | I-type immediate |
+| `"010"` | S-type immediate |
+| `"011"` | B-type immediate |
+| `"100"` | U-type immediate |
+| `"101"` | J-type immediate |
+| `"110"` | Reserved; never selected |
+| `"111"` | Reserved; never selected |
+
+The immediate-format names identify the instruction’s immediate format; immediate bit construction and extension are outside this component’s contract.
+
+`alu_op`:
+
+| Encoding | Operation |
+|---|---|
+| `"00000"` | ADD |
+| `"00001"` | SUB |
+| `"00010"` | SLL |
+| `"00011"` | SLT |
+| `"00100"` | SLTU |
+| `"00101"` | XOR |
+| `"00110"` | SRL |
+| `"00111"` | SRA |
+| `"01000"` | OR |
+| `"01001"` | AND |
+| `"01010"` | PASS_B |
+| `"01011"` | BEQ comparison |
+| `"01100"` | BNE comparison |
+| `"01101"` | BGE comparison |
+| `"01110"` | BGEU comparison |
+| `"01111"` | MUL |
+| `"10000"` | MULH |
+| `"10001"` | MULHSU |
+| `"10010"` | MULHU |
+| `"10011"` | DIV |
+| `"10100"` | DIVU |
+| `"10101"` | REM |
+| `"10110"` | REMU |
+| `"10111"` through `"11111"` | Reserved; never selected |
+
+These selectors mean: ADD and SUB perform 32-bit modular arithmetic; SLL, SRL, and SRA shift by the low five bits of the second operand; SLT and SLTU produce one for true and zero otherwise using signed and unsigned comparison, respectively; PASS_B returns the second operand. BEQ, BNE, BGE, and BGEU produce one for equality, inequality, signed greater-than-or-equal, and unsigned greater-than-or-equal, respectively, and zero otherwise. MUL returns the low 32 product bits; MULH, MULHSU, and MULHU return the high 32 product bits for signed×signed, signed×unsigned, and unsigned×unsigned multiplication, respectively. DIV and REM use signed operands and truncate the quotient toward zero; DIVU and REMU use unsigned operands.
+
+For division by zero, DIV and DIVU produce `0xFFFFFFFF`, and REM and REMU produce the dividend. For signed division of `0x80000000` by `0xFFFFFFFF`, DIV produces `0x80000000` and REM produces zero.
+
+### Instruction-to-operation mapping
+
+For `opcode="0110011"`:
+
+| `funct3` | `funct7` | Instruction / `alu_op` |
+|---|---|---|
+| `"000"` | `"0000000"` | ADD / `"00000"` |
+| `"000"` | `"0100000"` | SUB / `"00001"` |
+| `"000"` | `"0000001"` | MUL / `"01111"` |
+| `"001"` | `"0000000"` | SLL / `"00010"` |
+| `"001"` | `"0000001"` | MULH / `"10000"` |
+| `"010"` | `"0000000"` | SLT / `"00011"` |
+| `"010"` | `"0000001"` | MULHSU / `"10001"` |
+| `"011"` | `"0000000"` | SLTU / `"00100"` |
+| `"011"` | `"0000001"` | MULHU / `"10010"` |
+| `"100"` | `"0000000"` | XOR / `"00101"` |
+| `"100"` | `"0000001"` | DIV / `"10011"` |
+| `"101"` | `"0000000"` | SRL / `"00110"` |
+| `"101"` | `"0100000"` | SRA / `"00111"` |
+| `"101"` | `"0000001"` | DIVU / `"10100"` |
+| `"110"` | `"0000000"` | OR / `"01000"` |
+| `"110"` | `"0000001"` | REM / `"10101"` |
+| `"111"` | `"0000000"` | AND / `"01001"` |
+| `"111"` | `"0000001"` | REMU / `"10110"` |
+
+All other `funct3`/`funct7` combinations for this opcode are invalid.
+
+For `opcode="0010011"`, `funct3` selects ADDI (`"000"`, `"00000"`), SLTI (`"010"`, `"00011"`), SLTIU (`"011"`, `"00100"`), XORI (`"100"`, `"00101"`), ORI (`"110"`, `"01000"`), or ANDI (`"111"`, `"01001"`), where each pair gives `funct3` and `alu_op`. For `funct3="001"`, SLLI (`"00010"`) is valid only when `instr(31 downto 25)="0000000"`. For `funct3="101"`, SRLI (`"00110"`) is valid when `instr(31 downto 25)="0000000"`, and SRAI (`"00111"`) is valid when `instr(31 downto 25)="0100000"`. All other encodings for this opcode are invalid.
+
+For `opcode="1100011"`, `funct3` selects BEQ (`"000"`), BNE (`"001"`), BLT (`"100"`), BGE (`"101"`), BLTU (`"110"`), or BGEU (`"111"`). Their corresponding `alu_op` values are, respectively, `"01011"`, `"01100"`, `"00011"`, `"01101"`, `"00100"`, and `"01110"`. Other `funct3` values are invalid.
+
+For `opcode="0000011"`, valid `funct3` values are `"000"` (LB), `"001"` (LH), `"010"` (LW), `"100"` (LBU), and `"101"` (LHU). For `opcode="0100011"`, valid `funct3` values are `"000"` (SB), `"001"` (SH), and `"010"` (SW). Other values are invalid.
+
+## Edge cases
+
+- `rd`, `rs1`, and `rs2` values do not change instruction validity or the controls specified above. In particular, valid instructions targeting `rd=x0` still assert `reg_write` when required by their instruction class.
+- Stores and conditional branches are valid instructions that do not write a destination register; their `reg_write` output is always `'0'`.
+- Instruction bits not used to determine an instruction’s validity or operation do not alter its controls.
+- Any unsupported opcode, unsupported function combination, malformed shift encoding, invalid `JALR` `funct3`, reserved selector encoding in the instruction, or instruction containing a non-binary `std_logic` value produces the complete default tuple specified under **Behavior**.
+- Selector encodings marked reserved are never emitted.
+
+## Test strategy
+
+Use a combinational Cocotb test that drives each instruction, allows combinational propagation, and asserts the complete output tuple in the port order stated under **Behavior**. Construct instruction words with `rs1=5`, `rs2=11`, `rd=19`, and nonzero, distinguishable immediate-field patterns unless a test varies one of those fields. This prevents tests of field selection from passing accidentally because fields are identical. Change one semantic factor at a time and keep the other instruction fields fixed.
+
+- **Opcode and instruction-class decoding:** Generate one valid representative for every class listed under **Behavior** and assert its complete tuple. For each representative, change only the opcode to an unsupported value and assert the default tuple.
+- **R-type operation decoding:** For every row of the `opcode="0110011"` mapping table, generate an instruction with that exact `funct3`/`funct7` pair and assert the complete tuple, including `alu_op`. For each legal `funct3`, separately vary only `funct7` through unsupported values and assert the default tuple.
+- **I-type operation decoding:** Generate each valid `opcode="0010011"` operation and assert the complete tuple. For SLLI, SRLI, and SRAI, test each required upper-bit pattern and vary only the upper bits to a different pattern to verify rejection. For other I-type operations, vary only immediate bits, including their sign bit, and verify that the control tuple remains unchanged.
+- **Branch decoding:** Generate each of the six valid branch `funct3` values and assert `branch='1'`, `reg_write='0'`, the specified comparison `alu_op`, and the complete tuple. Test each unsupported `funct3` separately and assert the default tuple.
+- **Load/store width selection:** Test every valid load and store `funct3` mapping. Assert `mem_write`, `reg_write`, and `data_width` along with the complete tuple. In particular, assert `reg_write='0'` for every valid store and `reg_write='1'` for every valid load. Use byte, halfword, and word cases with distinct `funct3` values; vary only `funct3` between cases. Test unsupported load/store `funct3` values and assert the default tuple.
+- **Immediate and operand selectors:** For each instruction class, assert the specified `imm_sel`, `alu_src_a_pc`, and `alu_src_b_imm`. Change only the opcode or operation selector to another class when testing a different required selection. Use distinct register-field and immediate-field patterns so tests do not rely on coincidentally equal encoded fields.
+- **Writeback and write controls:** Assert `reg_write`, `mem_write`, and `wb_sel` for every valid class. Explicitly assert `reg_write='0'` for every valid store and conditional branch. Repeat valid register-writing instructions with only `rd` changed to zero and to a nonzero value; their controls must be identical.
+- **Jump controls:** Test `JAL` and valid `JALR` independently, asserting the complete tuple and that exactly the corresponding jump output is asserted. Vary only `JALR` `funct3` to verify that nonzero values produce the default tuple.
+- **Ignored fields and invalid inputs:** For each instruction class, vary only fields that are not decode criteria and confirm that controls remain unchanged. Test representative unsupported opcode/function combinations and drive non-binary values in each `instr` bit position in turn; each must produce the default tuple.

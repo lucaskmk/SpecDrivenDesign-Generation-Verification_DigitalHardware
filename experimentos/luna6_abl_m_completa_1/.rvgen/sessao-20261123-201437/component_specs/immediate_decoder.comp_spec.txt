@@ -1,0 +1,80 @@
+# Component semantic contract: immediate_decoder
+
+## Public interface
+```vhdl
+entity immediate_decoder is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        imm_i : out std_logic_vector(31 downto 0);
+        imm_s : out std_logic_vector(31 downto 0);
+        imm_b : out std_logic_vector(31 downto 0);
+        imm_u : out std_logic_vector(31 downto 0);
+        imm_j : out std_logic_vector(31 downto 0)
+    );
+end immediate_decoder;
+```
+
+## Responsibility
+Combinationally extracts and sign-extends the I, S, B, and J immediates and extracts the U immediate from a 32-bit instruction.
+
+## Timing
+
+`immediate_decoder` is purely combinational. Each output reflects the current `instr` without a clock, handshake, or cycle of latency. After `instr` changes, all outputs must settle to their specified values; no ordering between output updates is significant.
+
+## Reset
+
+None. The component has no reset input or reset behavior.
+
+## Behavior
+
+All five outputs are derived concurrently from `instr`, regardless of its opcode or any other instruction field. For a 32-bit binary `instr`, define:
+
+- `I = sign_extend(instr[31:20], 32)` — a 12-bit immediate.
+- `S = sign_extend(instr[31:25] || instr[11:7], 32)` — a 12-bit immediate.
+- `B = sign_extend(instr[31] || instr[7] || instr[30:25] || instr[11:8] || 0, 32)` — a 13-bit immediate.
+- `U = instr[31:12] || 0x000` — no sign extension.
+- `J = sign_extend(instr[31] || instr[19:12] || instr[20] || instr[30:21] || 0, 32)` — a 21-bit immediate.
+
+Concatenations list bits from most significant to least significant. The final `0` in each B and J concatenation is an implicit zero, not an instruction source bit. Each sign extension uses the most significant bit of its indicated immediate. The outputs are exactly `imm_i = I`, `imm_s = S`, `imm_b = B`, `imm_u = U`, and `imm_j = J`.
+
+The B and J immediates always have bit 0 equal to zero. The U immediate always has bits 11:0 equal to zero and is not sign-extended.
+
+## Operations
+
+None. This component has no generated dependencies.
+
+## Edge cases
+
+- If all bits of `instr` are zero, all outputs are zero.
+- If all bits of `instr` are one:
+  - `imm_i`, `imm_s` are `0xFFFFFFFF`.
+  - The encoded B immediate is `0x1FFE` and `imm_b` is `0xFFFFFFFE`.
+  - `imm_u` is `0xFFFFF000`.
+  - The encoded J immediate is `0x1FFFFE` and `imm_j` is `0xFFFFFFFE`.
+- The implicit low zero bit means B and J immediates are always even. In particular, their all-ones source bits do **not** encode `0xFFFFFFFF`.
+- The B sign bit is immediate bit 12 (`instr[31]`). Thus encoded B value `0x00000800` is positive and produces `imm_b = 0x00000800`; encoded B value `0x00001000` is negative and sign-extends to `0xFFFFF000`.
+- The J sign bit is immediate bit 20 (`instr[31]`). Thus encoded J value `0x00080000` is positive; encoded J value `0x00100000` is negative and sign-extends to `0xFFF00000`.
+- When the sign bit of an I, S, B, or J immediate is one, that output’s bits above its encoded width are ones. When that sign bit is zero, those bits are zeros.
+- `instr[31]` supplies the sign bit for I, S, B, and J, and supplies `imm_u[31]`. It does not cause sign extension of U.
+- No opcode validity check is performed: every 32-bit instruction value has the immediate outputs defined by the mappings above.
+- The contract defines behavior for binary input values (`'0'` and `'1'`). Behavior for unknown or high-impedance input bits is unspecified.
+
+## Test strategy
+
+For every stimulus, allow combinational outputs to settle before checking all five outputs against the specified equations.
+
+1. **Exhaustive single-bit source mapping:** Start from `instr = 0`. For each bit index `k` from 0 through 31, set only `instr[k]` to one and check all outputs against the equations in **Behavior**. This checks every source-bit mapping, unused instruction bits, and sign-extension effects.
+
+2. **I immediate extraction and extension:** Hold all bits other than `instr[31:20]` at zero. Toggle each of those 12 source bits individually and check its mapping and the exact extension above bit 11. Check `instr[31:20]` values `0x000`, `0x001`, `0x7FF`, `0x800`, and `0xFFF`, expecting `0x00000000`, `0x00000001`, `0x000007FF`, `0xFFFFF800`, and `0xFFFFFFFF`.
+
+3. **S immediate packing and extension:** Hold all bits other than `instr[31:25]` and `instr[11:7]` at zero. Toggle each of these 12 source bits individually and check that `instr[11:7]` maps to `imm_s[4:0]`, `instr[31:25]` maps to `imm_s[11:5]`, and the upper bits are the proper sign extension. Check packed immediate values `0x000`, `0x001`, `0x7FF`, `0x800`, and `0xFFF`, expecting `0x00000000`, `0x00000001`, `0x000007FF`, `0xFFFFF800`, and `0xFFFFFFFF`. Construct each value using the specified S-format source fields, with unrelated bits zero.
+
+4. **B immediate packing, bit placement, and extension:** Hold all bits other than `instr[31]`, `instr[7]`, `instr[30:25]`, and `instr[11:8]` at zero. Toggle each of these 12 source bits individually and check the mappings to `imm_b[12]`, `imm_b[11]`, `imm_b[10:5]`, and `imm_b[4:1]`, respectively. Check that `imm_b[0]` remains zero and the upper bits follow sign extension. Check packed B immediate values `0x000`, `0x002`, `0x7FE`, `0x800`, `0x1000`, and `0x1FFE`, expecting `0x00000000`, `0x00000002`, `0x000007FE`, `0x00000800`, `0xFFFFF000`, and `0xFFFFFFFE`. Construct each value using the specified B source-bit locations, with unrelated bits zero. The B immediate has 12 instruction source bits and one implicit zero bit.
+
+5. **U immediate extraction without sign extension:** Hold all bits other than `instr[31:12]` at zero. Toggle each of those 20 source bits individually and check that it maps to the same-numbered output bit `imm_u[31:12]`; check that `imm_u[11:0]` remains zero. Check `instr[31:12]` values `0x00000`, `0x00001`, `0x7FFFF`, `0x80000`, and `0xFFFFF`, expecting `0x00000000`, `0x00001000`, `0x7FFFF000`, `0x80000000`, and `0xFFFFF000`. In particular, verify that a set `instr[31]` does not extend into the low 12 bits.
+
+6. **J immediate packing and extension:** Hold all bits other than `instr[31]`, `instr[19:12]`, `instr[20]`, and `instr[30:21]` at zero. Toggle each of these 20 source bits individually and check the mappings to `imm_j[20]`, `imm_j[19:12]`, `imm_j[11]`, and `imm_j[10:1]`, respectively. Check that `imm_j[0]` remains zero and the upper bits follow sign extension. Check packed J immediate values `0x000000`, `0x000002`, `0x07FFFE`, `0x080000`, `0x100000`, and `0x1FFFFE`, expecting `0x00000000`, `0x00000002`, `0x0007FFFE`, `0x00080000`, `0xFFF00000`, and `0xFFFFFFFE`. Construct each value using the specified J source-bit locations, with unrelated bits zero. The J immediate has 20 instruction source bits and one implicit zero bit.
+
+7. **Independence from opcode and unrelated fields:** For each mapping, keep its source bits fixed and vary only bits not used by that mapping, including opcode bits. Require that its output remain unchanged. Use source patterns with multiple distinct set positions, not only zero or all ones.
+
+8. **Simultaneous outputs and all-ones case:** Apply mixed instruction patterns with distinguishable values in the I, S, B, U, and J source positions, then verify all five outputs concurrently against their individual mappings. Repeat with sign bits clear and set, changing one semantic factor at a time. Include `instr = 0xFFFFFFFF` and verify the edge-case outputs specified above.

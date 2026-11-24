@@ -1,0 +1,98 @@
+# Component semantic contract: alu
+
+## Public interface
+```vhdl
+entity alu is
+    port(
+        instr : in std_logic_vector(31 downto 0);
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        result : out std_logic_vector(31 downto 0);
+        branch_taken : out std_logic
+    );
+end alu;
+```
+
+## Responsibility
+Perform RV32I register and immediate arithmetic, shifts, comparisons, and logic, plus all RV32M multiply, divide, and remainder operations. Also produce branch comparison results.
+
+## Timing
+
+`alu` is purely combinational. After `instr`, `operand_a`, or `operand_b` changes, `result` and `branch_taken` shall reflect the contract below after combinational propagation. No clock, sampling edge, or retained state is involved.
+
+## Reset
+
+None. The interface has no reset input, and the ALU has no reset behavior.
+
+## Behavior
+
+The ALU decodes `instr(6 downto 0)` as the opcode, `instr(14 downto 12)` as `funct3`, and `instr(31 downto 25)` as `funct7`. `operand_a` and `operand_b` are the 32-bit values supplied to the ALU; for immediate arithmetic and logic, `operand_b` is the already-formed immediate operand.
+
+For a recognized arithmetic, logic, shift, or multiply/divide/remainder operation, `result` is that operation’s 32-bit result and `branch_taken` is `'0'`. For a recognized branch, `branch_taken` is the branch condition and `result` is all zeroes. For any unsupported opcode or unsupported selector combination, `result` is all zeroes and `branch_taken` is `'0'`.
+
+All arithmetic results are 32 bits. Addition, subtraction, and the low half of multiplication wrap modulo \(2^{32}\). Comparisons produce `0x00000001` when true and `0x00000000` when false.
+
+## Operations
+
+The following selector encodings apply. All opcode and function values are hexadecimal unless noted.
+
+| Instruction class | Opcode | `funct3` | `funct7` | Result or effect |
+|---|---:|---:|---:|---|
+| ADD | `0x33` | `0x0` | `0x00` | `operand_a + operand_b` |
+| SUB | `0x33` | `0x0` | `0x20` | `operand_a - operand_b` |
+| SLL | `0x33` | `0x1` | `0x00` | Logical left shift of `operand_a` by `operand_b(4 downto 0)` |
+| SLT | `0x33` | `0x2` | `0x00` | Signed `operand_a < operand_b` |
+| SLTU | `0x33` | `0x3` | `0x00` | Unsigned `operand_a < operand_b` |
+| XOR | `0x33` | `0x4` | `0x00` | Bitwise XOR |
+| SRL | `0x33` | `0x5` | `0x00` | Logical right shift of `operand_a` by `operand_b(4 downto 0)` |
+| SRA | `0x33` | `0x5` | `0x20` | Arithmetic right shift of signed `operand_a` by `operand_b(4 downto 0)` |
+| OR | `0x33` | `0x6` | `0x00` | Bitwise OR |
+| AND | `0x33` | `0x7` | `0x00` | Bitwise AND |
+| MUL | `0x33` | `0x0` | `0x01` | Low 32 bits of unsigned `operand_a × operand_b` |
+| MULH | `0x33` | `0x1` | `0x01` | High 32 bits of signed `operand_a × signed operand_b` |
+| MULHSU | `0x33` | `0x2` | `0x01` | High 32 bits of signed `operand_a × unsigned operand_b` |
+| MULHU | `0x33` | `0x3` | `0x01` | High 32 bits of unsigned `operand_a × operand_b` |
+| DIV | `0x33` | `0x4` | `0x01` | Signed quotient, rounded toward zero |
+| DIVU | `0x33` | `0x5` | `0x01` | Unsigned quotient |
+| REM | `0x33` | `0x6` | `0x01` | Signed remainder |
+| REMU | `0x33` | `0x7` | `0x01` | Unsigned remainder |
+| ADDI | `0x13` | `0x0` | Any | `operand_a + operand_b` |
+| SLLI | `0x13` | `0x1` | `0x00` | Logical left shift of `operand_a` by `instr(24 downto 20)` |
+| SLTI | `0x13` | `0x2` | Any | Signed `operand_a < operand_b` |
+| SLTIU | `0x13` | `0x3` | Any | Unsigned `operand_a < operand_b` |
+| XORI | `0x13` | `0x4` | Any | Bitwise XOR |
+| SRLI | `0x13` | `0x5` | `0x00` | Logical right shift of `operand_a` by `instr(24 downto 20)` |
+| SRAI | `0x13` | `0x5` | `0x20` | Arithmetic right shift of signed `operand_a` by `instr(24 downto 20)` |
+| ORI | `0x13` | `0x6` | Any | Bitwise OR |
+| ANDI | `0x13` | `0x7` | Any | Bitwise AND |
+| BEQ | `0x63` | `0x0` | Any | Taken when `operand_a = operand_b` |
+| BNE | `0x63` | `0x1` | Any | Taken when `operand_a ≠ operand_b` |
+| BLT | `0x63` | `0x4` | Any | Taken when signed `operand_a < operand_b` |
+| BGE | `0x63` | `0x5` | Any | Taken when signed `operand_a ≥ operand_b` |
+| BLTU | `0x63` | `0x6` | Any | Taken when unsigned `operand_a < operand_b` |
+| BGEU | `0x63` | `0x7` | Any | Taken when unsigned `operand_a ≥ operand_b` |
+
+For OP (`0x33`), the listed `funct7` value is required; other combinations are unsupported. For OP-IMM (`0x13`), `funct7` selects only the shift variants as shown; it does not select the other listed operations. For immediate shifts, the shift amount is the five-bit `instr(24 downto 20)` field. For register shifts, it is `operand_b(4 downto 0)`. Branches use only their listed `funct3` selector; other branch `funct3` values are unsupported.
+
+## Edge cases
+
+- Signed comparisons interpret each operand as a two’s-complement 32-bit value; unsigned comparisons interpret each operand as an unsigned 32-bit value.
+- Logical shifts insert zeroes. Arithmetic right shifts replicate the sign bit of `operand_a`. All shift amounts are in the range 0–31; only the specified five bits determine the amount.
+- `DIV` and `DIVU` by zero return `0xFFFFFFFF`. `REM` and `REMU` by zero return `operand_a`.
+- Signed division of `0x80000000` by `0xFFFFFFFF` returns `0x80000000`; the corresponding signed remainder returns `0x00000000`.
+- Signed remainder is zero or has the sign of `operand_a`; division truncates toward zero.
+- Multiply-high results are the upper 32 bits of the specified 64-bit product. The signedness of each operand is exactly as specified in the operation table.
+- Unsupported opcode or selector combinations always produce zero `result` and `'0'` `branch_taken`.
+
+## Test strategy
+
+Run the following as executable checks against the public interface. Construct instruction words with the stated opcode and selector fields, drive the listed operands, allow combinational propagation, and assert both outputs. Unless a check says otherwise, keep the instruction and the other operand fixed while varying one semantic factor at a time. Use operand values that make incorrect source selection, signedness, bit selection, or result fields observable.
+
+- **Decode and default behavior:** For each supported operation in the table, test its exact selector and assert its specified result or branch condition. For OP (`0x33`), independently vary `funct3` and `funct7` while holding operands fixed; include unsupported `funct7` values for each `funct3` and assert the default outputs. For OP-IMM, test each `funct3`, test both supported shift `funct7` values, and test unsupported shift `funct7` values. For branches, test every listed `funct3` and at least one unsupported value. Also test an unsupported opcode. Use nonzero, unequal operands so an accidental default or wrong decode is distinguishable.
+- **Arithmetic and logic transformations:** For ADD, SUB, ADDI, XOR, XORI, OR, ORI, AND, and ANDI, use distinct operand patterns (for example, `0x13579BDF` and `0x2468ACE1`) and assert the exact result. Change only `operand_a`, then only `operand_b`, in separate checks. Include additions and subtractions that wrap at 32 bits, and bit patterns with different set bits for each logic operation.
+- **Comparison selection and signedness:** For SLT, SLTU, SLTI, and SLTIU, test less-than, equal, and greater-than operand pairs. Include `0xFFFFFFFF` versus `0x00000001` and `0x80000000` versus `0x7FFFFFFF` to distinguish signed from unsigned comparison. Change one operand at a time and assert the exact Boolean result encoding.
+- **Shift selection and bit behavior:** For SLL and SRL/SRA, test amounts 0, 1, 15, 31, and a value whose upper bits are nonzero, confirming that only the low five amount bits matter for register shifts. Use `operand_a = 0x80000003` to distinguish logical from arithmetic right shift. For SLLI, SRLI, and SRAI, vary only `instr(24 downto 20)` across those amounts while keeping the other instruction fields and operands fixed; assert that the instruction field controls the amount. Use positive and negative `operand_a` patterns and assert the exact shifted result.
+- **Multiply selection and result halves:** For MUL, MULH, MULHSU, and MULHU, use distinct nonzero operands and assert the exact product field required by each operation. Include `0xFFFFFFFF` and `0x80000000` in separate operand positions to distinguish signed and unsigned interpretations. Change only one operand at a time, and separately change only the `funct3` selector while holding both operands fixed; the resulting low or high product field must match the selected operation.
+- **Division and remainder:** For DIV, DIVU, REM, and REMU, test positive operands with a nonzero remainder, then change only the dividend and only the divisor in separate checks. Include negative signed operands to verify truncation toward zero and remainder sign. Test divisor zero for all four operations. Test `0x80000000 / 0xFFFFFFFF` for DIV and REM. Use operands whose signed and unsigned quotients or remainders differ.
+- **Branch results:** For BEQ and BNE, test equal and unequal operands; for BLT, BGE, BLTU, and BGEU, test less-than, equal, and greater-than pairs. Include the signed/unsigned distinguishing pairs specified above. Change only one operand at a time and assert `branch_taken` and zero `result` for every supported branch. For each branch selector, test one case on each side of its decision boundary.
+- **Output separation and combinational response:** For every arithmetic or logic class, assert that `branch_taken` remains low; for every branch class, assert that `result` remains zero. Change one input at a time, including changing `instr` while operands remain fixed and changing each operand while `instr` remains fixed, and assert the corresponding updated outputs without relying on a clock edge.

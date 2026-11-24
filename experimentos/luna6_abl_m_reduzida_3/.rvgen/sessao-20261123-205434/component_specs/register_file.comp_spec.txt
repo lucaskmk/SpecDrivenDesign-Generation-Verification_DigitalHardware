@@ -1,0 +1,123 @@
+# Component semantic contract: register_file
+
+## Public interface
+```vhdl
+entity register_file is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        rs1_addr : in std_logic_vector(4 downto 0);
+        rs2_addr : in std_logic_vector(4 downto 0);
+        rd_addr : in std_logic_vector(4 downto 0);
+        rd_data : in std_logic_vector(31 downto 0);
+        rd_write : in std_logic;
+        rs1_data : out std_logic_vector(31 downto 0);
+        rs2_data : out std_logic_vector(31 downto 0)
+    );
+end register_file;
+```
+
+## Responsibility
+Provide 32 32-bit integer registers with asynchronous reads, synchronous writes, asynchronous active-high reset, and hardwired x0 behavior.
+
+## Timing
+
+- `rs1_data` and `rs2_data` are asynchronous read outputs. Each reflects the value selected by its corresponding address after input and output propagation; no clock edge is required.
+- A write occurs only on a rising edge of `clk`. At that edge, the write uses the values of `rd_write`, `rd_addr`, and `rd_data` presented at the edge.
+- A write takes effect after the rising edge. Reads of the written register then return the new value; before the edge they return the previous value.
+- Falling edges do not write registers.
+- When reset is active at a rising edge, reset takes priority over any write.
+
+## Reset
+
+- `rst` is asynchronous and active high.
+- Asserting `rst` clears the architectural values of registers x1–x31 without waiting for a clock edge. Reads of any register then return zero.
+- x0 reads as zero at all times, including during reset.
+- Writes presented while `rst` is high have no effect. Deasserting reset does not itself change register values; after reset, x1–x31 remain zero until written.
+- Register values before reset has first been asserted are unspecified.
+
+## Behavior
+
+- `rs1_addr` selects the register value presented on `rs1_data`; `rs2_addr` independently selects the register value presented on `rs2_data`.
+- Both read ports may select the same register or different registers simultaneously.
+- `rd_addr` selects the destination of a write. If `rd_write` is high at a rising clock edge and reset is inactive, `rd_data` is written to the selected register, except that writes to x0 are discarded.
+- If `rd_write` is low at a rising edge, no register value changes.
+- x0 is hardwired to zero: reads always return zero, and writes never change its value.
+- All 5-bit addresses are valid. No address causes an error or out-of-range behavior.
+- The inputs are expected to use binary `std_logic` values; behavior for unknown or high-impedance input values is unspecified.
+
+## Operations
+
+There is no opcode. Each address is an unsigned 5-bit register selector:
+
+| Address | Register |
+|---|---|
+| `00000` | x0 |
+| `00001` | x1 |
+| `00010` | x2 |
+| `00011` | x3 |
+| `00100` | x4 |
+| `00101` | x5 |
+| `00110` | x6 |
+| `00111` | x7 |
+| `01000` | x8 |
+| `01001` | x9 |
+| `01010` | x10 |
+| `01011` | x11 |
+| `01100` | x12 |
+| `01101` | x13 |
+| `01110` | x14 |
+| `01111` | x15 |
+| `10000` | x16 |
+| `10001` | x17 |
+| `10010` | x18 |
+| `10011` | x19 |
+| `10100` | x20 |
+| `10101` | x21 |
+| `10110` | x22 |
+| `10111` | x23 |
+| `11000` | x24 |
+| `11001` | x25 |
+| `11010` | x26 |
+| `11011` | x27 |
+| `11100` | x28 |
+| `11101` | x29 |
+| `11110` | x30 |
+| `11111` | x31 |
+
+## Edge cases
+
+- Selecting x0 on either read port returns zero regardless of writes or reset state.
+- Selecting x0 as the write destination discards the write, regardless of `rd_write` or `rd_data`.
+- A write is accepted only when `rd_write = '1'`, reset is inactive, and the rising edge occurs.
+- A write to a nonzero register does not alter any other register.
+- Reset asserted between clock edges clears the register values without requiring a clock edge. Reset asserted at a rising edge takes priority over a simultaneous write.
+- Changing either read address, or changing a selected register through an accepted write, changes the corresponding read result asynchronously after propagation.
+
+## Test strategy
+
+Use only the public ports. After asserting reset, release it and initialize x1–x31 by writing distinct values: for example, write `0xA5C30000 + i` to xi for each `i` from 1 through 31. x0’s expected value is always zero. These values make every nonzero register distinguishable.
+
+1. **Read-port selection and asynchronous behavior**
+   - With the initialized distinct values present, hold the clock steady and sweep `rs1_addr` through all 32 encodings. After each address change and propagation, require `rs1_data` to equal the selected register’s expected value.
+   - Repeat independently for `rs2_addr`, holding `rs1_addr` fixed while sweeping `rs2_addr`.
+   - At fixed addresses, change only `rs1_addr` and check only `rs1_data`; then change only `rs2_addr` and check only `rs2_data`. Require the other output to continue reflecting its unchanged address.
+   - Check both ports selecting the same nonzero register, then different registers with distinct values, and check both results. Include x0 on each port and on both ports together.
+   - Perform address changes without a clock edge. A result that changes only after a clock edge fails.
+
+2. **Write destination selection and data routing**
+   - Starting from known distinct register values, for each `rd_addr` from 1 through 31, write a new value unique to that test and distinct from the other registers’ values. Change only the destination and the test value between cases; keep `rd_write` high and reset inactive.
+   - For each accepted write, check before the rising edge that the destination still returns its old value, then apply one rising edge and require the destination to return the new `rd_data`. Read all addresses afterward and require every other register to retain its prior value.
+   - Repeat writes to one fixed nonzero destination with at least two distinct `rd_data` values, changing only `rd_data` between writes, and check that the latest value is returned.
+   - For `rd_addr = 0`, try `rd_write = '1'` with multiple distinct `rd_data` values, one write per rising edge. Require x0 to remain zero and all nonzero registers to remain unchanged.
+
+3. **Write enable and clock-edge timing**
+   - With a nonzero destination and a value distinct from its current value, hold `rd_write = '0'` across a rising edge and require that the destination and all other registers remain unchanged.
+   - With the same destination and data, set `rd_write = '1'` but apply no rising edge; require that no register changes. Apply a falling edge and require no change. Then apply one rising edge and require only the selected register to take `rd_data`.
+   - Keep the destination fixed and vary only `rd_write` between disabled and enabled cases.
+
+4. **Asynchronous reset and reset priority**
+   - Write nonzero values to several registers, hold the clock low, assert `rst`, and after propagation require both read outputs to be zero for every address on their respective ports. Sweep each read address through all 32 encodings without clocking.
+   - While reset remains high, present `rd_write = '1'`, a nonzero destination, and nonzero `rd_data`; apply a rising edge, then deassert reset. Require every register to remain zero, demonstrating that writes during reset were ignored.
+   - Separately, initialize nonzero registers, present an enabled write, and assert reset so it is active at the next rising edge. Require reset’s zero state after that edge and after deassertion.
+   - After reset is deasserted, verify that the registers remain zero without a write, then write one nonzero register and require only that register to change.

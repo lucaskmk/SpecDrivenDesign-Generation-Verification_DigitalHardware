@@ -1,0 +1,179 @@
+# Component semantic contract: cpu
+
+## Public interface
+```vhdl
+entity cpu is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        instr_addr : out std_logic_vector(31 downto 0);
+        instr_data : in std_logic_vector(31 downto 0);
+        data_addr : out std_logic_vector(31 downto 0);
+        data_write : out std_logic;
+        data_width : out std_logic_vector(1 downto 0);
+        data_write_data : out std_logic_vector(31 downto 0);
+        data_read_data : in std_logic_vector(31 downto 0)
+    );
+end cpu;
+```
+
+## Responsibility
+Implement the specified single-cycle RV32IM top level: maintain the PC, instantiate the generated datapath and control blocks, select and extend load data, drive store and instruction buses, and commit PC and register updates on the rising clock edge.
+
+## Timing
+
+- `cpu` is a single-cycle RV32IM processor. During normal execution, one instruction completes on each rising edge of `clk`; there are no stalls or handshakes.
+- `instr_addr` continuously exposes the current PC. `instr_data` is the asynchronous instruction word at that address. The instruction and register values determine combinational outputs before the next rising edge.
+- On a rising edge with `rst = '0'`, the CPU commits the current instruction’s permitted register update and updates the PC. The new PC takes effect after the edge.
+- The sequential next PC is `PC + 4` modulo \(2^{32}\). A taken branch selects `PC + B`; `JAL` selects `PC + J`; `JALR` selects `(rs1 + I) AND 0xFFFFFFFE`. Priority is `JAL` or `JALR`, then a taken branch, then `PC + 4`.
+- `data_addr`, `data_write`, `data_width`, and `data_write_data` are combinational outputs for the current instruction. A store is presented during its instruction cycle; external RAM commits it on the rising edge.
+- `data_read_data` is asynchronous. A load uses its current value during the instruction cycle; there is no load latency or acknowledgment.
+- No behavior is specified for inputs containing unknown or high-impedance values.
+
+## Reset
+
+- `rst` is active high and asynchronous. Assertion sets the PC to `0x00000000` and clears architectural registers x1–x31 without waiting for a clock edge. The PC output immediately becomes zero, and reads of every register are zero.
+- While reset is asserted, the PC remains zero, register writes are inhibited, and x0 continues to read as zero. Deasserting reset does not itself change the PC or register contents.
+- The instruction at address zero is the current instruction while reset is asserted. Combinational bus outputs continue to reflect that instruction and the inputs; reset does not otherwise alter their instruction-dependent values. In particular, reset does not gate store outputs.
+- Reset does not specify reset or initialization behavior for external instruction or data memories.
+
+## Behavior
+
+- The public interface is fixed to the `cpu` entity and ports specified for this component. It must not be changed.
+- The CPU implements RV32IM with 32-bit registers and addresses. Arithmetic and address calculations wrap modulo \(2^{32}\).
+- **Required decomposition:** `cpu` instantiates exactly one each of `immediate_gen`, `register_file`, `alu`, and `control_unit`, and uses those components for their specified behavior. It must not reimplement their behavior.
+- `instr_addr` is the current PC. During supported execution, instruction addresses are four-byte aligned. A `JALR` execution is supported only when its specified target, `(rs1 + I) AND 0xFFFFFFFE`, is four-byte aligned. Thus targets that are 2 modulo 4 are excluded by a precondition; `JALR` clears bit 0, not bit 1.
+- x0 always reads as zero and ignores writes. Writes to x1–x31 take effect at the rising edge for which the current instruction enables a register write and reset is inactive. Register reads are asynchronous.
+- `data_addr` is the effective byte address for supported loads and stores: `rs1 + I` for loads and `rs1 + S` for stores. Its low bits are not masked.
+- `data_write` is `'1'` for a supported store and `'0'` for every non-store instruction. For a store, `data_write_data` is the unshifted rs2 value; external RAM uses its low 8, 16, or 32 bits according to `data_width`.
+- `data_width` is `"00"` for byte accesses, `"01"` for halfword accesses, and `"10"` for word accesses. It is `"10"` for instructions without a supported load or store width.
+- `data_read_data` is the aligned 32-bit little-endian word whose base address is `data_addr` with its two low bits cleared. Loads select the addressed byte or halfword, or the whole word, and return the specified sign- or zero-extended value.
+- Dependency selector encodings are private to each dependency; dependencies need not share numeric encodings. Connect and interpret each dependency according to its own contract. Where CPU instruction semantics require an operation not selected directly by the instruction’s opcode and function fields at a dependency, explicitly adapt the selector and operands supplied to that dependency. For example, the ALU contract accepts OP and OP-IMM selectors, not branch, LUI, AUIPC, or jump opcodes. The CPU must adapt ALU inputs as needed to obtain their specified arithmetic or comparison results; it must not require the ALU to accept those other opcodes or change the ALU interface. The control unit’s `wb_sel` values are likewise interpreted according to its contract, with any different CPU-internal encoding adapted explicitly.
+
+## Operations
+
+Instruction fields are `opcode = instr[6:0]`, `rd = instr[11:7]`, `funct3 = instr[14:12]`, `rs1 = instr[19:15]`, `rs2 = instr[24:20]`, and `funct7 = instr[31:25]`.
+
+`immediate_gen` produces all five immediates for every instruction word:
+
+- I: sign-extend `instr[31:20]` to 32 bits.
+- S: sign-extend `instr[31:25] & instr[11:7]` to 32 bits.
+- B: sign-extend `instr[31] & instr[7] & instr[30:25] & instr[11:8] & 0` to 32 bits.
+- U: `instr[31:12] & 12'b0`, with no sign extension.
+- J: sign-extend `instr[31] & instr[19:12] & instr[20] & instr[30:21] & 0` to 32 bits.
+
+Supported instruction behavior:
+
+- `LUI`, opcode `0110111` (`0x37`): write U to rd.
+- `AUIPC`, opcode `0010111` (`0x17`): write `PC + U` to rd.
+- `JAL`, opcode `1101111` (`0x6F`): write `PC + 4` to rd and set the next PC to `PC + J`. Its `funct3` bits do not select an operation.
+- `JALR`, opcode `1100111` (`0x67`), `funct3 = 000`: write `PC + 4` to rd and set the next PC to `(rs1 + I) AND 0xFFFFFFFE`. The target-alignment precondition in **Behavior** applies.
+- Branches, opcode `1100011` (`0x63`): do not write a register. Select the condition by `funct3`:
+  - `000` BEQ: taken when rs1 equals rs2.
+  - `001` BNE: taken when rs1 differs from rs2.
+  - `100` BLT: taken when signed rs1 is less than signed rs2.
+  - `101` BGE: taken when signed rs1 is greater than or equal to signed rs2.
+  - `110` BLTU: taken when unsigned rs1 is less than unsigned rs2.
+  - `111` BGEU: taken when unsigned rs1 is greater than or equal to unsigned rs2.
+  - A taken branch sets the next PC to `PC + B`; otherwise it is `PC + 4`.
+- Loads, opcode `0000011` (`0x03`), use effective address `rs1 + I`:
+  - `funct3 = 000` LB: select the addressed byte and sign-extend it.
+  - `funct3 = 001` LH: select the addressed halfword and sign-extend it.
+  - `funct3 = 010` LW: return the full word.
+  - `funct3 = 100` LBU: select the addressed byte and zero-extend it.
+  - `funct3 = 101` LHU: select the addressed halfword and zero-extend it.
+- Stores, opcode `0100011` (`0x23`), use effective address `rs1 + S`:
+  - `funct3 = 000` SB: byte width.
+  - `funct3 = 001` SH: halfword width.
+  - `funct3 = 010` SW: word width.
+  - Each drives rs2 on `data_write_data`.
+- OP-IMM, opcode `0010011` (`0x13`):
+  - `funct3 = 000` ADDI: `rs1 + I`.
+  - `001` SLLI: shift rs1 left logically by `instr[24:20]`; `funct7 = 0000000`.
+  - `010` SLTI: 1 if signed rs1 is less than signed I, else 0.
+  - `011` SLTIU: 1 if unsigned rs1 is less than unsigned I, else 0.
+  - `100` XORI: bitwise XOR of rs1 and I.
+  - `101` SRLI: logical right shift by `instr[24:20]`, with `funct7 = 0000000`; SRAI: arithmetic right shift by that amount, with `funct7 = 0100000`.
+  - `110` ORI: bitwise OR of rs1 and I.
+  - `111` ANDI: bitwise AND of rs1 and I.
+- OP, opcode `0110011` (`0x33`):
+  - With `funct7 = 0000000`: `funct3` `000` ADD, `001` SLL, `010` SLT, `011` SLTU, `100` XOR, `101` SRL, `110` OR, `111` AND.
+  - With `funct7 = 0100000`: `funct3` `000` SUB and `101` SRA.
+  - With `funct7 = 0000001` (RV32M): `funct3` `000` MUL, `001` MULH, `010` MULHSU, `011` MULHU, `100` DIV, `101` DIVU, `110` REM, `111` REMU.
+  - Register shifts use rs2[4:0]. SLT and SLTU compare signed and unsigned operands respectively and return exactly 0 or 1.
+  - MUL returns the low 32 product bits. MULH returns the high 32 bits of signed-by-signed multiplication; MULHSU returns the high 32 bits of signed-by-unsigned multiplication; MULHU returns the high 32 bits of unsigned-by-unsigned multiplication.
+  - DIV is signed division rounded toward zero; DIVU is unsigned division. REM is signed remainder, with any nonzero remainder having the sign of rs1; REMU is unsigned remainder.
+- Register results are written to rd only when the instruction class enables a register write; writes to x0 have no effect. `JAL` and `JALR` write `PC + 4` when rd is nonzero; loads write their selected, extended data; other supported register-writing operations write their specified result.
+- The `control_unit` writeback selector uses its own contract’s encodings: `"00"` for ALU result, `"01"` for load data, and `"10"` for `PC + 4`. These values are not a requirement for any CPU-internal selector. The CPU must explicitly adapt if its internal encoding differs.
+
+## Edge cases
+
+- All effective-address and PC additions wrap modulo \(2^{32}\). Load and store addresses retain their low bits on `data_addr`.
+- For a byte access, offsets `00`, `01`, `10`, and `11` select `data_read_data[7:0]`, `[15:8]`, `[23:16]`, and `[31:24]`, respectively. For a halfword access, offset `00` selects `[15:0]` and offset `10` selects `[31:16]`. Accesses are assumed aligned for their width; misaligned halfword or word accesses are not required.
+- LB and LH sign-extend from the selected byte or halfword sign bit. LBU and LHU zero-extend. LW returns all 32 input bits unchanged.
+- Shifts use only the low five shift-amount bits. Arithmetic right shift replicates the sign bit. Addition, subtraction, and multiplication do not signal overflow.
+- Division by zero returns `0xFFFFFFFF` for DIV and DIVU, and rs1 for REM and REMU. Signed division of `0x80000000` by `0xFFFFFFFF` returns `0x80000000`; its signed remainder is zero.
+- Branch and comparison signedness is two’s-complement signed or unsigned as specified for the operation; equality compares all 32 bits.
+- A `JAL x0, 0` leaves the PC unchanged and is a valid halt loop.
+- Reserved load, store, branch, or JALR `funct3` encodings do not perform their corresponding memory, branch, or jump operation. Unsupported opcode encodings do not perform a register or memory write and advance by four bytes. For OP or OP-IMM encodings with an unsupported ALU selector, the ALU result is zero; the opcode class’s register-write behavior still applies, so the destination receives zero unless it is x0.
+
+## Test strategy
+
+Use a Cocotb testbench with asynchronous instruction ROM and data RAM models. Encode instructions into the ROM, drive inputs, allow combinational propagation, check observable public outputs before the active edge, then apply a rising edge and check the resulting PC and architectural state through subsequent instructions. Use distinct register values, immediates, memory bytes, and alternate candidate results so an incorrect source or selection cannot pass by coincidence. Internal selectors are not directly observable at the CPU public ports; test selector effects through externally visible behavior, not by claiming that CPU public-port tests observe internal selectors.
+
+1. **Fetch, sequencing, and edge timing**
+   - Run distinguishable sequential instructions. Before each rising edge, check that `instr_addr` is the current PC and that outputs correspond to the ROM word at that address; after the edge, check that the next sequential address is `PC + 4`.
+   - Change `instr_data` while holding the clock low and check that combinational outputs respond without changing `instr_addr` or committing state. Apply a falling edge with a register-writing instruction present and check that no architectural write occurs.
+   - Execute `JAL x0, 0` and check that `instr_addr` remains at that address across successive rising edges.
+   - Test taken and not-taken branches and jumps with targets distinct from `PC + 4`; check that the target is selected only after the committing edge.
+
+2. **Asynchronous reset and architectural registers**
+   - Write nonzero, pairwise-distinct values into several nonzero registers. Assert reset between clock edges and check that `instr_addr` becomes zero immediately. After deasserting reset, read the registers through dependent instructions and check that they are zero.
+   - Assert reset while the clock is held low and separately while high; check that the PC and register state clear without a rising edge. Attempt register writes on rising edges during reset, then deassert reset and check those writes did not persist.
+   - Write to x0 using a nonzero result, then use x0 as each source operand in arithmetic, address, and branch instructions. Check that it always behaves as zero.
+   - Do not require memory contents to reset.
+
+3. **Instruction decoding and register writeback**
+   - Execute representative instructions from OP, OP-IMM, LUI, AUIPC, load, JAL, and JALR. Use unique expected results and destination registers; check that register writes become visible only after the rising edge and unrelated registers retain their values.
+   - For arithmetic and immediate instructions, choose rs1, rs2, and immediate values that give distinct answers for plausible alternate operations and operands. Check results through later stores or branches.
+   - For LUI and AUIPC, use upper immediates with several nonzero, non-symmetric bits; check LUI writes U and AUIPC writes `PC + U`. Vary the upper immediate while holding PC and other fields fixed.
+   - For JAL and JALR with nonzero rd, check that the destination receives `PC + 4`, and check the control-flow target independently. For `rd = x0`, check that x0 remains zero and verify the control-flow target independently. For JALR, use a sum with bit zero set to confirm target bit zero is cleared, and keep the resulting target four-byte aligned.
+   - Test x0 as rd for arithmetic and load instructions; check that no later instruction observes a changed x0 value.
+
+4. **Immediate assembly and PC-relative targets**
+   - For I- and S-immediate addressing, use positive and negative encodings with distinct source-register bases; check effective addresses against the exact sign-extended immediate.
+   - For branch and JAL targets, encode non-symmetric immediate patterns that exercise each scattered source bit independently. Vary one encoded immediate bit at a time while holding other instruction semantics and operands fixed, and check the target changes by exactly the corresponding signed displacement.
+   - Test sign-clear and sign-set immediates, including boundary encodings, and check sign extension and the implicit low zero bit for B and J offsets.
+   - For AUIPC and LUI, separately vary upper immediate bits with the sign bit both clear and set; check U is formed from the encoded upper field without sign extension.
+
+5. **ALU operations and shifts**
+   - For every OP and OP-IMM operation, use discriminating operand patterns and compare results through later stores or register-dependent instructions. Change only `funct3` or `funct7` when testing selector distinctions.
+   - For OP, test ADD versus SUB, SRL versus SRA, and each M operation by varying only `funct7` or `funct3` as appropriate. For OP-IMM shifts, test valid logical and arithmetic encodings and unsupported shift selector values with other fields fixed.
+   - For register shifts, test amounts 0, 1, 15, 31, 32, and 63; amounts 32 and 63 must act like 0 and 31. For immediate shifts, test only encodable amounts 0 through 31, including 0, 1, 15, and 31.
+   - For shifts, use operands with bit 31 set and clear. Check arithmetic right shift against logical right shift using negative operands.
+   - For SLT and SLTU, and for SLTI and SLTIU, test less-than, equal, and greater-than pairs, including `0x80000000`, `0xFFFFFFFF`, 0, and 1. Check results are exactly 0 or 1.
+   - For logic operations, choose operands whose AND, OR, and XOR results are pairwise distinct. For arithmetic, include carry, borrow, and wraparound cases.
+   - For multiplication, use operands that distinguish low and high halves and signed from unsigned products, including `0xFFFFFFFF` and `0x80000001`. For division and remainder, test positive, negative, mixed-sign, exact, and nonzero-remainder cases; test zero divisors and the signed overflow pair.
+
+6. **Load address, width, selection, and extension**
+   - Arrange a RAM word with four distinct bytes, for example `0xD32A9174`, at one aligned base. Execute LB and LBU at each byte offset while holding the word fixed; check that `data_addr` retains the offset and the loaded result selects the corresponding byte.
+   - For each byte, choose values with bit 7 set and clear. Compare LB and LBU while changing only `funct3`; check sign extension versus zero extension.
+   - Arrange a word with different low and high halfwords. Execute LH and LHU at offsets 0 and 2; include halfwords with bit 15 set and clear and check extension.
+   - Execute LW at an aligned address and check all 32 bits are returned unchanged.
+   - For every load, check `data_width`, effective byte address, destination register, and that the result is not committed before the rising edge. Choose rs1 and immediate values so wrong base or immediate selection gives a different address.
+
+7. **Store routing, width, and data**
+   - Set rs1 to a distinct base and rs2 to a value with distinct low byte, low halfword, and upper bits. Execute SB, SH, and SW, one width at a time, and check `data_write`, `data_width`, byte address, and raw `data_write_data`.
+   - Read back memory using byte, halfword, and word loads. Check that only the selected 8, 16, or 32 low bits are committed and that neighboring bytes remain unchanged where required by the RAM model.
+   - Use byte offsets 0–3 for SB and aligned offsets 0 and 2 for SH. Use distinguishable neighboring bytes to detect incorrect routing.
+   - Check that `data_write` is low for every non-store instruction, including loads, branches, jumps, and arithmetic instructions. Confirm RAM changes only at the rising edge for a store.
+
+8. **Branch conditions and PC selection**
+   - For each supported branch `funct3`, test one taken and one not-taken case. Use operand pairs that distinguish equality, signed order, and unsigned order; include values whose signed and unsigned order differ.
+   - Hold the instruction and one operand fixed while changing only the other operand around equality or an ordering boundary. Check that the target is `PC + B` only when the selected condition is true; otherwise check `PC + 4`.
+   - Test negative and positive B offsets with non-symmetric encodings. Confirm branch instructions never write a register or assert `data_write`.
+
+9. **Reserved selectors and output defaults**
+   - Execute reserved load, store, branch, and JALR `funct3` values and check that they do not perform the corresponding memory operation or control transfer, do not write a register, and advance sequentially.
+   - Execute unsupported opcodes and unsupported OP/OP-IMM ALU selector combinations. Check the specified default effects, including a zero ALU result where applicable, and check non-stores keep `data_write` low.
+   - For each case, vary only the reserved selector or opcode from a supported case and check every relevant public output.

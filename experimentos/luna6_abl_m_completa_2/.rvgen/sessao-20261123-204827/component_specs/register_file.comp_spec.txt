@@ -1,0 +1,126 @@
+# Component semantic contract: register_file
+
+## Public interface
+```vhdl
+entity register_file is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        read_addr1 : in std_logic_vector(4 downto 0);
+        read_addr2 : in std_logic_vector(4 downto 0);
+        read_data1 : out std_logic_vector(31 downto 0);
+        read_data2 : out std_logic_vector(31 downto 0);
+        write_enable : in std_logic;
+        write_addr : in std_logic_vector(4 downto 0);
+        write_data : in std_logic_vector(31 downto 0)
+    );
+end register_file;
+```
+
+## Responsibility
+Implement 32 32-bit integer registers with asynchronous reads, synchronous writes, asynchronous active-high reset, hardwired-zero x0, and ignored writes to x0.
+
+## Timing
+
+- `read_addr1` and `read_addr2` select registers independently. Each read is asynchronous: after either address changes, its corresponding output reflects the currently selected register without waiting for a clock edge. Reading does not modify state.
+- Writes occur only on a rising edge of `clk`. At that edge, a write occurs if `write_enable = '1'`, `rst = '0'`, and `write_addr` is not x0. The selected register receives `write_data`.
+- A write does not change either read output unless it changes the register currently selected by that read address. In that case, the output reflects the new value after the write takes effect.
+- Changes to write inputs between rising edges do not modify register state. Falling edges do not perform writes.
+- A rising edge with no qualifying write leaves all register state unchanged.
+
+## Reset
+
+- Reset is asynchronous and active high. When `rst = '1'`, all registers are zero, including x0.
+- Reset assertion takes effect without waiting for a clock edge. While reset is high, writes are suppressed, including at rising clock edges.
+- After reset is deasserted, registers retain the values established by reset until changed by a qualifying rising-edge write. Deassertion itself does not write any register.
+- x0 reads as zero at all times and cannot be changed by a write.
+
+## Behavior
+
+- The component represents 32 integer registers, each 32 bits wide, addressed by 5-bit register addresses.
+- `read_addr1` selects the register presented on `read_data1`; `read_addr2` selects the register presented on `read_data2`. Both ports may select the same register or different registers.
+- `write_addr` selects the register that receives `write_data` on a qualifying write edge.
+- `write_enable = '0'` suppresses writes. `write_enable = '1'` permits a write subject to the reset and x0 rules.
+- The inputs `clk`, `rst`, `read_addr1`, `read_addr2`, `write_enable`, `write_addr`, and `write_data` have no other effect than the timing, selection, reset, and write behaviors specified here.
+- All behavior is defined for binary address values and binary control values. Behavior when an address or control contains a non-binary `std_logic` value is unspecified.
+
+## Operations
+
+The 5-bit register-address encoding is exhaustive:
+
+| Address | Register |
+|---|---|
+| `00000` | x0 |
+| `00001` | x1 |
+| `00010` | x2 |
+| `00011` | x3 |
+| `00100` | x4 |
+| `00101` | x5 |
+| `00110` | x6 |
+| `00111` | x7 |
+| `01000` | x8 |
+| `01001` | x9 |
+| `01010` | x10 |
+| `01011` | x11 |
+| `01100` | x12 |
+| `01101` | x13 |
+| `01110` | x14 |
+| `01111` | x15 |
+| `10000` | x16 |
+| `10001` | x17 |
+| `10010` | x18 |
+| `10011` | x19 |
+| `10100` | x20 |
+| `10101` | x21 |
+| `10110` | x22 |
+| `10111` | x23 |
+| `11000` | x24 |
+| `11001` | x25 |
+| `11010` | x26 |
+| `11011` | x27 |
+| `11100` | x28 |
+| `11101` | x29 |
+| `11110` | x30 |
+| `11111` | x31 |
+
+For x1 through x31, each read output equals the current 32-bit value of the addressed register. For x0, each read output is always `00000000`. A qualifying write to x1 through x31 stores `write_data` unchanged. A write addressed to x0 has no effect.
+
+## Edge cases
+
+- Simultaneous reads of the same address return the same value on both outputs.
+- A write to x0 is ignored regardless of `write_enable`, `write_data`, or clock edges; x0 remains zero.
+- A write to a nonzero register while `write_enable = '0'` does not change that register.
+- A write to a nonzero register while reset is asserted does not change the reset value.
+- Reset assertion clears previously written values asynchronously, including when no clock edge occurs.
+- Writes to x1 and x31, and reads from x0 and x31, follow the same rules as writes and reads for all other registers in their respective classes.
+- Register values are exactly 32 bits; writes store all bits unchanged and reads return all bits unchanged.
+
+## Test strategy
+
+1. **Reset and x0 behavior**
+   - Write distinguishable nonzero values to x1, x16, and x31, then assert reset without a clock edge. Require reads of those registers and x0 through both read ports to become zero.
+   - While reset is high, vary `write_addr` across x0, x1, and x31 and vary `write_data`; apply rising edges and require all reads to remain zero.
+   - Deassert reset without a clock edge and require the registers to remain zero. This establishes that reset assertion is asynchronous, reset suppresses writes, and deassertion does not write state.
+
+2. **Address decoding and both asynchronous read ports**
+   - Initialize every register x1 through x31 with a distinct, nonzero 32-bit value; keep x0’s expected value zero. Ensure values differ in both low and high bits so selecting a neighboring or otherwise incorrect register cannot pass.
+   - For each of the 32 binary addresses, change only `read_addr1` and require `read_data1` to equal the value of that address without a clock edge. Repeat independently for `read_addr2` and `read_data2`.
+   - Hold `read_addr2` fixed while varying `read_addr1`, then hold `read_addr1` fixed while varying `read_addr2`; require the unselected output to remain associated with its own address.
+   - Select the same nonzero address on both ports and require equal outputs. Repeat with x0.
+   - Include x0, x1, x30, and x31 explicitly, as well as every address from x0 through x31. Change only one read address at a time.
+
+3. **Synchronous write selection and data preservation**
+   - With reset deasserted, for each destination x1 through x31, set `write_enable = '1'`, choose a distinct `write_data`, and apply one rising edge. Before the edge, require the destination’s value not to change; after the edge, require both read ports to return the new value when selecting that destination.
+   - Use distinct contents in all other registers while checking each write, so an incorrect destination selection is observable. Verify that registers other than the selected destination retain their values.
+   - Repeat writes to x1 and x31 explicitly. For data preservation, write values including all zeroes, all ones, alternating bit patterns, and values with only the most-significant or least-significant bit set; read back all 32 bits unchanged.
+   - Change only the destination address, write data, or enable between corresponding trials.
+
+4. **Write-enable and clock-edge behavior**
+   - Set `write_enable = '0'`, select a nonzero destination with a value different from its current value, and change `write_data`. Require no state change before or after rising and falling edges.
+   - With `write_enable = '1'`, change `write_data` and `write_addr` between rising edges and require no state change until the next rising edge. At that edge, require only the selected nonzero register to take the value present at the edge.
+   - Apply a falling edge with write inputs set to a new value and require no write. Apply the next rising edge with the same inputs and require the write to take effect.
+   - Change only the enable or edge type for each comparison.
+
+5. **Ignored writes to x0**
+   - With reset deasserted and `write_enable = '1'`, apply rising edges with `write_addr = 00000` and several distinguishable `write_data` values. Require x0 to read zero on both ports and require previously initialized nonzero registers to retain their values.
+   - Vary only `write_data` between these trials, then vary only the write-enable value to confirm that neither enabled nor disabled writes can alter x0.

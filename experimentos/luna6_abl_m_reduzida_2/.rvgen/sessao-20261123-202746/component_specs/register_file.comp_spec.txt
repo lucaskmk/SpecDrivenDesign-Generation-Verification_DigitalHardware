@@ -1,0 +1,80 @@
+# Component semantic contract: register_file
+
+## Public interface
+```vhdl
+entity register_file is
+    port(
+        clk : in std_logic;
+        rst : in std_logic;
+        rs1_addr : in std_logic_vector(4 downto 0);
+        rs2_addr : in std_logic_vector(4 downto 0);
+        rd_addr : in std_logic_vector(4 downto 0);
+        rd_data : in std_logic_vector(31 downto 0);
+        rd_write : in std_logic;
+        rs1_data : out std_logic_vector(31 downto 0);
+        rs2_data : out std_logic_vector(31 downto 0)
+    );
+end register_file;
+```
+
+## Responsibility
+Provide two asynchronous register reads and one synchronous write for the 32 RV32 registers; enforce x0 as zero and clear register state during asynchronous active-high reset.
+
+## Timing
+
+- `rs1_data` and `rs2_data` are asynchronous outputs. After a read address changes, its corresponding output reflects the selected register without waiting for a clock edge.
+- A write is committed only on a rising edge of `clk` when `rd_write = '1'` and `rst = '0'`.
+- Before that rising edge, changing `rd_addr`, `rd_data`, or `rd_write` does not commit a write. After a committed write, asynchronous reads of the written register reflect the new value.
+- If a read and write select the same nonzero register, the read reflects the old value before the committing edge and the new value after the edge.
+- A falling clock edge does not commit a write.
+
+## Reset
+
+- `rst` is active high and asynchronous. Assertion clears the state of registers x1–x31 without waiting for a clock edge. Both read outputs then reflect zero for every address.
+- While `rst = '1'`, writes are inhibited, including at rising clock edges.
+- Deasserting reset does not itself change register state. After reset, all registers remain zero until written.
+
+## Behavior
+
+- The address inputs select architectural registers x0–x31. Each address is an unsigned 5-bit register number.
+- `rs1_data` returns the 32-bit value selected by `rs1_addr`; `rs2_data` independently returns the 32-bit value selected by `rs2_addr`.
+- Both read ports return zero when their selected register is x0, regardless of writes or reset state.
+- On a permitted write, `rd_data` is written to the register selected by `rd_addr`, except that selecting x0 has no effect. No other register changes as a result of that write.
+- When no write is committed, register values are retained, except when asynchronous reset clears them.
+
+## Operations
+
+- Read selectors `rs1_addr` and `rs2_addr`, and write selector `rd_addr`, use the same encoding:
+  - `"00000"` selects x0.
+  - `"00001"` through `"11111"` select x1 through x31, respectively; the unsigned address value is the register number.
+- x0 always reads as zero and ignores writes. For x1–x31, a permitted write stores `rd_data` exactly, without alteration.
+
+## Edge cases
+
+- All 32 binary address encodings are valid; there are no out-of-range addresses.
+- Reads of x0 return zero even if `rd_write = '1'`, `rd_addr` selects x0, and `rd_data` is nonzero.
+- A write to a nonzero register with `rd_write = '0'` does not change that register.
+- A write attempted while reset is asserted does not survive reset; after reset is deasserted, every register reads as zero unless subsequently written.
+- Simultaneous reads may select the same register or different registers. Each output must independently match its selected register.
+- No semantic guarantee is required for address, control, or data inputs containing unknown or high-impedance values.
+
+## Test strategy
+
+Use representative register indices, such as x0, x1, x7, x16, and x31; do not enumerate all registers or address encodings. Choose distinct values for the nonzero indices under test so an incorrect selection is detectable. Use representative data patterns, such as zero, all ones, alternating bits (`0xAAAAAAAA`, `0x55555555`), and distinct mixed-bit values; do not use walking-bit patterns.
+
+1. **Reset and zero-register behavior**
+   - Write nonzero values to several representative nonzero registers. Assert `rst` between clock edges and, without advancing the clock, read representative addresses including x0 and nonzero registers. Assert that both outputs are zero.
+   - While reset remains asserted, attempt writes to representative nonzero registers on rising edges. Deassert reset and read those registers; assert that they remain zero.
+   - Attempt writes to x0 with representative nonzero data, both during and outside reset. Read x0 through each port and assert zero.
+
+2. **Write selection, timing, and data preservation**
+   - With reset deasserted, write distinct values to several representative nonzero destinations. After each committing edge, read the destination through both ports and assert an exact match to `rd_data`. Re-read previously written representative destinations and assert their values are unchanged.
+   - Write representative data patterns, including zero, all ones, and alternating bits, to a selected nonzero register. Assert that each committed write stores the exact latest value.
+   - With `rd_write = '0'`, vary `rd_addr` and `rd_data` while the clock is away from a rising edge and across rising edges. Assert that previously written representative registers retain their values.
+   - For a permitted write, check that the selected register still has its old value before the rising edge and has the new value after it. Apply a falling edge separately and assert that it does not commit a write.
+
+3. **Read-port selection and independence**
+   - Preload representative nonzero registers with distinct values. Change each read address asynchronously among representative addresses, including x0, and assert that the corresponding output matches the selected value without a clock edge.
+   - Hold one port’s address fixed while changing only the other port’s address. Assert that the fixed port’s output does not change.
+   - Test both ports selecting the same register and selecting different registers. Assert that each output matches its own selected address.
+   - Change a selected register’s value with a permitted write while its address is held on both read ports. Assert that both outputs update after the write edge and that outputs selecting other representative registers remain unchanged.

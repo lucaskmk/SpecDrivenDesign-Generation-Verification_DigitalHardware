@@ -1,0 +1,89 @@
+# Component semantic contract: alu
+
+## Public interface
+```vhdl
+entity alu is
+    port(
+        operand_a : in std_logic_vector(31 downto 0);
+        operand_b : in std_logic_vector(31 downto 0);
+        alu_op : in std_logic_vector(3 downto 0);
+        result : out std_logic_vector(31 downto 0);
+        compare_equal : out std_logic;
+        compare_signed_less : out std_logic;
+        compare_unsigned_less : out std_logic
+    );
+end alu;
+```
+
+## Responsibility
+Compute RV32I arithmetic, logic, shifts, and comparisons, plus all RV32M multiply, divide, and remainder results. Provide equality, signed-less-than, and unsigned-less-than flags for branch decisions.
+
+## Timing
+
+`alu` is purely combinational. After `operand_a`, `operand_b`, or `alu_op` changes, `result` and all three comparison outputs must reflect their defined values after combinational settling. The component has no clock, transaction, or stored state.
+
+## Reset
+
+None. The interface has no reset input, and the component has no reset behavior.
+
+## Behavior
+
+- `operand_a` and `operand_b` are 32-bit operands. `alu_op` selects the operation that determines `result`.
+- `result` is the 32-bit result of the selected operation. Arithmetic results are reduced to 32 bits where applicable.
+- The three comparison outputs are always computed from the current operands, independently of `alu_op`:
+  - `compare_equal` is `'1'` exactly when the operands are bit-for-bit equal.
+  - `compare_signed_less` is `'1'` exactly when `operand_a`, interpreted as a 32-bit two’s-complement signed integer, is less than `operand_b` interpreted the same way.
+  - `compare_unsigned_less` is `'1'` exactly when `operand_a`, interpreted as an unsigned 32-bit integer, is less than `operand_b` interpreted the same way.
+- RV32I `SLT` and `SLTU` comparisons are exposed through `compare_signed_less` and `compare_unsigned_less`, respectively. A consumer that needs their register-result forms must produce `0x00000001` when the corresponding flag is `'1'`, and `0x00000000` otherwise. There is no separate `SLT` or `SLTU` result selector.
+- The interface defines exactly three comparison outputs. The phrase “All four comparison outputs” in the prior contract is a typo; there is no fourth comparison output or behavior to specify.
+- The selector encodings in **Operations** are private to `alu`. A consumer must not assume that instruction fields or another component’s selector use the same numeric encodings. Integration must explicitly map the consumer’s operation encoding to `alu_op`, or derive `alu_op` directly from instruction fields, without changing either component’s interface.
+
+## Operations
+
+Every 4-bit `alu_op` encoding selects exactly one operation:
+
+| `alu_op` | Operation | `result` |
+|---|---|---|
+| `0000` | ADD | `operand_a + operand_b`, modulo 2³² |
+| `0001` | SUB | `operand_a - operand_b`, modulo 2³² |
+| `0010` | SLL | `operand_a` shifted left logically by `operand_b(4 downto 0)` |
+| `0011` | SRL | `operand_a` shifted right logically by `operand_b(4 downto 0)` |
+| `0100` | SRA | `operand_a` shifted right arithmetically by `operand_b(4 downto 0)` |
+| `0101` | XOR | Bitwise exclusive OR of the operands |
+| `0110` | OR | Bitwise OR of the operands |
+| `0111` | AND | Bitwise AND of the operands |
+| `1000` | MUL | Low 32 bits of the unsigned product of the operands; this is also the low 32 bits of the signed product |
+| `1001` | MULH | High 32 bits of the product with both operands interpreted as signed values |
+| `1010` | MULHSU | High 32 bits of the product with `operand_a` interpreted as signed and `operand_b` as unsigned |
+| `1011` | MULHU | High 32 bits of the product with both operands interpreted as unsigned values |
+| `1100` | DIV | Signed quotient, rounded toward zero |
+| `1101` | DIVU | Unsigned quotient |
+| `1110` | REM | Signed remainder; when nonzero, its sign is the sign of `operand_a` |
+| `1111` | REMU | Unsigned remainder |
+
+The three comparison outputs retain the behavior specified in **Behavior** for every selector. All 16 selector values are defined; none is reserved.
+
+## Edge cases
+
+- Shift amounts use only `operand_b(4 downto 0)`. Higher bits of `operand_b` do not affect the shift amount.
+- SLL shifts in zero bits from the right. SRL shifts in zero bits from the left. SRA shifts in copies of `operand_a(31)` from the left.
+- ADD and SUB wrap modulo 2³²; they do not raise overflow exceptions.
+- Multiplication returns the specified low or high 32 bits of the mathematical product, using the signedness specified for each operation.
+- For DIV and DIVU, division by zero produces `0xFFFFFFFF`.
+- For REM and REMU, a zero divisor produces `operand_a`.
+- For signed DIV, `0x80000000 / 0xFFFFFFFF` produces `0x80000000`. For signed REM with those operands, the result is `0x00000000`.
+- Signed division rounds toward zero, not toward negative infinity. A nonzero signed remainder has the sign of the dividend (`operand_a`).
+- Comparison flags are defined for all 32-bit operand values, including equal operands and values at signed and unsigned range boundaries.
+- The contract applies to binary input values (`'0'` and `'1'`). Behavior for inputs containing unresolved or non-binary `std_logic` values is unspecified.
+
+## Test strategy
+
+Use a combinational Cocotb testbench for `alu`. For each test, drive inputs, allow combinational settling, then check `result` and all three comparison outputs. Do not use a clock or reset. Exercise each selector directly at the ALU interface; do not infer internal selector values from CPU public-port tests. End-to-end CPU tests can check architecturally visible outcomes but do not directly observe internal selectors.
+
+- **Selector decoding and result routing:** Test each of the 16 encodings in the Operations table. For each encoding, use operands chosen to distinguish its result from plausible neighboring operations and the previous selector’s result. With operands fixed, change only `alu_op` through all 16 encodings and check the result and comparison flags. Then hold each selector fixed and vary each operand separately.
+- **Addition and subtraction:** For ADD, check `0x00000003 + 0x00000005 = 0x00000008` and `0xFFFFFFFF + 0x00000001 = 0x00000000`. For SUB, check `0x00000009 - 0x00000004 = 0x00000005` and `0x00000000 - 0x00000001 = 0xFFFFFFFF`. Include carry, borrow, and wraparound cases.
+- **Shifts:** For SLL, SRL, and SRA, use nonuniform bit patterns, including `operand_a = 0x81234567`, to make shift direction and fill behavior observable. Check amounts `0`, `1`, `15`, and `31`. For each amount, vary only the low five bits of `operand_b`; separately vary only `operand_b(31 downto 5)` and require the result to remain unchanged. Include zero and all-ones shift sources.
+- **Bitwise logic:** For XOR, OR, and AND, check distinct, nonuniform operands such as `0xA55A0FF0` and `0x3C0FF00F`. Include zero and all-ones operands, and vary one operand at a time.
+- **Multiplication:** Check MUL with operands whose product has nonzero low and high halves. For MULH, MULHSU, and MULHU, check operands that distinguish signed from unsigned interpretation, including `0xFFFFFFFF`, `0x80000000`, `0x7FFFFFFF`, and positive values. Check expected high halves using each operation’s specified signedness. Include zero, one, and maximum-bit-pattern cases, varying one operand at a time.
+- **Division and remainder:** For DIV and REM, use positive and negative operands with nonzero remainders. For DIVU and REMU, use operands with the top bit set so signed and unsigned interpretations differ. Check quotient and remainder against the specified rounding and sign rules. Test zero divisors for all four selectors, and test the signed overflow pair `0x80000000` and `0xFFFFFFFF` for DIV and REM. Change only the selector when comparing signed and unsigned behavior on the same operand pair.
+- **Comparison flags:** With each selector held fixed, check all three flags for operand pairs covering equal values, adjacent values, zero versus one, `0xFFFFFFFF` versus zero, `0x80000000` versus `0x7FFFFFFF`, and both operand orders. Include pairs where signed and unsigned less-than differ. For each pair, vary one operand to cross an equality or ordering boundary; verify that equality is independent of signedness and that all flags are independent of `alu_op`.

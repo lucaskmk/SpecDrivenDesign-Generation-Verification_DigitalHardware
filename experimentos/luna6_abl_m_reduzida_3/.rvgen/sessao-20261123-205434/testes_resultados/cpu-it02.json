@@ -1,0 +1,12 @@
+{
+  "component": "cpu",
+  "testbench": "/repo/experimentos/luna6_abl_m_reduzida_3/.rvgen/sessao-20261123-205434/testes/test_cpu.py",
+  "compilacao": {
+    "ok": false
+  },
+  "passed": false,
+  "detail": "CalledProcessError: Command '['ghdl', '-m', '--work=top', '--std=08', 'cpu']' returned non-zero exit status 1.",
+  "log": "/repo/experimentos/luna6_abl_m_reduzida_3/.rvgen/sessao-20261123-205434/sim/componente-cpu-it02/sim.log",
+  "diagnostico": "/repo/experimentos/luna6_abl_m_reduzida_3/src/cpu.vhd:196:76: type conversion cannot be indexed or sliced\n    jalr_target   <= std_logic_vector(unsigned(rs1_data) + unsigned(imm_i))(31 downto 1) & '0';\n                                                                           ^\n",
+  "segundos": 0.3
+}

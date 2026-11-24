@@ -1,0 +1,9 @@
+{
+  "bloco": "cpu",
+  "arquivo": "src/cpu.vhd",
+  "hash_vhdl": "9caec768fda10f94a76a2475093a4e9984c59eed5f35e91f9665a7aa451d3abe",
+  "testes": [
+    "testes/test_cpu.py",
+    "regressoes/test_cpu_regressao_05.py"
+  ]
+}
