@@ -432,8 +432,21 @@ def cmd_mutacao(args: argparse.Namespace) -> int:
     isa = args.isa or json.loads((sessao / "resultado.json").read_text(encoding="utf-8")).get("isa", "rv32i")
     trabalho = Path(args.trabalho or REPO_ROOT / "out" / "mutacao" / cpu.name / args.bloco).resolve()
     juiz = [t.strip() for t in args.juiz_testes.split(",") if t.strip()] if args.juiz_testes else None
-    resumo = mut.rodar(cpu, args.bloco, isa=isa, trabalho=trabalho, executor=ex.ExecutorLocal(),
-                       juiz_testes=juiz, paralelo=args.paralelo, limite=args.limite)
+    oraculo = Path(args.oraculo) if args.oraculo else None
+    if args.reaproveitar:
+        # so o oraculo, sobre os mutantes ja rodados em `trabalho`
+        anterior = trabalho / "resultado.json"
+        if not anterior.is_file() or oraculo is None:
+            print("--reaproveitar exige --oraculo e um resultado.json anterior em "
+                  f"{trabalho}", file=sys.stderr)
+            return 2
+        resumo = json.loads(anterior.read_text(encoding="utf-8"))
+        mut.aplicar_oraculo(resumo, trabalho, ex.ExecutorLocal(), oraculo)
+        anterior.write_text(json.dumps(resumo, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    else:
+        resumo = mut.rodar(cpu, args.bloco, isa=isa, trabalho=trabalho, executor=ex.ExecutorLocal(),
+                           juiz_testes=juiz, paralelo=args.paralelo, limite=args.limite,
+                           oraculo=oraculo)
     print(mut.resumo_texto(resumo), end="")
     destino = Path(args.saida) if args.saida else cpu / "mutacao" / f"{args.bloco}.json"
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -871,6 +884,12 @@ def main(argv: list[str] | None = None) -> int:
                    help="programas do juiz separados por virgula (padrao: a suite inteira)")
     m.add_argument("--paralelo", type=int, default=2, help="mutantes ao mesmo tempo (padrao: 2)")
     m.add_argument("--limite", type=int, default=None, help="so os N primeiros mutantes")
+    m.add_argument("--oraculo", default=None, metavar="ARQ",
+                   help="teste de referencia sem IA que classifica os sobreviventes "
+                        "(ex.: rvgen/oraculo_m.py para blocos do M)")
+    m.add_argument("--reaproveitar", action="store_true",
+                   help="nao roda os mutantes de novo: aplica --oraculo ao resultado da pasta "
+                        "de trabalho")
     m.add_argument("--trabalho", default=None,
                    help="pasta de trabalho (padrao: out/mutacao/<cpu>/<bloco>)")
     m.add_argument("--saida", default=None,

@@ -12,6 +12,13 @@ bit de seleção) e roda, em cada mutante, três níveis de teste:
 2. `cpu`: os testes de componente do topo `cpu` (integração, também da IA);
 3. `juiz`: o `spec-riscv-test` com os programas `riscv-tests` (sem IA).
 
+Opcionalmente (`--oraculo`), um quarto nível, que não é dos testes gerados,
+classifica os sobreviventes: um teste de referência sem IA (por exemplo
+`rvgen/oraculo_m.py`, que compara o bloco do M com um modelo Python da ISA em
+valores de borda). Sobrevivente que o oráculo mata *escapou* de todos os
+testes; sobrevivente que o oráculo não mata é contado como *equivalente* e
+sai do denominador do score sem equivalentes.
+
 Um mutante é *morto* num nível quando algum teste daquele nível falha.
 Mutante que nem compila é *natimorto* e sai da conta. Mutante que nenhum
 nível mata pode ser *equivalente* (não muda o comportamento visível, como
@@ -34,8 +41,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-__all__ = ["Mutante", "gerar_mutantes", "testes_do_bloco", "rodar", "resumo_texto",
-           "resumo_markdown"]
+__all__ = ["Mutante", "gerar_mutantes", "testes_do_bloco", "rodar", "aplicar_oraculo",
+           "resumo_texto", "resumo_markdown"]
 
 
 @dataclass(frozen=True)
@@ -279,7 +286,8 @@ def _placar(relatorio: dict | None) -> tuple[int, int]:
 
 def rodar(cpu: Path, bloco: str, *, isa: str, trabalho: Path, executor,
           juiz_testes: list[str] | None = None, paralelo: int = 2,
-          limite: int | None = None, relatar: Callable[[str], None] = print) -> dict:
+          limite: int | None = None, oraculo: Path | None = None,
+          relatar: Callable[[str], None] = print) -> dict:
     """Gera e roda os mutantes de `bloco`; devolve o resumo (também gravado
     em `<trabalho>/resultado.json`)."""
     cpu = cpu.resolve()
@@ -338,9 +346,51 @@ def rodar(cpu: Path, bloco: str, *, isa: str, trabalho: Path, executor,
             relatar(f"  {r.id} l.{r.linha} {r.operador:<10} {r.original!r} -> {r.mutado!r}: {estado}")
 
     resumo = _resumir(cpu, bloco, isa, juiz_testes, testes_bloco, testes_cpu, resultados)
+    resumo["arquivo"] = arquivo
+    if oraculo is not None:
+        aplicar_oraculo(resumo, trabalho, executor, oraculo, relatar=relatar)
     trabalho.mkdir(parents=True, exist_ok=True)
     (trabalho / "resultado.json").write_text(json.dumps(resumo, indent=2, ensure_ascii=False) + "\n",
                                              encoding="utf-8")
+    return resumo
+
+
+def aplicar_oraculo(resumo: dict, trabalho: Path, executor, oraculo: Path,
+                    relatar: Callable[[str], None] = print) -> dict:
+    """Classifica os sobreviventes de um resumo com um teste de referência.
+
+    Usa as cópias dos mutantes já gravadas em `trabalho` (`<id>/cpu`); o
+    bloco original precisa passar no oráculo, senão a classificação não vale."""
+    bloco = resumo["bloco"]
+    arquivo = resumo.get("arquivo") or f"src/{bloco}.vhd"
+    oraculo = Path(oraculo).resolve()
+
+    def passa(ident: str) -> bool:
+        pasta = trabalho / ident / "cpu"
+        ex = executor.rodar_componente(
+            pasta, componente=bloco, teste=oraculo,
+            json_saida=trabalho / ident / "oraculo.json",
+            workdir=trabalho / ident / "oraculo-sim", build_root=trabalho / ident / "oraculo-build",
+            fontes=[pasta / arquivo], timeout=600)
+        return bool((ex.relatorio or {}).get("passed"))
+
+    if not passa("original"):
+        raise RuntimeError(f"o bloco original nao passa no oraculo {oraculo.name}")
+    equivalentes, escaparam = [], []
+    for ident in resumo["sobreviventes"]:
+        (equivalentes if passa(ident) else escaparam).append(ident)
+        relatar(f"  oraculo {ident}: {'equivalente' if ident in equivalentes else 'ESCAPOU'}")
+    resumo["oraculo"] = {"arquivo": oraculo.name, "equivalentes": equivalentes,
+                         "escaparam": escaparam}
+    nao_equiv = [r for r in resumo["resultados"] if r["compila"] and r["id"] not in equivalentes]
+
+    def score(campo: str) -> dict:
+        mortos = sum(1 for r in nao_equiv if r.get(campo))
+        return {"mortos": mortos, "viaveis": len(nao_equiv),
+                "score": round(mortos / len(nao_equiv), 3) if nao_equiv else None}
+
+    resumo["por_nivel_sem_equivalentes"] = {"bloco": score("bloco"), "cpu": score("cpu"),
+                                            "juiz": score("juiz")}
     return resumo
 
 
@@ -379,6 +429,14 @@ def _pct(d: dict) -> str:
 
 def resumo_texto(r: dict) -> str:
     n = r["por_nivel"]
+    extra = []
+    if "oraculo" in r:
+        s = r["por_nivel_sem_equivalentes"]
+        o = r["oraculo"]
+        extra = [f"  oraculo ({o['arquivo']}): {len(o['equivalentes'])} equivalentes, "
+                 f"{len(o['escaparam'])} escaparam de todos os testes {o['escaparam']}",
+                 f"  sem equivalentes: bloco {_pct(s['bloco'])}, cpu {_pct(s['cpu'])}, "
+                 f"juiz {_pct(s['juiz'])}"]
     return "\n".join([
         f"{r['cpu']}/{r['bloco']}: {r['mutantes']} mutantes, {r['natimortos']} natimortos",
         f"  testes do bloco ({len(r['testes_bloco'])}): {_pct(n['bloco'])}",
@@ -387,15 +445,19 @@ def resumo_texto(r: dict) -> str:
         f"  so o juiz matou: {len(r['so_o_juiz_matou'])}; so componentes mataram: "
         f"{len(r['so_componentes_mataram'])}; sobreviventes (talvez equivalentes): "
         f"{len(r['sobreviventes'])} {r['sobreviventes']}",
+        *extra,
     ]) + "\n"
 
 
 def resumo_markdown(resumos: list[dict]) -> str:
-    linhas = ["| CPU | Bloco | Mutantes viáveis | Testes do bloco | Testes do `cpu` | Juiz | Só o juiz matou | Sobreviventes |",
-              "|---|---|---|---|---|---|---|---|"]
+    linhas = ["| CPU | Bloco | Mutantes viáveis | Equivalentes | Testes do bloco | Testes do `cpu` "
+              "| Juiz | Só o juiz matou | Escaparam de tudo |",
+              "|---|---|---|---|---|---|---|---|---|"]
     for r in resumos:
-        n = r["por_nivel"]
-        linhas.append(f"| `{r['cpu']}` | `{r['bloco']}` | {n['juiz']['viaveis']} | {_pct(n['bloco'])} | "
+        n = r.get("por_nivel_sem_equivalentes") or r["por_nivel"]
+        o = r.get("oraculo")
+        linhas.append(f"| `{r['cpu']}` | `{r['bloco']}` | {r['por_nivel']['juiz']['viaveis']} | "
+                      f"{len(o['equivalentes']) if o else '?'} | {_pct(n['bloco'])} | "
                       f"{_pct(n['cpu'])} | {_pct(n['juiz'])} | {len(r['so_o_juiz_matou'])} | "
-                      f"{len(r['sobreviventes'])} |")
+                      f"{len(o['escaparam']) if o else len(r['sobreviventes'])} |")
     return "\n".join(linhas) + "\n"

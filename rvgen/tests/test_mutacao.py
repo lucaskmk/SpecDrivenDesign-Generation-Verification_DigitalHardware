@@ -91,6 +91,9 @@ class ExecutorFalso:
     def rodar_componente(self, pasta, *, componente, teste, json_saida, workdir,
                          build_root, fontes=None, vcd=None, timeout=0):
         v = self._vhdl(pasta)
+        if teste.name == "oraculo.py":           # referencia: so o bit de "others" importa
+            rel = {"compilacao": {"ok": True}, "passed": "others => '0'" not in v}
+            return Execucao([], 0, rel, "", 0.1, json_saida)
         compila = "rem" not in v                  # rem sobre unsigned: "nao compila"
         passou = compila and not (componente == "bloco" and "/=" in v) \
             and not (componente == "cpu" and "x\"00000001\"" in v)
@@ -140,6 +143,29 @@ class TestRodar(unittest.TestCase):
         self.assertEqual(len(r["sobreviventes"]), viaveis - 3)
         self.assertIn("juiz", mut.resumo_texto(r))
         self.assertIn("| `cpu_x` | `bloco` |", mut.resumo_markdown([r]))
+
+    def test_oraculo_separa_equivalentes_de_escapados(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cpu = Path(tmp) / "cpu_z"
+            (cpu / "src").mkdir(parents=True)
+            (cpu / "src" / "bloco.vhd").write_text(VHDL, encoding="utf-8")
+            (cpu / "architecture.json").write_text(json.dumps(
+                {"blocks": [{"name": "bloco", "file": "src/bloco.vhd"}]}))
+            sessao = cpu / ".rvgen" / "sessao-1"
+            (sessao / "testes").mkdir(parents=True)
+            (sessao / "testes" / "test_bloco.py").write_text("# t\n", encoding="utf-8")
+            (sessao / "resultado.json").write_text(json.dumps({"veredito": "aprovado"}))
+            r = mut.rodar(cpu, "bloco", isa="rv32i", trabalho=Path(tmp) / "t",
+                          executor=ExecutorFalso("src/bloco.vhd"), oraculo=Path("oraculo.py"),
+                          relatar=lambda _: None)
+        o = r["oraculo"]
+        escaparam = {d["mutado"] for d in r["resultados"] if d["id"] in o["escaparam"]}
+        self.assertEqual(escaparam, {"'0'"})
+        self.assertEqual(len(o["equivalentes"]) + len(o["escaparam"]), len(r["sobreviventes"]))
+        s = r["por_nivel_sem_equivalentes"]
+        self.assertEqual(s["juiz"]["viaveis"], r["por_nivel"]["juiz"]["viaveis"] - len(o["equivalentes"]))
+        self.assertIn("escaparam de todos", mut.resumo_texto(r))
+        self.assertIn("| 1 |", mut.resumo_markdown([r]).splitlines()[-1][-6:])
 
     def test_original_reprovado_invalida_a_medida(self):
         with tempfile.TemporaryDirectory() as tmp:
