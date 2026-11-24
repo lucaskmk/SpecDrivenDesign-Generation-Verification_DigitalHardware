@@ -91,6 +91,10 @@ class ExecutorFalso:
     def rodar_componente(self, pasta, *, componente, teste, json_saida, workdir,
                          build_root, fontes=None, vcd=None, timeout=0):
         v = self._vhdl(pasta)
+        if teste.name == "oraculo_cpu.py":       # oraculo no nivel da cpu: todas as fontes
+            assert componente == "cpu" and len(fontes) == 2, (componente, fontes)
+            rel = {"compilacao": {"ok": True}, "passed": "others => '0'" not in v}
+            return Execucao([], 0, rel, "", 0.1, json_saida)
         if teste.name == "oraculo.py":           # referencia: so o bit de "others" importa
             rel = {"compilacao": {"ok": True}, "passed": "others => '0'" not in v}
             return Execucao([], 0, rel, "", 0.1, json_saida)
@@ -166,6 +170,25 @@ class TestRodar(unittest.TestCase):
         self.assertEqual(s["juiz"]["viaveis"], r["por_nivel"]["juiz"]["viaveis"] - len(o["equivalentes"]))
         self.assertIn("escaparam de todos", mut.resumo_texto(r))
         self.assertIn("| 1 |", mut.resumo_markdown([r]).splitlines()[-1][-6:])
+
+    def test_oraculo_de_cpu_roda_na_entidade_cpu(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cpu = Path(tmp) / "cpu_w"
+            (cpu / "src").mkdir(parents=True)
+            (cpu / "src" / "bloco.vhd").write_text(VHDL, encoding="utf-8")
+            (cpu / "src" / "cpu.vhd").write_text("-- topo\n", encoding="utf-8")
+            (cpu / "cpu.toml").write_text(
+                '[design]\nname = "w"\ntop = "cpu"\nstd = "08"\n'
+                'sources = ["src/bloco.vhd", "src/cpu.vhd"]\n', encoding="utf-8")
+            sessao = cpu / ".rvgen" / "sessao-1"
+            (sessao / "testes").mkdir(parents=True)
+            (sessao / "testes" / "test_bloco.py").write_text("# t\n", encoding="utf-8")
+            (sessao / "resultado.json").write_text(json.dumps({"veredito": "aprovado"}))
+            r = mut.rodar(cpu, "bloco", isa="rv32im", trabalho=Path(tmp) / "t",
+                          executor=ExecutorFalso("src/bloco.vhd"),
+                          oraculo=Path("oraculo_cpu.py"), relatar=lambda _: None)
+        self.assertEqual(r["oraculo"]["componente"], "cpu")
+        self.assertEqual(len(r["oraculo"]["escaparam"]), 1)
 
     def test_original_reprovado_invalida_a_medida(self):
         with tempfile.TemporaryDirectory() as tmp:

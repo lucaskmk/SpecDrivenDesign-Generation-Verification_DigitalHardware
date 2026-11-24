@@ -13,6 +13,7 @@
     python -m rvgen comparar              experimentos lado a lado
     python -m rvgen telemetria            chamadas, tokens, tempo e falhas por fase
     python -m rvgen interfaces [cpu...]   codigos combinados entre blocos (sem IA)
+    python -m rvgen oraculo-m <cpu...>    as 8 operacoes do M em 256 pares de borda (GHDL)
     python -m rvgen mutacao <cpu> --bloco muldiv
                                           mutation score dos testes gerados (GHDL)
 
@@ -444,6 +445,26 @@ def cmd_interfaces(args: argparse.Namespace) -> int:
         if args.json:
             (pasta / "interfaces.json").write_text(itf.como_json(pasta, ligacoes), encoding="utf-8")
     return 1 if total else 0
+
+
+def cmd_oraculo_m(args: argparse.Namespace) -> int:
+    """Roda rvgen/oraculo_m_cpu.py na entidade `cpu` de cada CPU (sem IA)."""
+    executor = ex.ExecutorLocal()
+    teste = REPO_ROOT / "rvgen" / "oraculo_m_cpu.py"
+    reprovadas = 0
+    for nome in args.cpus:
+        cpu = resolver_pasta(nome)
+        trabalho = REPO_ROOT / "out" / "oraculo_m" / cpu.name
+        r = executor.rodar_componente(
+            cpu, componente="cpu", teste=teste, json_saida=trabalho / "resultado.json",
+            workdir=trabalho / "sim", build_root=trabalho / "build",
+            fontes=[cpu / f for f in mut.fontes_da_cpu(cpu)], timeout=900)
+        rel = r.relatorio or {}
+        passou = bool(rel.get("passed"))
+        reprovadas += not passou
+        detalhe = "" if passou else " " + str(rel.get("diagnostico") or rel.get("detail") or r.saida)[-400:]
+        print(f"{cpu.name}: {'PASSOU' if passou else 'REPROVOU'} ({r.segundos:.0f} s){detalhe}")
+    return 1 if reprovadas else 0
 
 
 def cmd_mutacao(args: argparse.Namespace) -> int:
@@ -915,6 +936,11 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("pastas", nargs="*", help="CPUs ou pastas de CPUs (padrao: experimentos/)")
     i.add_argument("--json", action="store_true", help="grava <cpu>/interfaces.json")
     i.set_defaults(func=cmd_interfaces)
+
+    o = sub.add_parser("oraculo-m",
+                       help="as 8 operacoes do M nos 256 pares de borda, na entidade cpu (sem IA)")
+    o.add_argument("cpus", nargs="+", help="CPUs RV32IM (pasta ou nome em experimentos/)")
+    o.set_defaults(func=cmd_oraculo_m)
 
     m = sub.add_parser("mutacao",
                        help="mutantes de um bloco: quantos os testes de componente e o juiz pegam")

@@ -34,3 +34,35 @@ class TestReferenciaM(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProgramaDoOraculo(unittest.TestCase):
+
+    def test_carregar_qualquer_valor_com_lui_e_addi(self):
+        from rvgen.referencia_m import _carregar
+
+        def executar(linhas):
+            regs = {}
+            for linha in linhas:
+                op, resto = linha.split(None, 1)
+                a = [x.strip() for x in resto.split(",")]
+                regs[a[0]] = ((int(a[1], 16) << 12) if op == "lui"
+                              else regs[a[1]] + int(a[2])) & M32
+            return regs
+
+        for v in (0, 1, 0x7FF, 0x800, 0xFFF, 0x1000, MIN, 0x7FFFFFFF, M32, 0x12345678, 0xFFFFF800):
+            self.assertEqual(executar(_carregar("x5", v))["x5"], v, hex(v))
+
+    def test_programa_cobre_os_256_pares_e_as_8_operacoes(self):
+        from rvgen.referencia_m import BASE, OPERACOES, VALORES, programa
+        fonte, esperados = programa()
+        self.assertEqual(len(esperados), len(VALORES) ** 2 * 8)
+        self.assertEqual({f3 for _, f3, _, _ in esperados}, set(range(8)))
+        enderecos = [e for e, _, _, _ in esperados]
+        self.assertEqual(len(set(enderecos)), len(enderecos))
+        self.assertEqual(min(enderecos), BASE)
+        for op in OPERACOES:
+            self.assertIn(f"{op} x7, x5, x6", fonte)
+        self.assertTrue(fonte.rstrip().endswith("halt: jal x0, halt"))
+        # sem pseudoinstrucoes: o montador do rvgen as recusa
+        self.assertNotIn("li ", fonte)

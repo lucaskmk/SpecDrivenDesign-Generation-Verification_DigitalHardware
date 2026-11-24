@@ -356,22 +356,30 @@ def rodar(cpu: Path, bloco: str, *, isa: str, trabalho: Path, executor,
 
 
 def aplicar_oraculo(resumo: dict, trabalho: Path, executor, oraculo: Path,
-                    relatar: Callable[[str], None] = print) -> dict:
+                    relatar: Callable[[str], None] = print,
+                    componente: str | None = None) -> dict:
     """Classifica os sobreviventes de um resumo com um teste de referência.
 
     Usa as cópias dos mutantes já gravadas em `trabalho` (`<id>/cpu`); o
-    bloco original precisa passar no oráculo, senão a classificação não vale."""
+    bloco original precisa passar no oráculo, senão a classificação não vale.
+    O oráculo roda no próprio bloco (ex.: `oraculo_m.py`) ou, se o nome
+    termina em `_cpu` (ex.: `oraculo_m_cpu.py`), na entidade `cpu` com todas
+    as fontes, o que serve a blocos de qualquer interface."""
     bloco = resumo["bloco"]
     arquivo = resumo.get("arquivo") or f"src/{bloco}.vhd"
     oraculo = Path(oraculo).resolve()
+    componente = componente or ("cpu" if oraculo.stem.endswith("_cpu") else bloco)
 
     def passa(ident: str) -> bool:
         pasta = trabalho / ident / "cpu"
+        fontes = ([pasta / f for f in fontes_da_cpu(pasta)] if componente == "cpu"
+                  else [pasta / arquivo])
         ex = executor.rodar_componente(
-            pasta, componente=bloco, teste=oraculo,
-            json_saida=trabalho / ident / "oraculo.json",
-            workdir=trabalho / ident / "oraculo-sim", build_root=trabalho / ident / "oraculo-build",
-            fontes=[pasta / arquivo], timeout=600)
+            pasta, componente=componente, teste=oraculo,
+            json_saida=trabalho / ident / f"{oraculo.stem}.json",
+            workdir=trabalho / ident / f"{oraculo.stem}-sim",
+            build_root=trabalho / ident / f"{oraculo.stem}-build",
+            fontes=fontes, timeout=900)
         return bool((ex.relatorio or {}).get("passed"))
 
     if not passa("original"):
@@ -380,7 +388,8 @@ def aplicar_oraculo(resumo: dict, trabalho: Path, executor, oraculo: Path,
     for ident in resumo["sobreviventes"]:
         (equivalentes if passa(ident) else escaparam).append(ident)
         relatar(f"  oraculo {ident}: {'equivalente' if ident in equivalentes else 'ESCAPOU'}")
-    resumo["oraculo"] = {"arquivo": oraculo.name, "equivalentes": equivalentes,
+    resumo["oraculo"] = {"arquivo": oraculo.name, "componente": componente,
+                         "equivalentes": equivalentes,
                          "escaparam": escaparam}
     nao_equiv = [r for r in resumo["resultados"] if r["compila"] and r["id"] not in equivalentes]
 

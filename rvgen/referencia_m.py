@@ -45,3 +45,33 @@ def referencia(f3: int, a: int, b: int) -> int:
             return 0
         return (sa - _trunc_div(sa, sb) * sb) & M32
     return a if b == 0 else a % b
+
+
+# --- programa RV32IM do oraculo no nivel da CPU (rvgen/oraculo_m_cpu.py) ---
+
+OPERACOES = ("mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu")
+BASE = 0x00001000
+
+
+def _carregar(reg: str, valor: int) -> list[str]:
+    alto = ((valor + 0x800) >> 12) & 0xFFFFF
+    baixo = valor - ((alto << 12) & 0xFFFFFFFF)
+    baixo = ((baixo + 0x800) & 0xFFF) - 0x800          # 12 bits com sinal
+    return [f"lui {reg}, {alto:#x}", f"addi {reg}, {reg}, {baixo}"]
+
+
+def programa() -> tuple[str, list[tuple[int, int, int, int]]]:
+    """Fonte assembly e a lista (endereço, funct3, a, b) de cada store."""
+    linhas = [*_carregar("x8", BASE)]
+    esperados = []
+    endereco = BASE
+    for a in VALORES:
+        for b in VALORES:
+            linhas += _carregar("x5", a) + _carregar("x6", b)
+            for f3, op in enumerate(OPERACOES):
+                linhas += [f"{op} x7, x5, x6", f"sw x7, {4 * f3}(x8)"]
+                esperados.append((endereco + 4 * f3, f3, a, b))
+            linhas.append("addi x8, x8, 32")
+            endereco += 32
+    linhas.append("halt: jal x0, halt")
+    return "\n".join(linhas), esperados
