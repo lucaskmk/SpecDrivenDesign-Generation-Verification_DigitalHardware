@@ -47,15 +47,27 @@ queda da sessão do assistente.
 
 ### Mutação dos blocos do M
 
-`luna6_evolui_im_5/mutacao/muldiv.json` e
-`luna6_evolui_im_3/mutacao/rv32m_unit.json` (`docs/artigo.md`, seção 4.10):
-os testes de componente da IA mataram 19% e 27% dos mutantes, o juiz 77% e
-83%, e 10 mutantes de cada bloco escaparam de tudo (guardas de overflow da
-divisão). Para refazer (no Docker do veredito; não chama IA):
+`<cpu>/mutacao/<bloco>.json` em `luna6_evolui_im_5` (`muldiv`),
+`luna6_evolui_im_3` (`rv32m_unit`), `sol6_evolui_im_1` (`m_unit`),
+`carbon4_evolui_im_1` (`muldiv_unit`) e `sonnet55_evolui_im_2`
+(`multiplier`, `divider`) (`docs/artigo.md`, seção 4.10): os testes de
+componente da IA mataram de 19% (luna 6) a 88% (Gemini) dos mutantes, o juiz
+de 76% a 83%, e o que escapou de tudo está nas guardas de overflow da
+divisão. Para refazer (no Docker do veredito; não chama IA):
 
 ```bash
-python3 -m rvgen mutacao experimentos/luna6_evolui_im_5 --bloco muldiv --oraculo rvgen/oraculo_m.py
+python3 -m rvgen mutacao experimentos/luna6_evolui_im_5 --bloco muldiv --oraculo rvgen/oraculo_m_cpu.py
 ```
+
+### Checagens sem IA em qualquer CPU
+
+```bash
+python3 -m rvgen oraculo-m luna6_im_1 sol6_evolui_im_1   # M em 256 pares de borda, na entidade cpu
+python -m rvgen interfaces                               # codigos entre blocos, todas as CPUs
+```
+
+As 12 CPUs RV32IM aprovadas passam no oráculo; a checagem de interfaces
+acusa só a `luna6_abl_m_reduzida_4` (`docs/artigo.md`, seção 4.11).
 
 ### `luna6_prof_3`
 

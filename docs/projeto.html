@@ -146,7 +146,8 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
     <li><b>Resultado principal:</b> a CPU <code>experimentos/luna6_prof_3</code> (RV32I monociclo, gerada pelo <code>openai/gpt-6-luna</code>) passou <b>40/40</b> programas do <code>riscv-tests</code> no <code>spec-riscv-test</code>, o juiz do <code>rvgen</code>, sem nenhuma iteração de correção do VHDL. Antes disso o <code>spec-riscv-test</code> nunca tinha rodado numa CPU gerada.</li>
     <li><b>Evoluir em vez de gerar do zero (06/11):</b> com o novo <code>--evoluir-de</code>, a CPU RV32I aprovada virou RV32IM (<code>luna6_evolui_im_3</code>, 48/48) criando um bloco próprio para o M (<code>rv32m_unit</code>) e mudando só o <code>cpu</code>, que apenas integra; os outros 4 blocos ficaram iguais. 28 chamadas e ~US$ 0,06, contra 68 chamadas e ~US$ 0,13 gerando do zero. Antes de mudar, ela roda todos os testes antigos e lê o diff das specs. Ver <a href="#evoluir">Evoluir</a>.</li>
     <li><b>A spec do M não foi o que fez acertar o M (23/11):</b> 3 rodadas com a <code>riscv-rv32m.md</code> completa e 3 com ela reduzida à tabela de codificação (sem divisão por zero, overflow e exemplos). Com o <code>gpt-6-luna</code>, todas as CPUs que chegaram ao juiz trataram os casos especiais mesmo assim; 5 aprovadas com 8/8 no M. A única reprovação (1/48) foi um desencontro de códigos entre dois blocos, não do M. Ver <a href="#ablacao-m">Ablação</a>.</li>
-    <li><b>Os testes da IA pegam pouco (23/11):</b> por mutação nos blocos do M, os testes de componente gerados mataram 19% a 27% dos mutantes, o juiz oficial 77% a 83%, e 10 por bloco escaparam de tudo. Ver <a href="#mutacao">Mutação</a>.</li>
+    <li><b>A qualidade dos testes da IA depende do modelo (24/11):</b> por mutação nos blocos do M dos 4 modelos, os testes de componente gerados mataram de 19% (luna 6) a 88% (gemini-4-carbon) dos mutantes, com o mesmo número de testes; o juiz oficial ficou entre 76% e 83%. Os erros que escaparam de tudo estão nas proteções de overflow da divisão. Ver <a href="#mutacao">Mutação</a>.</li>
+    <li><b>Duas checagens novas sem IA (24/11):</b> um oráculo do M que roda em qualquer CPU (as 12 RV32IM aprovadas passam) e uma checagem dos códigos combinados entre blocos (acusa só a CPU que reprovou). O laço de correção do juiz não desiste mais com rodadas sobrando. Ver <a href="#checagens">Checagens</a>.</li>
     <li><b>Telemetria por fase (23/11):</b> <code>python -m rvgen telemetria</code> soma, por grupo de fases, chamadas, tokens, tempo, falhas, recusas e erros a partir do <code>sessao.jsonl</code>, sem custo de IA. Nos 4 modelos da comparação, os testes de componente levam 65% a 74% das chamadas e o laço do juiz não foi usado por nenhum. Ver <a href="#telemetria">Telemetria</a>.</li>
     <li><b>RV32IM também funciona (06/11):</b> com a referência do M em <code>specs/riscv-rv32m.md</code>, o mesmo modelo gerou a <code>experimentos/luna6_im_1</code>, que passou <b>48/48</b> (40 do I + 8 do M; <b>8/8</b> rodando só o M), sem correção de VHDL, numa execução só e por cerca de US$ 0,13. Antes, uma CPU IM escrita à mão (<code>cpus/rv32im_gabarito</code>) provou o caminho do M no juiz: 48/48, enquanto a CPU sem M tira 0/8 nos programas do M.</li>
     <li><b>Segunda opinião:</b> no <code>rvverify</code> a mesma CPU passa os 24 casos RV32I, mas o veredito dele é <b>“parcial”</b> (só a etapa RV32I foi pedida). Esse 24/24 vem de uma execução manual cujo relatório não está versionado.</li>
@@ -538,17 +539,29 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <li>Total gasto na ablação: cerca de US$ 1,13. Dois defeitos do gerador apareceram e foram corrigidos (regressão com vários testes recusada; teste que simulava para sempre).</li>
 </ul>
 
-<h3 id="mutacao">Os testes que a IA escreve pegam erros? (mutação, 23/11/2026)</h3>
-<p><code>python -m rvgen mutacao</code> faz pequenas mudanças no VHDL de um bloco aprovado (troca de operador, constante, condição, bit de seleção) e vê quem pega: os testes de componente da IA, os do <code>cpu</code> ou o juiz oficial. Um oráculo sem IA (<code>rvgen/oraculo_m.py</code>, modelo Python do M em 256 pares de valores de borda) separa os mutantes que não mudam nada (equivalentes) dos defeitos reais que escaparam. Sem custo de IA.</p>
+<h3 id="mutacao">Os testes que a IA escreve pegam erros? (mutação, 23–24/11/2026)</h3>
+<p><code>python -m rvgen mutacao</code> faz pequenas mudanças no VHDL de um bloco aprovado (troca de operador, constante, condição, bit de seleção) e vê quem pega: os testes de componente da IA, os do <code>cpu</code> ou o juiz oficial. Um oráculo sem IA (modelo Python do M em 256 pares de valores de borda) separa os mutantes que não mudam nada (equivalentes) dos defeitos reais que escaparam. Medido nos blocos só do M das CPUs dos 4 modelos, todos com 5 testes por bloco. Sem custo de IA.</p>
 <div class="tblwrap"><table>
-  <tr><th>CPU / bloco</th><th>Mutantes (viáveis)</th><th>Equivalentes</th><th>Testes do bloco (IA)</th><th>Testes do <code>cpu</code> (IA)</th><th>Juiz oficial</th><th>Escaparam de tudo</th></tr>
-  <tr><td><code>luna6_evolui_im_5</code> / <code>muldiv</code></td><td>66 (50)</td><td>7</td><td>8/43 (19%)</td><td>1/43 (2%)</td><td>33/43 (77%)</td><td>10</td></tr>
-  <tr><td><code>luna6_evolui_im_3</code> / <code>rv32m_unit</code></td><td>82 (66)</td><td>6</td><td>16/60 (27%)</td><td>1/60 (2%)</td><td>50/60 (83%)</td><td>10</td></tr>
+  <tr><th>Modelo / bloco</th><th>Mutantes reais</th><th>Testes do bloco (IA)</th><th>Testes do <code>cpu</code> (IA)</th><th>Juiz oficial</th><th>Só a IA pegou</th><th>Escaparam de tudo</th></tr>
+  <tr><td>luna 6 / <code>muldiv</code></td><td>43</td><td>19%</td><td>2%</td><td>77%</td><td>0</td><td>10</td></tr>
+  <tr><td>luna 6 / <code>rv32m_unit</code></td><td>60</td><td>27%</td><td>2%</td><td>83%</td><td>0</td><td>10</td></tr>
+  <tr><td>gpt-6-sol / <code>m_unit</code></td><td>43</td><td>23%</td><td>2%</td><td>77%</td><td>0</td><td>10</td></tr>
+  <tr><td>gemini-4-carbon / <code>muldiv_unit</code></td><td>42</td><td><b>88%</b></td><td>0%</td><td>76%</td><td><b>5</b></td><td>5</td></tr>
+  <tr><td>claude-sonnet-5.5 / <code>multiplier</code></td><td>10</td><td>100%</td><td>0%</td><td>100%</td><td>0</td><td>0</td></tr>
+  <tr><td>claude-sonnet-5.5 / <code>divider</code></td><td>28</td><td>43%</td><td>4%</td><td>79%</td><td>0</td><td>6</td></tr>
 </table></div>
 <ul>
-  <li><b>Os testes da IA pegam pouco</b> e nada que o juiz não pegue. Com 4 casos por bloco, os testes do <code>muldiv</code> são quase só multiplicação.</li>
-  <li><b>O juiz pega a maioria, não tudo.</b> Os 20 que escaparam estão nas proteções de overflow da divisão (por exemplo, <code>x ÷ −1</code> dar <code>0x80000000</code>): o <code>riscv-tests</code> só divide por −1 o próprio −2^31.</li>
-  <li>Conclusão para o paper: testes gerados são portão barato, não prova; e um oráculo dirigido aos casos de borda da spec fecha o que o juiz não vê.</li>
+  <li><b>Depende muito do modelo.</b> Com o mesmo número de testes, os do luna 6 e do sol pegam 19–27%; os do Gemini, 88%, e pegaram 5 erros que o juiz não pegou.</li>
+  <li><b>O juiz oficial é estável:</b> 76–83% nos blocos que dividem. Os testes do <code>cpu</code> quase não tocam o M.</li>
+  <li><b>O que escapa de tudo</b> (41 mutantes) está nas proteções de overflow da divisão, por exemplo <code>x ÷ −1</code> dar <code>0x80000000</code>: o <code>riscv-tests</code> só divide por −1 o próprio −2^31.</li>
+  <li>Para o paper: o testador é o papel em que os modelos mais diferem, e é o que o UCAgent automatiza. Um bloco por modelo (dois no luna 6): é indício.</li>
+</ul>
+
+<h3 id="checagens">Duas checagens sem IA (24/11/2026)</h3>
+<ul>
+  <li><b>Oráculo do M na CPU inteira</b> (<code>python -m rvgen oraculo-m &lt;cpu&gt;</code>): um programa RISC-V faz as 8 operações do M em 256 pares de valores de borda e confere cada resultado. Serve para qualquer CPU. O gabarito RV32IM passa e o RV32I (sem M) reprova; <b>as 12 CPUs RV32IM aprovadas passam</b>, inclusive nas divisões por −1 que o <code>riscv-tests</code> não testa. Só a <code>reduzida_4</code> reprova. 3 s por CPU.</li>
+  <li><b>Códigos combinados entre blocos</b> (<code>python -m rvgen interfaces</code>): confere se cada código que um bloco manda para outro é entendido do outro lado. Nas 25 CPUs do repositório, acusa só a <code>reduzida_4</code> (o <code>alu_op</code> do M que a <code>alu</code> não conhece). Não pega código igual com significado diferente.</li>
+  <li><b>Laço do juiz:</b> não desiste mais quando as hipóteses são refutadas e ainda há rodadas, e recebe o resultado dessa checagem como pista. Testado só com modelo falso; falta uma rodada real.</li>
 </ul>
 
 <h3 id="rotulos">Rótulos de rastreabilidade (<code>--rotulos</code>, 23/11/2026)</h3>
@@ -1347,6 +1360,7 @@ python -m rvgen preparar --verificar</code></pre>
 <p>Ao mudar este documento, acrescente uma linha aqui e atualize o resumo do topo.</p>
 <div class="tblwrap"><table>
   <tr><th>Data</th><th>O que mudou</th></tr>
+  <tr><td>24/11/2026</td><td>Mutação nos blocos do M dos 4 modelos (testes da IA de 19% a 88%, juiz 76–83%); oráculo do M na CPU inteira (12 aprovadas passam); checagem dos códigos entre blocos (acusa só a <code>reduzida_4</code>); laço do juiz não desiste com rodadas sobrando. Sem custo de IA.</td></tr>
   <tr><td>23/11/2026</td><td>Datas do topo e resumo do artigo atualizados com a ablação e a mutação; ameaça de escopo corrigida (RV32I e RV32IM monociclo).</td></tr>
   <tr><td>23/11/2026</td><td>Rótulos de rastreabilidade (<code>--rotulos</code>, catálogo <code>specs/rotulos.md</code>, iteração <code>it-003</code>): implementados e testados, sem rodada real ainda.</td></tr>
   <tr><td>23/11/2026</td><td>Ablação da spec do M (8 rodadas, US$ 1,13): sem os casos especiais o luna 6 acerta o M igual; única reprovação por desencontro de <code>alu_op</code> entre blocos. Mutação nos blocos do M com oráculo: testes da IA 19–27%, juiz 77–83%, 10 escapam por bloco. Corrigidos dois defeitos (regressão com vários testes; teste que simulava para sempre). Seção de trabalhos relacionados no artigo.</td></tr>

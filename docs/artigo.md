@@ -276,9 +276,10 @@ Nas rodadas da ablação do M (seção 4.9), mais dois:
 | 6 | `rvgen` (regressão) | O pedido de teste de regressão manda "um teste para a falha e pelo menos três casos de borda", mas o validador exigia exatamente um teste | Respostas com 5 e 6 testes recusadas; a geração abortou (`luna6_abl_m_reduzida_1`) | `66ba857` |
 | 7 | `rvgen` (testes de componente) | Um teste gerado fazia `await clock.start()` (cocotb 2) e simulava para sempre; o executor só desiste depois de 1 h | Rodada parada por quase 10 min até o GHDL ser encerrado à mão (`luna6_abl_m_completa_1`); agora o GHDL roda com `--stop-time=1ms` | `66ba857` |
 
-Um oitavo problema ficou em aberto: o laço de correção do juiz encerra a
-investigação depois de hipóteses refutadas sem tentar uma correção, mesmo
-com rodadas sobrando (seção 4.9, `luna6_abl_m_reduzida_4`).
+Um oitavo problema apareceu na `luna6_abl_m_reduzida_4`: o laço de correção
+do juiz encerrava a investigação depois de hipóteses refutadas sem tentar
+uma correção, mesmo com 9 de 12 rodadas sobrando. Corrigido em `cd381bb`
+(seção 4.11), mas validado só com modelo falso.
 
 Na mesma semana, fora do `rvgen`:
 
@@ -489,37 +490,79 @@ constante, bit de seleção, `signed`/`unsigned`) e roda em cada um três
 níveis de teste: os testes de componente do próprio bloco, os do topo `cpu`
 (ambos escritos pela IA) e o `spec-riscv-test`. Mutante que não compila sai
 da conta; a CPU original precisa passar em tudo antes. Os sobreviventes são
-classificados por um oráculo sem IA (`rvgen/oraculo_m.py`), que compara o
-bloco com um modelo Python do M nos 256 pares de 16 valores de borda: o
-que o oráculo mata escapou de todos os testes; o que ele não mata conta
-como equivalente.
+classificados por um oráculo sem IA (seção 4.11), que compara as 8
+operações do M com um modelo Python da ISA nos 256 pares de 16 valores de
+borda: o que o oráculo mata escapou de todos os testes; o que ele não mata
+conta como equivalente. Foram medidos os blocos só do M das CPUs evoluídas
+pelos quatro modelos da seção 4.7, todos com `--max-casos-teste 4` (5
+testes por bloco).
 
-| CPU | Bloco | Mutantes (viáveis) | Equivalentes | Testes do bloco | Testes do `cpu` | Juiz | Escaparam de tudo |
-|---|---|---|---|---|---|---|---|
-| `luna6_evolui_im_5` | `muldiv` | 66 (50) | 7 | 8/43 (19%) | 1/43 (2%) | 33/43 (77%) | 10 |
-| `luna6_evolui_im_3` | `rv32m_unit` | 82 (66) | 6 | 16/60 (27%) | 1/60 (2%) | 50/60 (83%) | 10 |
+| Modelo | CPU / bloco | Viáveis sem equivalentes | Equivalentes | Testes do bloco (IA) | Testes do `cpu` (IA) | Juiz | Só a IA pegou | Escaparam de tudo |
+|---|---|---|---|---|---|---|---|---|
+| `gpt-6-luna` | `luna6_evolui_im_5` / `muldiv` | 43 | 7 | 8 (19%) | 1 (2%) | 33 (77%) | 0 | 10 |
+| `gpt-6-luna` | `luna6_evolui_im_3` / `rv32m_unit` | 60 | 6 | 16 (27%) | 1 (2%) | 50 (83%) | 0 | 10 |
+| `gpt-6-sol` | `sol6_evolui_im_1` / `m_unit` | 43 | 6 | 10 (23%) | 1 (2%) | 33 (77%) | 0 | 10 |
+| `gemini-4-carbon` | `carbon4_evolui_im_1` / `muldiv_unit` | 42 | 7 | **37 (88%)** | 0 | 32 (76%) | **5** | 5 |
+| `claude-sonnet-5.5` | `sonnet55_evolui_im_2` / `multiplier` | 10 | 0 | 10 (100%) | 0 | 10 (100%) | 0 | 0 |
+| `claude-sonnet-5.5` | `sonnet55_evolui_im_2` / `divider` | 28 | 2 | 12 (43%) | 1 (4%) | 22 (79%) | 0 | 6 |
 
-Percentuais sem os equivalentes. Fonte: `experimentos/<cpu>/mutacao/<bloco>.json`.
+Fonte: `experimentos/<cpu>/mutacao/<bloco>.json`. "Só a IA pegou": mortos
+pelos testes de componente e não pelo juiz.
 
-- **Os testes que a IA escreveu pegam pouco:** 19% e 27% dos mutantes, e
-  nada que o juiz não pegue (nenhum mutante foi morto só pelos testes de
-  componente). Com `--max-casos-teste 4`, o `muldiv` tem 5 testes: 4
-  multiplicações e uma `DIVU`, nenhum de divisão com sinal, resto ou
-  divisor zero.
-- **O juiz oficial pega a maioria, não tudo:** 77% e 83%.
-- **Os 20 que escaparam estão nas guardas de overflow** de `DIV` e `REM`
+- **A qualidade dos testes gerados depende do modelo, com o mesmo
+  orçamento de 5 testes por bloco:** 19% a 27% nos blocos do `gpt-6-luna` e
+  do `gpt-6-sol`, 43% e 100% nos do Sonnet, 88% no do Gemini. No `muldiv`
+  do luna 6, os 5 testes são 4 multiplicações e uma `DIVU`; nenhum testa
+  divisão com sinal, resto ou divisor zero.
+- **O juiz oficial é estável e pega a maioria, não tudo:** 76% a 83% nos
+  blocos que dividem. Os testes do topo `cpu` quase não exercitam o M (0% a
+  4%).
+- **Os testes gerados nem sempre são redundantes com o juiz:** no bloco do
+  Gemini, 5 mutantes só foram pegos pelos testes de componente.
+- **O que escapou de tudo está nas guardas de overflow** de `DIV` e `REM`
   (por exemplo, `and` trocado por `or` faz `x ÷ −1` dar `0x80000000` para
-  todo `x`). O `riscv-tests` só divide por −1 o próprio −2^31, e os testes
-  gerados não dividem por −1. São defeitos reais que a CPU aprovada poderia
-  ter e que nenhum dos dois níveis veria.
+  todo `x`): 41 mutantes nos 6 blocos. O `riscv-tests` só divide por −1 o
+  próprio −2^31. São defeitos reais que uma CPU aprovada poderia ter e que
+  só o oráculo dirigido aos casos de borda vê.
 - **Equivalentes:** a guarda de overflow do `REM` é redundante (`x rem −1`
   já é 0 no `numeric_std`), e `rem` e `mod` coincidem em operandos sem
   sinal.
 
-Para o paper, isto responde "a IA testa bem?" de forma objetiva: os testes
-de componente servem de portão barato durante a geração, mas não substituem
-o juiz oficial, e o juiz oficial também tem pontos cegos que um oráculo
-dirigido aos casos de borda da spec fecha.
+Para o paper, isto responde "a IA testa bem?" de forma objetiva: depende
+muito do modelo; os testes de componente servem de portão barato durante a
+geração, mas, para a maioria dos modelos, não substituem o juiz oficial, e
+o juiz oficial também tem pontos cegos que um oráculo dirigido aos casos de
+borda da spec fecha. n = 1 bloco por modelo (2 no luna 6).
+
+### 4.11 Duas checagens sem IA
+
+**Oráculo do M no nível da CPU** (`python -m rvgen oraculo-m`,
+`rvgen/oraculo_m_cpu.py`). Um programa RV32IM carrega os 256 pares de borda
+e executa as 8 operações do M em cada um (2.048 resultados, gravados com
+`sw`); o testbench serve ROM e RAM pelas portas fixas da entidade `cpu` e
+compara cada store com o modelo Python. Por usar só a entidade `cpu`, vale
+para qualquer decomposição. Controles: o `cpus/rv32im_gabarito` passa e o
+`cpus/rv32i_gabarito` (sem M) reprova. Resultado: **as 12 CPUs RV32IM
+aprovadas do repositório passam**, inclusive nas divisões por −1 que o
+`riscv-tests` não testa; só a `luna6_abl_m_reduzida_4` reprova. Cerca de 3 s
+por CPU. Na mutação, classificou os sobreviventes do `muldiv` e do
+`rv32m_unit` exatamente como o oráculo de bloco (`rvgen/oraculo_m.py`).
+
+**Códigos combinados entre blocos** (`python -m rvgen interfaces`,
+`rvgen/interfaces.py`). Para cada sinal do topo que liga a saída de um bloco
+à entrada de outro, compara os literais de bits que o produtor atribui com
+os que o consumidor decodifica (`case`/`when` e comparações). Código que um
+bloco consumidor não decodifica é problema; quando o consumidor é o próprio
+topo, só aviso, porque o topo costuma filtrar antes. Nas 25 CPUs do
+repositório, acusa só a `luna6_abl_m_reduzida_4`: a `control_unit` emite
+`alu_op` de `10010` a `10110` que a `alu` não decodifica. Limites: só olha
+literais (aplica-se a 11 das 25 CPUs) e não pega um código igual com
+significado diferente (o `01010` que era `LUI` de um lado e `MUL` do outro).
+
+O laço de correção do juiz passou a receber esse resultado como evidência e
+não encerra mais quando a investigação adaptativa se esgota com rodadas
+sobrando (commit `cd381bb`). As duas mudanças foram testadas com modelo
+falso; ainda não houve uma rodada real que precisasse delas.
 
 ## 5 Discussão
 
@@ -553,14 +596,17 @@ contraditória, rótulo trocado entre comparação com e sem sinal).
 `gpt-6-luna` errar o M em nenhuma das CPUs que chegaram ao juiz. A única
 reprovação veio de dois blocos que combinaram códigos `alu_op` diferentes, e
 o laço de correção do juiz, exercitado pela primeira vez, não a resolveu.
-Isso sugere investir em checagem automática das interfaces entre blocos
-(por exemplo, o código de operação ser fixado num contrato compartilhado),
-não em mais texto sobre a ISA.
+Isso sugere investir em checagem automática das interfaces entre blocos,
+não em mais texto sobre a ISA; uma primeira checagem sem IA, que acusa esse
+caso e nenhuma CPU aprovada, está na seção 4.11.
 
-**Testes gerados são portão, não prova.** Os testes de componente que a IA
-escreveu mataram de 19% a 27% dos mutantes do bloco do M, contra 77% a 83%
-do juiz oficial (seção 4.10). Os mutantes que escaparam dos dois estão em
-casos de borda que nenhum dos dois exercita.
+**A qualidade do testador varia mais que a do gerador.** Os quatro
+modelos geraram CPUs aprovadas com o M correto (seções 4.7 e 4.11), mas os
+testes de componente que escreveram para o M mataram de 19% (`gpt-6-luna`)
+a 88% (`gemini-4-carbon`) dos mutantes, com o mesmo orçamento de testes; o
+juiz oficial ficou entre 76% e 83% (seção 4.10). É no testador, o papel
+que o UCAgent automatiza, que está a maior diferença entre modelos, e um
+oráculo sem IA dirigido aos casos de borda fecha o que nem o juiz vê.
 
 **Juízes também precisam de gabarito.** Os dois defeitos do `rvverify`
 apareceram só quando uma CPU sabidamente correta foi julgada. Sem o
@@ -675,13 +721,14 @@ que este trabalho acrescenta:
   `python -m rvgen comparar`.
 - Modelos diferentes por papel (redator, revisor, VHDL, testbench).
 - Dividir `rvgen/agente.py` em módulos por fase.
-- Laço de correção do juiz: tentar uma correção quando as hipóteses são
-  refutadas e ainda há rodadas (seção 4.9).
-- Checagem automática dos códigos compartilhados entre blocos (por exemplo,
-  `alu_op`), que hoje só o juiz final pega.
+- Uma rodada real que exercite o laço do juiz corrigido e a evidência de
+  interfaces (seção 4.11).
+- Checagem de interfaces que pegue também código igual com significado
+  diferente (por exemplo, com testes de integração gerados a partir dos
+  contratos dos dois blocos).
 - Repetir a ablação do M com um modelo local mais fraco.
-- Usar o oráculo do M (e oráculos para outros blocos) como teste de
-  componente durante a geração, fechando os pontos cegos da seção 4.10.
+- Usar o oráculo do M no nível da CPU como portão durante a geração e medir
+  de novo a mutação; oráculos para outras partes da ISA.
 
 ## Reprodutibilidade
 
