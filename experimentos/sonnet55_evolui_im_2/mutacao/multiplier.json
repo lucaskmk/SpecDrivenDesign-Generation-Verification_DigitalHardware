@@ -1,0 +1,260 @@
+{
+  "cpu": "sonnet55_evolui_im_2",
+  "bloco": "multiplier",
+  "isa": "rv32im",
+  "juiz_testes": null,
+  "data": "2026-11-24",
+  "testes_bloco": [
+    "test_multiplier.py",
+    "lote-001-caso-01.py",
+    "lote-002-caso-01.py",
+    "lote-003-caso-01.py",
+    "lote-004-caso-01.py"
+  ],
+  "testes_cpu": [
+    "test_cpu.py",
+    "anterior-lote-001-caso-01.py",
+    "anterior-lote-002-caso-01.py",
+    "anterior-lote-003-caso-01.py",
+    "anterior-lote-005-caso-01.py",
+    "anterior-test_cpu.py",
+    "lote-001-caso-01.py",
+    "lote-002-caso-01.py",
+    "lote-004-caso-01.py",
+    "pendente-lote-013-caso-01.py"
+  ],
+  "mutantes": 14,
+  "natimortos": 4,
+  "por_nivel": {
+    "bloco": {
+      "mortos": 10,
+      "viaveis": 10,
+      "score": 1.0
+    },
+    "cpu": {
+      "mortos": 0,
+      "viaveis": 10,
+      "score": 0.0
+    },
+    "juiz": {
+      "mortos": 10,
+      "viaveis": 10,
+      "score": 1.0
+    }
+  },
+  "componentes_bloco_ou_cpu": {
+    "mortos": 10,
+    "viaveis": 10
+  },
+  "so_o_juiz_matou": [],
+  "so_componentes_mataram": [],
+  "sobreviventes": [],
+  "resultados": [
+    {
+      "id": "m001",
+      "operador": "relacional",
+      "linha": 24,
+      "original": "=",
+      "mutado": "/=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "45/48",
+      "detalhe": "test_multiplier.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m002",
+      "operador": "tipo",
+      "linha": 25,
+      "original": "signed(",
+      "mutado": "unsigned(",
+      "compila": false,
+      "bloco": null,
+      "cpu": null,
+      "juiz": null,
+      "juiz_placar": "",
+      "detalhe": "test_multiplier.py: nao compilou"
+    },
+    {
+      "id": "m003",
+      "operador": "tipo",
+      "linha": 25,
+      "original": "unsigned(",
+      "mutado": "signed(",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "47/48",
+      "detalhe": "test_multiplier.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m004",
+      "operador": "tipo",
+      "linha": 27,
+      "original": "signed(",
+      "mutado": "unsigned(",
+      "compila": false,
+      "bloco": null,
+      "cpu": null,
+      "juiz": null,
+      "juiz_placar": "",
+      "detalhe": "test_multiplier.py: nao compilou"
+    },
+    {
+      "id": "m005",
+      "operador": "relacional",
+      "linha": 31,
+      "original": "=",
+      "mutado": "/=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "46/48",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m006",
+      "operador": "logico",
+      "linha": 31,
+      "original": "or",
+      "mutado": "and",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "46/48",
+      "detalhe": "test_multiplier.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m007",
+      "operador": "relacional",
+      "linha": 31,
+      "original": "=",
+      "mutado": "/=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "46/48",
+      "detalhe": "test_multiplier.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m008",
+      "operador": "tipo",
+      "linha": 32,
+      "original": "signed(",
+      "mutado": "unsigned(",
+      "compila": false,
+      "bloco": null,
+      "cpu": null,
+      "juiz": null,
+      "juiz_placar": "",
+      "detalhe": "test_multiplier.py: nao compilou"
+    },
+    {
+      "id": "m009",
+      "operador": "tipo",
+      "linha": 32,
+      "original": "unsigned(",
+      "mutado": "signed(",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "46/48",
+      "detalhe": "test_multiplier.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m010",
+      "operador": "tipo",
+      "linha": 34,
+      "original": "signed(",
+      "mutado": "unsigned(",
+      "compila": false,
+      "bloco": null,
+      "cpu": null,
+      "juiz": null,
+      "juiz_placar": "",
+      "detalhe": "test_multiplier.py: nao compilou"
+    },
+    {
+      "id": "m011",
+      "operador": "relacional",
+      "linha": 43,
+      "original": "=",
+      "mutado": "/=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "44/48",
+      "detalhe": "test_multiplier.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m012",
+      "operador": "selecao",
+      "linha": 44,
+      "original": "(31 downto 0)",
+      "mutado": "(32 downto 1)",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "47/48",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m013",
+      "operador": "selecao",
+      "linha": 46,
+      "original": "(63 downto 32)",
+      "mutado": "(62 downto 31)",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "45/48",
+      "detalhe": "test_multiplier.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m014",
+      "operador": "selecao",
+      "linha": 46,
+      "original": "(63 downto 32)",
+      "mutado": "(64 downto 33)",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "45/48",
+      "detalhe": "test_multiplier.py: 1 de 1 teste(s) reprovaram"
+    }
+  ],
+  "arquivo": "src/multiplier.vhd",
+  "oraculo": {
+    "arquivo": "oraculo_m_cpu.py",
+    "componente": "cpu",
+    "equivalentes": [],
+    "escaparam": []
+  },
+  "por_nivel_sem_equivalentes": {
+    "bloco": {
+      "mortos": 10,
+      "viaveis": 10,
+      "score": 1.0
+    },
+    "cpu": {
+      "mortos": 0,
+      "viaveis": 10,
+      "score": 0.0
+    },
+    "juiz": {
+      "mortos": 10,
+      "viaveis": 10,
+      "score": 1.0
+    }
+  }
+}
