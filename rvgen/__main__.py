@@ -12,6 +12,7 @@
     python -m rvgen gerar ia_mono ...     so um nome: grava em experimentos/ia_mono
     python -m rvgen comparar              experimentos lado a lado
     python -m rvgen telemetria            chamadas, tokens, tempo e falhas por fase
+    python -m rvgen interfaces [cpu...]   codigos combinados entre blocos (sem IA)
     python -m rvgen mutacao <cpu> --bloco muldiv
                                           mutation score dos testes gerados (GHDL)
 
@@ -33,6 +34,7 @@ from pathlib import Path
 
 from . import comparar as cmp
 from . import telemetria as tel
+from . import interfaces as itf
 from . import mutacao as mut
 from . import rotulos as rot
 from . import contrato as ct
@@ -421,6 +423,27 @@ def cmd_telemetria(args: argparse.Namespace) -> int:
                            encoding="utf-8")
         print(f"\ntabela em Markdown: {destino}")
     return 0
+
+
+def cmd_interfaces(args: argparse.Namespace) -> int:
+    alvos = [Path(a) for a in args.pastas] or [cmp.PASTA_PADRAO]
+    pastas: list[Path] = []
+    for alvo in alvos:
+        if (alvo / "src").is_dir():
+            pastas.append(alvo)
+        elif alvo.is_dir():
+            pastas += sorted(p for p in alvo.iterdir() if (p / "src").is_dir())
+    if not pastas:
+        print("Nenhuma CPU com src/ em " + ", ".join(map(str, alvos)), file=sys.stderr)
+        return 2
+    total = 0
+    for pasta in pastas:
+        ligacoes = itf.checar_cpu(pasta)
+        total += len(itf.problemas(ligacoes))
+        print(itf.texto_relatorio(pasta, ligacoes), end="")
+        if args.json:
+            (pasta / "interfaces.json").write_text(itf.como_json(pasta, ligacoes), encoding="utf-8")
+    return 1 if total else 0
 
 
 def cmd_mutacao(args: argparse.Namespace) -> int:
@@ -886,6 +909,12 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--sem-rede", action="store_true",
                    help="nao busca precos no OpenRouter; custo externo sai como ?")
     t.set_defaults(func=cmd_telemetria)
+
+    i = sub.add_parser("interfaces",
+                       help="codigos de selecao combinados entre blocos (sem IA)")
+    i.add_argument("pastas", nargs="*", help="CPUs ou pastas de CPUs (padrao: experimentos/)")
+    i.add_argument("--json", action="store_true", help="grava <cpu>/interfaces.json")
+    i.set_defaults(func=cmd_interfaces)
 
     m = sub.add_parser("mutacao",
                        help="mutantes de um bloco: quantos os testes de componente e o juiz pegam")
