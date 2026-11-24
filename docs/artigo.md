@@ -28,7 +28,12 @@ o mesmo modelo gerou uma CPU RV32IM que passou em 48/48 programas (40
 do VHDL. Evoluindo a CPU RV32I aprovada em vez de gerar do zero (o gerador
 roda os testes existentes, planeja a mudança pelo diff das specs e altera só
 os blocos necessários), a CPU RV32IM passou em 48/48 com 26 chamadas e cerca
-de US$ 0,06, reescrevendo 2 dos 5 blocos.
+de US$ 0,06, reescrevendo 2 dos 5 blocos. Numa ablação com 4 rodadas de cada
+lado, retirar da spec os casos especiais e os exemplos do M não mudou o
+acerto do M: o modelo trouxe a semântica de memória, e a única reprovação
+veio de dois blocos com códigos de operação diferentes. Por mutação, os
+testes de componente escritos pela IA mataram 19% a 27% dos mutantes dos
+blocos do M, contra 77% a 83% do juiz oficial.
 
 ## 1 Introdução
 
@@ -654,7 +659,8 @@ que este trabalho acrescenta:
   apresenta como certificação é a `riscv-arch-test`, não usada aqui.
 - **Ambiente próprio do juiz.** O `spec-riscv-test` roda os programas
   oficiais num ambiente sem CSR/ECALL e relinkado em 0.
-- **Escopo.** Só RV32I monociclo.
+- **Escopo.** Só monociclo (RV32I e RV32IM); multiciclo e pipeline não foram
+  gerados.
 - **`--max-casos-teste` reduzido a 4.** Menos testes de componente do que o
   padrão.
 - **Sessão retomada.** A rodada aprovada foi interrompida e retomada 3 vezes,
