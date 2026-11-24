@@ -238,6 +238,17 @@ Todos foram corrigidos com teste automatizado.
 | 4 | `rvgen retomar` | Ignorava o `--max-casos-teste` da sessão original | Voltava a 32 casos | `f59dcc6` |
 | 5 | `rvgen` (resultado) | O `resultado.json` de uma sessão retomada contava só a última execução, e o `rvgen comparar` e o app de iterações liam esses campos | `"chamadas": 2` em vez de 78 | corrigido na rodada de limpeza seguinte: o `resultado.json` ganhou o bloco `sessao` com os totais, e o `comparar` e o app de iterações passaram a mostrar a sessão inteira (num `resultado.json` antigo, somando os eventos `llm` do `sessao.jsonl`) |
 
+Nas rodadas da ablação do M (seção 4.9), mais dois:
+
+| # | Componente | Defeito | Efeito | Commit |
+|---|---|---|---|---|
+| 6 | `rvgen` (regressão) | O pedido de teste de regressão manda "um teste para a falha e pelo menos três casos de borda", mas o validador exigia exatamente um teste | Respostas com 5 e 6 testes recusadas; a geração abortou (`luna6_abl_m_reduzida_1`) | `66ba857` |
+| 7 | `rvgen` (testes de componente) | Um teste gerado fazia `await clock.start()` (cocotb 2) e simulava para sempre; o executor só desiste depois de 1 h | Rodada parada por quase 10 min até o GHDL ser encerrado à mão (`luna6_abl_m_completa_1`); agora o GHDL roda com `--stop-time=1ms` | `66ba857` |
+
+Um oitavo problema ficou em aberto: o laço de correção do juiz encerra a
+investigação depois de hipóteses refutadas sem tentar uma correção, mesmo
+com rodadas sobrando (seção 4.9, `luna6_abl_m_reduzida_4`).
+
 Na mesma semana, fora do `rvgen`:
 
 - `rvverify`: o `tb_virtual` lia `data_addr` antes de a instrução assentar, e
@@ -373,6 +384,112 @@ Desde este comando, o evento `llm` também registra quantos pedidos HTTP
 foram repetidos por falha transitória (`repeticoes_rede`); nas sessões
 acima, gravadas antes, esse número não existe. n = 1 por modelo.
 
+### 4.9 Ablação da injeção de conhecimento do M
+
+O UCAgent relata que o Qwen3-Coder-Plus errou o valor esperado de −2^31 ÷ −1
+e aponta a injeção de conhecimento de domínio como lacuna (seção 6). Aqui o
+conhecimento do M está escrito em `specs/riscv-rv32m.md`: tabela de
+codificação, regras gerais, os casos de divisão por zero e overflow, 12
+exemplos e notas para VHDL. A pergunta: é isso que faz o modelo acertar o M?
+
+Duas variantes, geração do zero com o `gpt-6-luna`, as mesmas flags da
+`luna6_im_1` (seção 4.5) e `--max-chamadas 150`:
+
+- **completa:** `iteracoes/it-001` (a spec inteira);
+- **reduzida:** `iteracoes/it-002`, em que o `riscv-rv32m.md` ficou só com o
+  cabeçalho e a tabela de codificação, sem regras gerais, casos especiais,
+  exemplos e notas para VHDL.
+
+Antes de rodar, uma frase fixa do `rvgen/contrato.py` que mandava tratar
+"division-by-zero and signed-overflow semantics" foi retirada (commit
+`2466bcb`): ela entraria no prompt mesmo com a spec reduzida. Com a dica só
+na spec, o prompt da variante reduzida não cita divisão por zero nem
+overflow do M. As duas variantes rodaram com o mesmo código.
+
+| Rodada | Spec do M | Juiz (1ª suíte = final) | Só M | Chamadas | Tokens (entrada / saída) | Custo |
+|---|---|---|---|---|---|---|
+| `luna6_abl_m_completa_1` | completa | 48/48 | 8/8 | 70 | 721.671 / 107.470 | US$ 0,126 |
+| `luna6_abl_m_completa_2` | completa | não chegou ao juiz (revisão do contrato do `cpu` não convergiu) | — | 15 | 172.427 / 43.618 | US$ 0,039 |
+| `luna6_abl_m_completa_3` | completa | 48/48 | 8/8 | 67 | 715.218 / 106.130 | US$ 0,125 |
+| `luna6_abl_m_completa_4` | completa | 48/48 | 8/8 | 64 | 678.124 / 106.229 | US$ 0,121 |
+| `luna6_abl_m_reduzida_1` | reduzida | não chegou ao juiz (defeito 6 da seção 4.4, corrigido) | — | 44 | 403.386 / 78.784 | US$ 0,080 |
+| `luna6_abl_m_reduzida_2` | reduzida | 48/48 | 8/8 | 84 | 851.149 / 134.360 | US$ 0,152 |
+| `luna6_abl_m_reduzida_3` | reduzida | 48/48 | 8/8 | 84 | 933.670 / 132.569 | US$ 0,160 |
+| `luna6_abl_m_reduzida_4` | reduzida | **1/48** (laço do juiz não corrigiu) | 0/8 | 132 | 1.390.387 / 376.234 | US$ 0,327 |
+
+Todas as CPUs foram julgadas de novo por fora (`spec-riscv-test --isa
+rv32im`, a suíte inteira e só os 8 programas `rv32um`), com o mesmo placar.
+Custo = tokens × preço público do OpenRouter em 23/11/2026; total da
+ablação, cerca de US$ 1,13. A `completa_3` e a `reduzida_3` foram cortadas
+por uma queda da sessão do assistente e retomadas uma vez com o mesmo código.
+
+O que os números dizem, com n = 3 por variante:
+
+- **Tirar o conhecimento da spec não mudou o acerto do M.** Das 6 CPUs que
+  chegaram ao juiz, as 5 aprovadas passaram em 8/8 `rv32um` na primeira
+  suíte. Os contratos das oito rodadas, inclusive das quatro reduzidas,
+  citam divisão por zero e overflow, e as sete que chegaram a escrever o
+  VHDL tratam −2^31 ÷ −1 explicitamente. O
+  `gpt-6-luna` traz essa semântica de memória; a lacuna que o UCAgent viu no
+  Qwen3-Coder-Plus não apareceu neste modelo.
+- **A reprovação da `reduzida_4` não é do M.** A `control_unit` e a `alu`
+  combinaram códigos `alu_op` diferentes: a `control_unit` manda `01010`
+  para o `LUI` (passar o imediato) e a `alu` executa `MUL` com esse código;
+  o mesmo desencontro vale para as operações do M. Cada bloco passou nos
+  próprios testes; o erro está no contrato entre eles, e quebra 47 dos 48
+  programas, inclusive o `add`. É a primeira rodada em que o laço de
+  correção do juiz trabalhou de verdade: a investigação formulou a hipótese
+  certa ("o LUI não produz o imediato U"), o revisor causal chegou a citar
+  "a implementação de MUL suspeita", mas depois de duas hipóteses refutadas
+  o laço terminou "sem nova correção autorizada", com 9 das 12 rodadas sem
+  uso. Com uma rodada, não dá para dizer se a spec reduzida contribuiu para
+  o desencontro.
+- **Custo:** as aprovadas com a spec completa usaram 64 a 70 chamadas
+  (US$ 0,121 a 0,126); com a reduzida, 84 (US$ 0,152 a 0,160). As falhas de
+  componente que levaram a correções de VHDL, nas duas variantes, foram no
+  `register_file` (índice 0 fora do vetor) e no endereço de load do `cpu`,
+  nenhuma no M. A diferença de custo é indício, não medida.
+
+### 4.10 Os testes gerados pegam erros? (mutação)
+
+O `python -m rvgen mutacao` cria mutantes de primeira ordem de um bloco de
+uma CPU aprovada (troca de operador relacional, aritmético e lógico,
+constante, bit de seleção, `signed`/`unsigned`) e roda em cada um três
+níveis de teste: os testes de componente do próprio bloco, os do topo `cpu`
+(ambos escritos pela IA) e o `spec-riscv-test`. Mutante que não compila sai
+da conta; a CPU original precisa passar em tudo antes. Os sobreviventes são
+classificados por um oráculo sem IA (`rvgen/oraculo_m.py`), que compara o
+bloco com um modelo Python do M nos 256 pares de 16 valores de borda: o
+que o oráculo mata escapou de todos os testes; o que ele não mata conta
+como equivalente.
+
+| CPU | Bloco | Mutantes (viáveis) | Equivalentes | Testes do bloco | Testes do `cpu` | Juiz | Escaparam de tudo |
+|---|---|---|---|---|---|---|---|
+| `luna6_evolui_im_5` | `muldiv` | 66 (50) | 7 | 8/43 (19%) | 1/43 (2%) | 33/43 (77%) | 10 |
+| `luna6_evolui_im_3` | `rv32m_unit` | 82 (66) | 6 | 16/60 (27%) | 1/60 (2%) | 50/60 (83%) | 10 |
+
+Percentuais sem os equivalentes. Fonte: `experimentos/<cpu>/mutacao/<bloco>.json`.
+
+- **Os testes que a IA escreveu pegam pouco:** 19% e 27% dos mutantes, e
+  nada que o juiz não pegue (nenhum mutante foi morto só pelos testes de
+  componente). Com `--max-casos-teste 4`, o `muldiv` tem 5 testes: 4
+  multiplicações e uma `DIVU`, nenhum de divisão com sinal, resto ou
+  divisor zero.
+- **O juiz oficial pega a maioria, não tudo:** 77% e 83%.
+- **Os 20 que escaparam estão nas guardas de overflow** de `DIV` e `REM`
+  (por exemplo, `and` trocado por `or` faz `x ÷ −1` dar `0x80000000` para
+  todo `x`). O `riscv-tests` só divide por −1 o próprio −2^31, e os testes
+  gerados não dividem por −1. São defeitos reais que a CPU aprovada poderia
+  ter e que nenhum dos dois níveis veria.
+- **Equivalentes:** a guarda de overflow do `REM` é redundante (`x rem −1`
+  já é 0 no `numeric_std`), e `rem` e `mod` coincidem em operandos sem
+  sinal.
+
+Para o paper, isto responde "a IA testa bem?" de forma objetiva: os testes
+de componente servem de portão barato durante a geração, mas não substituem
+o juiz oficial, e o juiz oficial também tem pontos cegos que um oráculo
+dirigido aos casos de borda da spec fecha.
+
 ## 5 Discussão
 
 **O custo está na expansão de testes.** Mais da metade das chamadas (44 de
@@ -399,6 +516,20 @@ revisor, o testbench reprovaria uma ALU correta e a triagem teria de
 descobrir que o erro estava no teste. Os eventos `especificacao_reprovada` da
 sessão aprovada mostram outros exemplos do mesmo tipo (estratégia de teste
 contraditória, rótulo trocado entre comparação com e sem sinal).
+
+**Spec mais curta não piorou o M; contrato entre blocos sim.** Na ablação
+(seção 4.9), retirar os casos especiais do `riscv-rv32m.md` não fez o
+`gpt-6-luna` errar o M em nenhuma das CPUs que chegaram ao juiz. A única
+reprovação veio de dois blocos que combinaram códigos `alu_op` diferentes, e
+o laço de correção do juiz, exercitado pela primeira vez, não a resolveu.
+Isso sugere investir em checagem automática das interfaces entre blocos
+(por exemplo, o código de operação ser fixado num contrato compartilhado),
+não em mais texto sobre a ISA.
+
+**Testes gerados são portão, não prova.** Os testes de componente que a IA
+escreveu mataram de 19% a 27% dos mutantes do bloco do M, contra 77% a 83%
+do juiz oficial (seção 4.10). Os mutantes que escaparam dos dois estão em
+casos de borda que nenhum dos dois exercita.
 
 **Juízes também precisam de gabarito.** Os dois defeitos do `rvverify`
 apareceram só quando uma CPU sabidamente correta foi julgada. Sem o
@@ -471,11 +602,22 @@ que este trabalho acrescenta:
 3. **A especificação é o insumo que se varia e se mede.** O caso que o
    UCAgent aponta como limite (overflow e divisão por zero no M) é tratado
    aqui com conhecimento escrito na especificação, e a seção 4.9 mede o que
-   acontece quando ele é retirado.
+   acontece quando ele é retirado: com o `gpt-6-luna`, nada mudou no M.
+4. **A qualidade dos testes gerados é medida por mutação** contra um juiz
+   independente (seção 4.10), e não pela cobertura que os próprios testes
+   gerados atingem.
 
 ## 7 Ameaças à validade
 
-- **n = 1.** Uma rodada aprovada, com um modelo; não há variância medida.
+- **n pequeno.** Uma rodada por configuração nas seções 4.2 a 4.8; três
+  por variante na ablação (seção 4.9), o que só mostra diferenças grandes.
+  Não há taxa de sucesso com intervalo de confiança.
+- **Ablação com um modelo só.** O resultado da seção 4.9 vale para o
+  `gpt-6-luna`; um modelo com menos conhecimento do M (como o
+  Qwen3-Coder-Plus do UCAgent) pode depender da spec.
+- **Oráculo da mutação é amostral.** Um mutante "equivalente" é um que não
+  diverge do modelo nos 256 pares de borda testados, não uma prova formal de
+  equivalência.
 - **Mesmo modelo em todos os papéis.** Redator, revisor, autor do VHDL e
   autor do testbench são o mesmo modelo; a separação é só de contexto. O
   viés compartilhado é mitigado apenas pelos juízes sem IA.
@@ -501,6 +643,13 @@ que este trabalho acrescenta:
   `python -m rvgen comparar`.
 - Modelos diferentes por papel (redator, revisor, VHDL, testbench).
 - Dividir `rvgen/agente.py` em módulos por fase.
+- Laço de correção do juiz: tentar uma correção quando as hipóteses são
+  refutadas e ainda há rodadas (seção 4.9).
+- Checagem automática dos códigos compartilhados entre blocos (por exemplo,
+  `alu_op`), que hoje só o juiz final pega.
+- Repetir a ablação do M com um modelo local mais fraco.
+- Usar o oráculo do M (e oráculos para outros blocos) como teste de
+  componente durante a geração, fechando os pontos cegos da seção 4.10.
 
 ## Reprodutibilidade
 

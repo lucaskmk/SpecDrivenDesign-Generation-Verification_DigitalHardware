@@ -9,6 +9,8 @@ resultados estão em [`docs/artigo.md`](../docs/artigo.md).
 
 | Pasta | Modelo | Alvo | Fluxo | `spec-riscv-test` | `rvverify` | Chamadas | Tokens (entrada / saída) | Custo | Commit |
 |---|---|---|---|---|---|---|---|---|---|
+| [`luna6_abl_m_completa_1`](luna6_abl_m_completa_1/) … `_4` | `openai/gpt-6-luna` | RV32IM do zero, spec do M **completa** (`it-001`) | completo, `--max-casos-teste 4`, `--max-chamadas 150` | `_1`, `_3`, `_4`: 48/48 (8/8 só no M); `_2` parou na revisão do contrato | não rodado | 70 / 15 / 67 / 64 | ver `docs/artigo.md` 4.9 | US$ 0,126 / 0,039 / 0,125 / 0,121 | este commit |
+| [`luna6_abl_m_reduzida_1`](luna6_abl_m_reduzida_1/) … `_4` | `openai/gpt-6-luna` | RV32IM do zero, spec do M **reduzida** à codificação (`it-002`) | idem | `_2`, `_3`: 48/48 (8/8 só no M); `_4`: 1/48; `_1` parou no defeito 6 | não rodado | 44 / 84 / 84 / 132 | ver `docs/artigo.md` 4.9 | US$ 0,080 / 0,152 / 0,160 / 0,327 | este commit |
 | [`luna6_prof_3`](luna6_prof_3/) | `openai/gpt-6-luna` (OpenRouter) | RV32I monociclo | completo, `--max-casos-teste 4` | 40/40 | 24/24 na etapa RV32I (veredito `parcial`) | 78 | 743.978 / 124.821 | cerca de US$ 0,137 | `5068458` |
 | [`luna6_im_1`](luna6_im_1/) | `openai/gpt-6-luna` (OpenRouter) | RV32IM monociclo | completo, `--max-casos-teste 4`, `--max-chamadas 150` | 48/48 (8/8 só no M) | não rodado (a etapa RV32M exige generic) | 68 | 740.595 / 115.218 | cerca de US$ 0,132 | `068cc7b` |
 | [`qwen38_cluster_prof_1`](qwen38_cluster_prof_1/) | `nvidia/Qwen3.8-Flash-Next-FP4-Local` (vLLM no cluster) | RV32I monociclo | completo | não chegou ao juiz (servidor vLLM deu timeout) | — | 2 | — | US$ 0 (local) | este commit |
@@ -27,6 +29,33 @@ resultados estão em [`docs/artigo.md`](../docs/artigo.md).
 --regressoes-componentes`. Os números são da sessão aprovada
 (`sessao-20261104-171911`); as duas rodadas anteriores, que pararam em
 defeitos do `rvgen`, não estão versionadas (ver `docs/artigo.md`, seção 4.3).
+
+### `luna6_abl_m_*` (ablação da spec do M, 23/11/2026)
+
+A pergunta: os casos especiais e os exemplos do `riscv-rv32m.md` são o que
+faz a IA acertar o M? Três rodadas de cada variante, do zero, com o luna 6
+(`docs/artigo.md`, seção 4.9). Resposta com este modelo: não. Todas as CPUs
+que chegaram ao juiz trataram divisão por zero e overflow, com ou sem a
+spec completa, e as cinco aprovadas passaram 8/8 no M. A `reduzida_4`
+reprovou (1/48) porque a `control_unit` e a `alu` combinaram códigos
+`alu_op` diferentes (o `LUI` virava `MUL`), e o laço do juiz não a corrigiu.
+A `completa_2` parou porque o revisor achou contradições reais no contrato
+do `cpu` que o redator não resolveu em 3 rodadas; a `reduzida_1` parou num
+defeito do gerador (regressão com vários testes), corrigido. A `completa_3`
+e a `reduzida_3` foram retomadas uma vez, com o mesmo código, depois de uma
+queda da sessão do assistente.
+
+### Mutação dos blocos do M
+
+`luna6_evolui_im_5/mutacao/muldiv.json` e
+`luna6_evolui_im_3/mutacao/rv32m_unit.json` (`docs/artigo.md`, seção 4.10):
+os testes de componente da IA mataram 19% e 27% dos mutantes, o juiz 77% e
+83%, e 10 mutantes de cada bloco escaparam de tudo (guardas de overflow da
+divisão). Para refazer (no Docker do veredito; não chama IA):
+
+```bash
+python3 -m rvgen mutacao experimentos/luna6_evolui_im_5 --bloco muldiv --oraculo rvgen/oraculo_m.py
+```
 
 ### `luna6_prof_3`
 

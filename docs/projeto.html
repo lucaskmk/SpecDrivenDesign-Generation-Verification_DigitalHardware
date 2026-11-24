@@ -145,6 +145,8 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <ul>
     <li><b>Resultado principal:</b> a CPU <code>experimentos/luna6_prof_3</code> (RV32I monociclo, gerada pelo <code>openai/gpt-6-luna</code>) passou <b>40/40</b> programas do <code>riscv-tests</code> no <code>spec-riscv-test</code>, o juiz do <code>rvgen</code>, sem nenhuma iteração de correção do VHDL. Antes disso o <code>spec-riscv-test</code> nunca tinha rodado numa CPU gerada.</li>
     <li><b>Evoluir em vez de gerar do zero (06/11):</b> com o novo <code>--evoluir-de</code>, a CPU RV32I aprovada virou RV32IM (<code>luna6_evolui_im_3</code>, 48/48) criando um bloco próprio para o M (<code>rv32m_unit</code>) e mudando só o <code>cpu</code>, que apenas integra; os outros 4 blocos ficaram iguais. 28 chamadas e ~US$ 0,06, contra 68 chamadas e ~US$ 0,13 gerando do zero. Antes de mudar, ela roda todos os testes antigos e lê o diff das specs. Ver <a href="#evoluir">Evoluir</a>.</li>
+    <li><b>A spec do M não foi o que fez acertar o M (23/11):</b> 3 rodadas com a <code>riscv-rv32m.md</code> completa e 3 com ela reduzida à tabela de codificação (sem divisão por zero, overflow e exemplos). Com o <code>gpt-6-luna</code>, todas as CPUs que chegaram ao juiz trataram os casos especiais mesmo assim; 5 aprovadas com 8/8 no M. A única reprovação (1/48) foi um desencontro de códigos entre dois blocos, não do M. Ver <a href="#ablacao-m">Ablação</a>.</li>
+    <li><b>Os testes da IA pegam pouco (23/11):</b> por mutação nos blocos do M, os testes de componente gerados mataram 19% a 27% dos mutantes, o juiz oficial 77% a 83%, e 10 por bloco escaparam de tudo. Ver <a href="#mutacao">Mutação</a>.</li>
     <li><b>Telemetria por fase (23/11):</b> <code>python -m rvgen telemetria</code> soma, por grupo de fases, chamadas, tokens, tempo, falhas, recusas e erros a partir do <code>sessao.jsonl</code>, sem custo de IA. Nos 4 modelos da comparação, os testes de componente levam 65% a 74% das chamadas e o laço do juiz não foi usado por nenhum. Ver <a href="#telemetria">Telemetria</a>.</li>
     <li><b>RV32IM também funciona (06/11):</b> com a referência do M em <code>specs/riscv-rv32m.md</code>, o mesmo modelo gerou a <code>experimentos/luna6_im_1</code>, que passou <b>48/48</b> (40 do I + 8 do M; <b>8/8</b> rodando só o M), sem correção de VHDL, numa execução só e por cerca de US$ 0,13. Antes, uma CPU IM escrita à mão (<code>cpus/rv32im_gabarito</code>) provou o caminho do M no juiz: 48/48, enquanto a CPU sem M tira 0/8 nos programas do M.</li>
     <li><b>Segunda opinião:</b> no <code>rvverify</code> a mesma CPU passa os 24 casos RV32I, mas o veredito dele é <b>“parcial”</b> (só a etapa RV32I foi pedida). Esse 24/24 vem de uma execução manual cujo relatório não está versionado.</li>
@@ -514,6 +516,39 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <li><b>Por que o Sonnet gastou mais:</b> 20 casos ou planos de teste recusados pelas regras do <code>rvgen</code> e 5 contratos reprovados pelo revisor. O luna 6 teve zero de cada.</li>
   <li><b>O Gemini é lento:</b> as mesmas 38 chamadas do luna 6, mas 3,6 vezes o tempo de modelo.</li>
   <li>“Min. de modelo” soma o tempo de resposta, não é o relógio de parede da tabela anterior. A partir de agora o <code>rvgen</code> também grava quantos pedidos HTTP foram repetidos por falha de rede; as sessões acima são de antes disso.</li>
+</ul>
+
+<h3 id="ablacao-m">Ablação: a spec do M é o que faz acertar o M? (23/11/2026)</h3>
+<p>O UCAgent (agente de verificação de março de 2026) viu um modelo errar −2^31 ÷ −1 do divisor RV32M e aponta “injeção de conhecimento” como lacuna. Aqui esse conhecimento está no <code>specs/riscv-rv32m.md</code>. Teste: gerar RV32IM do zero com o luna 6, 3 vezes com a spec completa (<code>it-001</code>) e 3 com ela reduzida à tabela de codificação (<code>it-002</code>). Antes, uma dica fixa sobre divisão por zero foi tirada do <code>contrato.py</code>, para não contaminar a variante reduzida.</p>
+<div class="tblwrap"><table>
+  <tr><th>Rodada</th><th>Spec do M</th><th>Juiz</th><th>Só M</th><th>Chamadas</th><th>Custo</th></tr>
+  <tr><td><code>completa_1</code></td><td>completa</td><td>48/48</td><td>8/8</td><td>70</td><td>US$ 0,126</td></tr>
+  <tr><td><code>completa_2</code></td><td>completa</td><td colspan="2">não chegou ao juiz: o revisor achou contradições reais no contrato do <code>cpu</code>, não resolvidas em 3 rodadas</td><td>15</td><td>US$ 0,039</td></tr>
+  <tr><td><code>completa_3</code></td><td>completa</td><td>48/48</td><td>8/8</td><td>67</td><td>US$ 0,125</td></tr>
+  <tr><td><code>completa_4</code></td><td>completa</td><td>48/48</td><td>8/8</td><td>64</td><td>US$ 0,121</td></tr>
+  <tr><td><code>reduzida_1</code></td><td>reduzida</td><td colspan="2">não chegou ao juiz: defeito do gerador (regressão com vários testes), corrigido</td><td>44</td><td>US$ 0,080</td></tr>
+  <tr><td><code>reduzida_2</code></td><td>reduzida</td><td>48/48</td><td>8/8</td><td>84</td><td>US$ 0,152</td></tr>
+  <tr><td><code>reduzida_3</code></td><td>reduzida</td><td>48/48</td><td>8/8</td><td>84</td><td>US$ 0,160</td></tr>
+  <tr><td><code>reduzida_4</code></td><td>reduzida</td><td><b>1/48</b></td><td>0/8</td><td>132</td><td>US$ 0,327</td></tr>
+</table></div>
+<ul>
+  <li><b>Tirar o conhecimento não mudou o M.</b> Em todas as rodadas, inclusive nas reduzidas, os contratos e o VHDL tratam divisão por zero e −2^31 ÷ −1. O luna 6 sabe isso de memória. Todas as CPUs foram julgadas de novo por fora.</li>
+  <li><b>A reprovação da <code>reduzida_4</code> não é do M.</b> A <code>control_unit</code> manda o código <code>01010</code> para o <code>LUI</code> e a <code>alu</code> faz <code>MUL</code> com esse código. Cada bloco passou nos próprios testes; o erro está no combinado entre eles. Foi a primeira vez que o laço de correção do juiz trabalhou: achou a hipótese certa, mas parou “sem nova correção autorizada” com 9 rodadas sobrando. Isso ficou em aberto.</li>
+  <li><b>Custo:</b> as aprovadas com a spec reduzida gastaram 84 chamadas, contra 64 a 70 com a completa. Com n = 3, é indício.</li>
+  <li>Total gasto na ablação: cerca de US$ 1,13. Dois defeitos do gerador apareceram e foram corrigidos (regressão com vários testes recusada; teste que simulava para sempre).</li>
+</ul>
+
+<h3 id="mutacao">Os testes que a IA escreve pegam erros? (mutação, 23/11/2026)</h3>
+<p><code>python -m rvgen mutacao</code> faz pequenas mudanças no VHDL de um bloco aprovado (troca de operador, constante, condição, bit de seleção) e vê quem pega: os testes de componente da IA, os do <code>cpu</code> ou o juiz oficial. Um oráculo sem IA (<code>rvgen/oraculo_m.py</code>, modelo Python do M em 256 pares de valores de borda) separa os mutantes que não mudam nada (equivalentes) dos defeitos reais que escaparam. Sem custo de IA.</p>
+<div class="tblwrap"><table>
+  <tr><th>CPU / bloco</th><th>Mutantes (viáveis)</th><th>Equivalentes</th><th>Testes do bloco (IA)</th><th>Testes do <code>cpu</code> (IA)</th><th>Juiz oficial</th><th>Escaparam de tudo</th></tr>
+  <tr><td><code>luna6_evolui_im_5</code> / <code>muldiv</code></td><td>66 (50)</td><td>7</td><td>8/43 (19%)</td><td>1/43 (2%)</td><td>33/43 (77%)</td><td>10</td></tr>
+  <tr><td><code>luna6_evolui_im_3</code> / <code>rv32m_unit</code></td><td>82 (66)</td><td>6</td><td>16/60 (27%)</td><td>1/60 (2%)</td><td>50/60 (83%)</td><td>10</td></tr>
+</table></div>
+<ul>
+  <li><b>Os testes da IA pegam pouco</b> e nada que o juiz não pegue. Com 4 casos por bloco, os testes do <code>muldiv</code> são quase só multiplicação.</li>
+  <li><b>O juiz pega a maioria, não tudo.</b> Os 20 que escaparam estão nas proteções de overflow da divisão (por exemplo, <code>x ÷ −1</code> dar <code>0x80000000</code>): o <code>riscv-tests</code> só divide por −1 o próprio −2^31.</li>
+  <li>Conclusão para o paper: testes gerados são portão barato, não prova; e um oráculo dirigido aos casos de borda da spec fecha o que o juiz não vê.</li>
 </ul>
 
 <h2 id="f-modelo">11 · Como uma chamada ao modelo funciona</h2>
@@ -1309,6 +1344,7 @@ python -m rvgen preparar --verificar</code></pre>
 <p>Ao mudar este documento, acrescente uma linha aqui e atualize o resumo do topo.</p>
 <div class="tblwrap"><table>
   <tr><th>Data</th><th>O que mudou</th></tr>
+  <tr><td>23/11/2026</td><td>Ablação da spec do M (8 rodadas, US$ 1,13): sem os casos especiais o luna 6 acerta o M igual; única reprovação por desencontro de <code>alu_op</code> entre blocos. Mutação nos blocos do M com oráculo: testes da IA 19–27%, juiz 77–83%, 10 escapam por bloco. Corrigidos dois defeitos (regressão com vários testes; teste que simulava para sempre). Seção de trabalhos relacionados no artigo.</td></tr>
   <tr><td>23/11/2026</td><td>Telemetria por fase (<code>python -m rvgen telemetria</code>) e tabela dos 4 modelos: testes com 65% a 74% das chamadas, laço do juiz sem uso. O evento <code>llm</code> passa a gravar as repetições de rede (<code>repeticoes_rede</code>).</td></tr>
   <tr><td>13/11/2026</td><td>Comparação medida de 4 modelos na evolução RV32I → RV32IM (luna 6, gpt-6-sol, gemini-4-carbon, claude-sonnet-5.5): todos 48/48; custo de US$ 0,08 a US$ 8,34. Corrigido o leitor de contrato que contava menções no texto como títulos.</td></tr>
   <tr><td>06/11/2026</td><td>Regra do topo virou opção e ficou desligada por padrão (<code>--proibir-conta-no-topo</code> liga). Sem ela, a evolução também pôs o M num bloco próprio (<code>luna6_evolui_im_5</code>, 48/48, 38 chamadas): o efeito veio de liberar a decomposição.</td></tr>
