@@ -42,6 +42,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Protocol
 
 from . import contrato as ct
+from . import interfaces as itf
 from . import rotulos as rot
 from .config import REPO_ROOT
 from .executor import Execucao, Executor
@@ -5291,6 +5292,24 @@ async def inventory_visible_hierarchy(dut):
                              "Send the complete file."}]
         return None
 
+    def _evidencia_interfaces(self) -> str:
+        """Códigos que um bloco emite e o bloco que os recebe não decodifica
+        (`rvgen interfaces`, sem IA). Vazio quando não há problema."""
+        try:
+            problemas = itf.problemas(itf.checar_cpu(self.pasta, ct.TOP))
+        except (OSError, re.error):
+            return ""
+        if not problemas:
+            return ""
+        linhas = [f"- `{l.sinal}`: `{l.produtor}` emits {', '.join(sorted(l.sem_decodificacao))} "
+                  f"but `{l.consumidor}` does not decode them (they fall into `when others`)"
+                  for l in problemas]
+        self._log({"evento": "interfaces_inconsistentes",
+                   "problemas": [l.como_dict() for l in problemas]})
+        return ("\n\nINTER-BLOCK CODE MISMATCH (deterministic check, no AI): the producer and the "
+                "consumer of these selector signals disagree on the encoding. Fix one side so both "
+                "use the same codes.\n" + "\n".join(linhas))
+
     def _corrigir(self, arq: dict, iteracao_inicial: int = 0) -> tuple[Execucao, str, int]:
         """Mede, corrige um arquivo, mede de novo; desfaz o que piora."""
         fase = 4 if self.testes_componentes else 3
@@ -5317,6 +5336,10 @@ async def inventory_visible_hierarchy(dut):
         candidatos_bloco_fixado: set[str] = set()
         duracoes: list[float] = []              # segundos de cada iteracao, para a estimativa
         inicio_iteracao: float | None = None
+        # Focos cuja investigação adaptativa já se esgotou: daí em diante o
+        # laço usa a escolha clássica (modelo escolhe o arquivo, mede, desfaz
+        # o que piora) até acabar o orçamento, em vez de desistir.
+        focos_sem_exploracao: set[str] = set()
         while True:
             nome_etapa, etapa, casos = etapas[i]
             if self._objetivo(nome_etapa, atual):
@@ -5359,6 +5382,7 @@ async def inventory_visible_hierarchy(dut):
                 (f"oficial:{titulo_foco}", f"Falha oficial: {titulo_foco}"),
                 (f"investigacao:{iteracao}", f"Rodada de investigação {iteracao}"))
             alvo, evidencia = self._evidencia(atual, arquivos)
+            evidencia += self._evidencia_interfaces()
             if foco_oficial:
                 evidencia += (f"\n\nCURRENT FOCUSED OBJECTIVE: resolve only `{foco_oficial}` in this "
                               "iteration. Other official failures remain queued and must not cause a "
@@ -5378,7 +5402,7 @@ async def inventory_visible_hierarchy(dut):
                               "regression. Keep correcting this file until its complete existing Cocotb "
                               "suite passes; do not select another file.")
                 self.relatar(f"  mantendo componente confirmado: {alvo} ...")
-            elif foco_oficial and cpu_principal:
+            elif foco_oficial and cpu_principal and foco_oficial not in focos_sem_exploracao:
                 caminho_exploracao, estado_exploracao = self._estado_exploracao_cpu(
                     foco_oficial, cpu_principal)
                 if not estado_exploracao.get("ativado"):
@@ -5394,15 +5418,25 @@ async def inventory_visible_hierarchy(dut):
                 if evidencia_exploracao:
                     evidencia += "\n\n" + evidencia_exploracao
                 if esgotada:
-                    self.relatar("  investigação adaptativa concluída sem nova correção autorizada")
-                    self._log({"evento": "exploracao_cpu_esgotada", "foco": foco_oficial})
-                    return atual, nome_etapa, iteracao
-                if not autorizada:
+                    # Antes o laço parava aqui, mesmo com rodadas sobrando
+                    # (luna6_abl_m_reduzida_4, 23/11/2026: parou na rodada 3
+                    # de 12 com 1/48). Agora a evidência das hipóteses
+                    # refutadas vai para a escolha clássica do arquivo.
+                    self.relatar("  investigação adaptativa esgotada; seguindo com a escolha "
+                                 "do arquivo pela evidência acumulada")
+                    self._log({"evento": "exploracao_cpu_esgotada", "foco": foco_oficial,
+                               "continua": True})
+                    focos_sem_exploracao.add(foco_oficial)
+                    alvo, localizacao = self._escolher(evidencia, arq)
+                    evidencia += "\n\n" + localizacao
+                    escolhido_pelo_modelo = True
+                elif not autorizada:
                     self.relatar("  análise VCD concluída")
                     continue
-                alvo = alvo_confirmado or cpu_principal["file"]
-                correcao_por_exploracao = True
-                self.relatar(f"  hipótese causal confirmada; correção autorizada em {alvo}")
+                else:
+                    alvo = alvo_confirmado or cpu_principal["file"]
+                    correcao_por_exploracao = True
+                    self.relatar(f"  hipótese causal confirmada; correção autorizada em {alvo}")
             elif alvo is None:
                 alvo, localizacao = self._escolher(evidencia, arq)
                 evidencia += "\n\n" + localizacao
@@ -5419,7 +5453,8 @@ async def inventory_visible_hierarchy(dut):
                                   "──▶ confirmar ou refutar hipótese")
             bloco_alvo = next((b for b in arq["blocks"] if b["file"] == alvo), None)
             if (not correcao_por_exploracao and "status" in (atual.relatorio or {}) and bloco_alvo and
-                    bloco_alvo["name"] == ct.TOP and foco_oficial):
+                    bloco_alvo["name"] == ct.TOP and foco_oficial and
+                    foco_oficial not in focos_sem_exploracao):
                 caminho_exploracao, estado_exploracao = self._estado_exploracao_cpu(
                     foco_oficial, bloco_alvo)
                 estado_exploracao["ativado"] = True
