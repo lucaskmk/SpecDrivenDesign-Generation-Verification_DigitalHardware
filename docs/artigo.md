@@ -405,7 +405,75 @@ apareceram só quando uma CPU sabidamente correta foi julgada. Sem o
 gabarito, uma CPU gerada reprovada por eles seria um falso negativo
 atribuído à IA.
 
-## 6 Ameaças à validade
+## 6 Trabalhos relacionados
+
+**UCAgent** (Wang et al., arXiv 2603.25768, março de 2026) é o trabalho mais
+próximo. É um agente de *verificação funcional* de blocos: recebe a
+especificação e o RTL já escritos e gera o ambiente de verificação, o
+modelo de cobertura e os testes; não gera o RTL. Os pontos que importam
+aqui:
+
+- **Ambiente de verificação em Python** (Picker converte o DUT num pacote
+  Python e o Toffee dá as abstrações), para que o modelo não escreva
+  SystemVerilog, linguagem com pouco dado de treino.
+- **Workflow de 31 estágios configurável**, cada estágio com um *checker*
+  automático que reprova a saída e devolve o erro ao modelo. A divisão em
+  estágios foi refinada olhando onde os checkers mais forçavam repetições,
+  e a telemetria de tempo e falhas por estágio é usada para comparar
+  modelos (a seção de limitações do mesmo texto fala em 26 estágios).
+- **VCLM**, rótulos hierárquicos FG (grupo funcional), FC (função) e CK
+  (ponto de checagem) que o modelo atribui na análise da especificação e
+  tem de reusar no modelo de cobertura e nos testes; os checkers comparam
+  nos dois sentidos (rótulo inventado é alucinação, rótulo da especificação
+  sem teste é omissão).
+- **Avaliação** em seis módulos (UART-16550, ALU754, um divisor inteiro
+  RV32M, ICache-WayLookup, LaneFAdd, PageTableWalker) com Claude Sonnet 4.5,
+  GPT-5 e Qwen3-Coder-Plus: até 98,5% de cobertura de código e até 100% de
+  cobertura funcional; a geração de testes é o estágio com mais falhas; três
+  defeitos de valores especiais achados no LaneFAdd, que não tinha sido
+  verificado antes.
+- **Limite declarado:** no divisor RV32M, o Qwen3-Coder-Plus errou
+  repetidamente o valor esperado de −2^31 ÷ −1 (overflow definido pela
+  ISA), e os autores apontam a injeção de conhecimento de domínio como
+  trabalho futuro. Também listam como futuro a decomposição de tarefas
+  feita pelo próprio modelo, já que o workflow deles é fixo e definido por
+  especialistas.
+
+O UCAgent cita três trabalhos anteriores, descritos aqui como ele os
+descreve: **UVM²** (testbenches UVM gerados de especificações com modelos e
+LLM, com realimentação de cobertura), **MAVF** (vários agentes em estágios:
+análise da especificação, plano de verificação, especificação do testbench
+e código, com revisão manual entre etapas) e **PRO-V** (verificação em
+Python de ponta a ponta com um LLM como juiz).
+
+**Posição deste trabalho.** O `rvgen` gera o RTL *e* os testes, e o
+veredito final não é dado por IA nem por métrica de cobertura dos testes
+gerados: é o `spec-riscv-test` rodando os programas oficiais `riscv-tests`,
+validado antes com CPUs gabarito escritas à mão (seção 2.3). Isso o separa
+do PRO-V, em que o juiz é um LLM, e do UCAgent, cujo resultado é a
+cobertura medida sobre testes que o próprio agente escreveu. Há pontos em
+comum: testes em Python (cocotb), regras determinísticas que recusam a
+saída do modelo e devolvem o motivo (validador de planos e casos de teste,
+triagem com regras objetivas), e telemetria por fase para comparar modelos
+(seção 4.8, em que os testes também são a fase mais cara). As diferenças
+que este trabalho acrescenta:
+
+1. **O modelo decompõe o hardware.** O UCAgent verifica um bloco já
+   dado, num workflow fixo, e cita a decomposição dinâmica de tarefas pelo
+   modelo como futuro. No `rvgen` as fases também são fixas, mas a divisão
+   da CPU em blocos é do modelo, com o topo `cpu` sempre por último e a
+   ordem topológica validada por regra.
+2. **Evolução incremental**: uma CPU aprovada vira outra ISA (RV32I →
+   RV32IM) rodando primeiro todos os testes antigos e o juiz antigo,
+   planejando a decomposição-alvo pelo diff das especificações e mudando só
+   os blocos necessários; os blocos mantidos ficam congelados por hash
+   (seções 4.6 e 4.7).
+3. **A especificação é o insumo que se varia e se mede.** O caso que o
+   UCAgent aponta como limite (overflow e divisão por zero no M) é tratado
+   aqui com conhecimento escrito na especificação, e a seção 4.9 mede o que
+   acontece quando ele é retirado.
+
+## 7 Ameaças à validade
 
 - **n = 1.** Uma rodada aprovada, com um modelo; não há variância medida.
 - **Mesmo modelo em todos os papéis.** Redator, revisor, autor do VHDL e
@@ -425,7 +493,7 @@ atribuído à IA.
   duas delas depois de mudanças no gerador; não é uma execução contínua de
   uma única versão do código.
 
-## 7 Trabalhos futuros
+## 8 Trabalhos futuros
 
 - RV32IM (o código já aceita `rv32im`; o juiz passa a incluir os programas `rv32um`).
 - Rodar a `riscv-arch-test` como terceiro juiz.
