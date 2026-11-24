@@ -274,6 +274,10 @@ python -m rvgen gerar <nome> --provedor openrouter --modelo openai/gpt-6-luna \
   --testes-componentes --gates-componentes --regressoes-componentes
 ```
 
+Com `--rotulos`, contratos e testes citam os rótulos `CK-*` do catálogo
+`rotulos.md` da pasta de specs (a iteração `it-003` é a `it-001` com o
+catálogo), conferidos sem IA; a sessão ganha `rotulos_cobertura.json`.
+
 Um nome simples grava em `experimentos/<nome>/`. Uma sessão interrompida (teto
 de chamadas, erro, queda do Docker) continua com
 `python -m rvgen retomar <nome> <id-da-sessao>`. O veredito exige Linux/WSL2

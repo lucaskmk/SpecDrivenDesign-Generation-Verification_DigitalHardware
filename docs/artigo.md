@@ -130,6 +130,32 @@ diff, checagens do contrato e o prompt resultante. Uma iteração é testada com
 `RVGEN_SPECS_DIR=iteracoes/it-NNN/specs python -m rvgen gerar ...`. O app
 nunca chama a IA.
 
+### 2.5 Rastreabilidade por rótulos (opcional)
+
+Inspirado no VCLM do UCAgent (seção 6), com uma diferença: os rótulos não
+são criados pela IA. O catálogo `specs/rotulos.md` define 50 pontos de
+checagem derivados das specs (36 do RV32I e 14 do M), numa hierarquia
+`FG-*` (grupo funcional) → `FC-*` (função) → `CK-*` (ponto de checagem),
+cada um com a spec de onde saiu; por exemplo `FG-RV32M` → `FC-DIV` →
+`CK-DIV-ZERO` e `CK-DIV-OVERFLOW`. Com `rvgen gerar --rotulos`:
+
+1. o contrato de cada bloco ganha a seção `## Labels`, com os `CK-*` pelos
+   quais o bloco responde; rótulo fora do catálogo é recusado sem IA, e o
+   `cpu`, último bloco, tem de assumir os que nenhum outro assumiu;
+2. cada caso de teste cocotb começa com um comentário `# CK: ...` citando
+   só rótulos do contrato do próprio bloco; caso sem rótulo ou com rótulo
+   de fora é recusado;
+3. o orquestrador da expansão de testes recebe a lista de rótulos do
+   contrato ainda sem teste, e o `complete` é recusado uma vez enquanto
+   houver rótulo sem teste e orçamento de casos;
+4. no fim, `rotulos_cobertura.json` dá a cobertura de rótulos por bloco e
+   da CPU (rótulos do catálogo com pelo menos um teste aprovado).
+
+Isto não é a antiga marcação `-- REQ: FR-RV-xx`, removida porque aqueles
+IDs não estavam definidos em lugar nenhum: aqui todo rótulo vem de um
+arquivo versionado e é conferido nos dois sentidos (inventado e omitido).
+Sem `--rotulos`, nada muda no fluxo. Ainda não vale com `--evoluir-de`.
+
 ## 3 Montagem experimental
 
 | Item | Valor |

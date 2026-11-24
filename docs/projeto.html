@@ -551,6 +551,9 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <li>Conclusão para o paper: testes gerados são portão barato, não prova; e um oráculo dirigido aos casos de borda da spec fecha o que o juiz não vê.</li>
 </ul>
 
+<h3 id="rotulos">Rótulos de rastreabilidade (<code>--rotulos</code>, 23/11/2026)</h3>
+<p>Adaptação do VCLM do UCAgent, mas sem a IA inventar rótulos: <code>specs/rotulos.md</code> lista 50 pontos de checagem tirados das specs (36 do RV32I, 14 do M), como <code>FG-RV32M → FC-DIV → CK-DIV-ZERO</code>. Com <code>rvgen gerar --rotulos</code>, o contrato de cada bloco diz quais pontos ele cobre (seção <code>## Labels</code>), cada teste cita os pontos que verifica (<code># CK: ...</code>) e um verificador sem IA recusa rótulo inventado e mede quais ficaram sem teste (<code>rotulos_cobertura.json</code>). <span class="st pa">implementado, ainda não medido</span> numa rodada real; sem a opção, nada muda.</p>
+
 <h2 id="f-modelo">11 · Como uma chamada ao modelo funciona</h2>
 <p>O modelo externo padrão do <code>rvgen</code> é o <code>openai/gpt-6-luna</code> (<code>config.MODELO_EXTERNO_PADRAO</code>), via OpenRouter. <code>SPECHDL_LLM_MODEL</code> no <code>.env</code> ou <code>--modelo</code> trocam o modelo. Qual modelo usar está em <a href="#modelos">Modelos de IA</a>; aqui está o caminho de uma chamada.</p>
 <div class="note"><b>Desde 29/10:</b> com <code>OPENROUTER_API_KEY</code> no <code>.env</code>, o provedor padrão é o <code>openrouter</code> (antes era sempre <code>ollama</code>). <code>--provedor</code> ou <code>RVGEN_PROVEDOR</code> ainda vencem. Falhas transitórias da API (429, 5xx, conexão) são repetidas até 3 vezes, e <code>--max-chamadas</code> / <code>--max-tokens</code> param a geração com a sessão preservada.</div>
@@ -1344,6 +1347,7 @@ python -m rvgen preparar --verificar</code></pre>
 <p>Ao mudar este documento, acrescente uma linha aqui e atualize o resumo do topo.</p>
 <div class="tblwrap"><table>
   <tr><th>Data</th><th>O que mudou</th></tr>
+  <tr><td>23/11/2026</td><td>Rótulos de rastreabilidade (<code>--rotulos</code>, catálogo <code>specs/rotulos.md</code>, iteração <code>it-003</code>): implementados e testados, sem rodada real ainda.</td></tr>
   <tr><td>23/11/2026</td><td>Ablação da spec do M (8 rodadas, US$ 1,13): sem os casos especiais o luna 6 acerta o M igual; única reprovação por desencontro de <code>alu_op</code> entre blocos. Mutação nos blocos do M com oráculo: testes da IA 19–27%, juiz 77–83%, 10 escapam por bloco. Corrigidos dois defeitos (regressão com vários testes; teste que simulava para sempre). Seção de trabalhos relacionados no artigo.</td></tr>
   <tr><td>23/11/2026</td><td>Telemetria por fase (<code>python -m rvgen telemetria</code>) e tabela dos 4 modelos: testes com 65% a 74% das chamadas, laço do juiz sem uso. O evento <code>llm</code> passa a gravar as repetições de rede (<code>repeticoes_rede</code>).</td></tr>
   <tr><td>13/11/2026</td><td>Comparação medida de 4 modelos na evolução RV32I → RV32IM (luna 6, gpt-6-sol, gemini-4-carbon, claude-sonnet-5.5): todos 48/48; custo de US$ 0,08 a US$ 8,34. Corrigido o leitor de contrato que contava menções no texto como títulos.</td></tr>

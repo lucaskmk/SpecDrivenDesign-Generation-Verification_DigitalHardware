@@ -1207,6 +1207,24 @@ class TestComandoGerar(unittest.TestCase):
         self.assertEqual(codigo, 2)
         self.assertIn("nao e julgada pelo spec-riscv-test", erros)
 
+    def test_rotulos_sem_catalogo_ou_com_evolucao_sai_2_sem_chamar_nada(self):
+        from rvgen import ollama as ol
+        from rvgen.config import REPO_ROOT
+        nunca = lambda *a, **k: self.fail("nao deveria procurar o modelo")  # noqa: E731
+        sem_catalogo = str(REPO_ROOT / "iteracoes" / "it-001" / "specs")
+        codigo, _, erros = self._main(["gerar", "teste_rotulos", "--rotulos"],
+                                      {(ol, "localizar_servidor"): nunca},
+                                      ambiente={"RVGEN_SPECS_DIR": sem_catalogo})
+        self.assertEqual(codigo, 2)
+        self.assertIn("--rotulos", erros)
+        self.assertIn("rotulos.md", erros)
+        codigo, _, erros = self._main(["gerar", "teste_rotulos", "--rotulos",
+                                       "--evoluir-de", "experimentos/luna6_prof_3"],
+                                      {(ol, "localizar_servidor"): nunca})
+        self.assertEqual(codigo, 2)
+        self.assertIn("--evoluir-de", erros)
+        self.assertFalse((REPO_ROOT / "experimentos" / "teste_rotulos").exists())
+
     def test_pasta_fora_do_repositorio(self):
         with tempfile.TemporaryDirectory() as fora:
             codigo, _, erros = self._main(["gerar", fora])
