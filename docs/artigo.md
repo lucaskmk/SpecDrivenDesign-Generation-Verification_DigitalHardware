@@ -38,7 +38,11 @@ blocos com códigos de operação diferentes. Por mutação, nos mesmos 226
 mutantes viáveis dos blocos do M de quatro modelos, os testes de componente
 escritos pela IA mataram 41% (IC 95% de 35% a 48%) e o juiz oficial 80% (de
 74% a 84%); a diferença vem de três dos quatro modelos, e no Gemini os
-testes da IA mataram mais que o juiz.
+testes da IA mataram mais que o juiz. Sintetizadas no Quartus (Cyclone V,
+uma síntese de cada), cinco CPUs RV32IM aprovadas e o gabarito compilam com
+4,0 a 4,2 mil ALMs e Fmax de 9,8 a 10,1 MHz, longe do alvo de 100 MHz: o
+caminho crítico passa pelo divisor combinacional do monociclo, e essa
+métrica não separa os modelos.
 
 ## 1 Introdução
 
@@ -667,6 +671,57 @@ gerador e não estão nesta tabela. As sessões não são amostra de uma mesma
 configuração: o código e as flags mudaram entre elas, e a tabela serve para
 mostrar onde se perde rodada, não para estimar uma taxa.
 
+### 4.13 Síntese no Quartus
+
+As cinco CPUs RV32IM aprovadas com `cpu.toml` e o gabarito RV32IM
+(`cpus/rv32im_gabarito`) foram sintetizadas com
+`python quartus_testing/quartus_cpu_check.py <pasta>` (Quartus Prime Lite
+25.1std.0, imagem `gabrielgalazzi/imagens_projeto_descomp:25.1`), no Cyclone V
+`5CEBA4F23C7`, com o clock `clk` restrito a 10 ns (100 MHz). Uma síntese por
+CPU, com a semente padrão. Todas compilaram (síntese, fit, assembler e
+timing).
+
+| CPU | Modelo | Fmax (MHz) | ALMs (de 18.480) | ALUTs | Registradores | DSP (de 66) | Potência estimada (mW) | Compilação (min) |
+|---|---|---|---|---|---|---|---|---|
+| `luna6_evolui_im_5` | luna 6 | 9,87 | 4.071 (22%) | 6.655 | 1.023 | 9 | 836 | 63,5 |
+| `luna6_im_1` | luna 6 | 10,09 | 4.202 (23%) | 6.855 | 1.023 | 9 | 897 | 53,7 |
+| `sol6_evolui_im_1` | gpt-6-sol | 9,79 | 4.068 (22%) | 6.633 | 1.023 | 9 | 868 | 43,7 |
+| `carbon4_evolui_im_1` | gemini-4-carbon | 10,02 | 4.095 (22%) | 6.616 | 1.023 | 9 | 827 | 57,9 |
+| `sonnet55_evolui_im_2` | claude-sonnet-5.5 | 10,01 | 3.996 (22%) | 6.479 | 1.023 | 3 | 809 | 50,3 |
+| `rv32im_gabarito` | gabarito | 9,90 | 4.027 (22%) | 6.503 | 1.023 | 3 | 783 | 45,4 |
+
+Fonte de cada número, em
+`quartus_testing/resultados/<cpu>/quartus_output_padrao/` (não versionado; o
+`.gitignore` de `quartus_testing/` ignora `resultados/`): Fmax de
+`compilation/fmax.log` e `reports/padrao.sta.summary`
+(`report_clock_fmax_summary`, corner lento); ALMs, registradores e DSP de
+`reports/padrao.fit.summary`; ALUTs de lógica do relatório do Fitter
+(`reports/resources.json`); potência total de `reports/padrao.pow.summary`;
+tempo de `duracao_compilacao_s` em `quartus_testing/resultados/<cpu>/relatorio.json`.
+O resumo de cada CPU está em `quartus_testing/resultados/<cpu>/relatorio.md`.
+
+Nenhuma CPU chega perto dos 100 MHz: o Fmax fica entre 9,79 e 10,09 MHz, e o
+pior slack de setup entre −92,5 e −94,9 ns. Nas seis, o caminho crítico vai
+de um registrador do banco a outro passando pelo divisor que o Quartus
+inferiu para o resto (células `Mod0|auto_generated|divider` em
+`reports/critical_path.log`), com 547 a 604 células. Isso é o esperado num
+monociclo com divisão combinacional de 32 bits, e explica por que as seis
+ficam a cerca de 3% umas das outras no Fmax: o divisor domina o tempo, não
+o que o modelo escreveu em volta. A área varia de 3.996 a 4.202 ALMs (5%);
+quanto dela é do divisor não foi medido.
+Duas CPUs (Sonnet e gabarito) usam 3 blocos DSP e as outras 9; a causa não
+foi investigada. Nenhuma usa memória em bloco (0 bits em M10K): o banco de
+registradores virou flip-flops e multiplexadores.
+
+Ressalvas: alvo de 100 MHz que nenhuma atende; mul/div em um ciclo; n = 1
+por modelo e uma única síntese, sem variar semente; potência é estimativa do
+Power Analyzer com taxa de chaveamento padrão (confiança *Low*, rótulo do
+próprio Quartus), não medição; pinos sem atribuição (aviso 169085), então o
+número é de uma CPU solta, não numa placa. Os tempos de compilação foram
+medidos com a mutação da seção 4.10 rodando ao mesmo tempo na mesma máquina
+(dois contêineres, cerca de 7 dos 12 núcleos), e por isso estão inflados;
+servem como ordem de grandeza (45 a 64 minutos por CPU).
+
 ## 5 Discussão
 
 **O custo está na expansão de testes.** Mais da metade das chamadas (44 de
@@ -953,6 +1008,12 @@ O que este trabalho mede e a busca de 24/11/2026 não achou ocupado:
   oficiais num ambiente sem CSR/ECALL e relinkado em 0.
 - **Escopo.** Só monociclo (RV32I e RV32IM); multiciclo e pipeline não foram
   gerados.
+- **Métrica de hardware limitada.** Área e Fmax existem só para seis CPUs
+  (seção 4.13), uma síntese de cada, e o divisor combinacional do monociclo
+  domina o caminho crítico: as CPUs ficam a cerca de 3% umas das outras no
+  Fmax e a 5% na área, e nenhuma chega perto do alvo de 100 MHz. Por isso essa métrica não serve, com este
+  escopo, para dizer qual modelo gera hardware melhor; também não houve
+  comparação com uma CPU otimizada à mão nem medição de potência na placa.
 - **`--max-casos-teste` reduzido a 4.** Menos testes de componente do que o
   padrão.
 - **Sessão retomada.** A rodada aprovada foi interrompida e retomada 3 vezes,
@@ -964,7 +1025,8 @@ O que este trabalho mede e a busca de 24/11/2026 não achou ocupado:
 Já feito e por isso fora desta lista: RV32IM (seções 4.5 a 4.7), o oráculo
 do M no nível da CPU e a checagem de códigos entre blocos (seção 4.11), e o
 conserto do laço do juiz que desistia com rodadas sobrando (`cd381bb`,
-testado com modelo falso, **sem rodada real**).
+testado com modelo falso, **sem rodada real**) e a síntese no Quartus das
+CPUs RV32IM aprovadas (seção 4.13).
 
 - Repetir numa versão fixa do código, com linha de base: fluxo completo,
   fluxo sem os testes de componente e evolução, ~20 rodadas por braço.
@@ -985,7 +1047,9 @@ testado com modelo falso, **sem rodada real**).
   diferente (por exemplo, com testes de integração gerados a partir dos
   contratos dos dois blocos).
 - Modelos diferentes por papel (redator, revisor, VHDL, testbench).
-- Síntese no Quartus das CPUs aprovadas (área, Fmax).
+- Divisão em vários ciclos (ou pipeline) antes de comparar área e Fmax
+  entre modelos, já que no monociclo o divisor domina (seção 4.13); e mais
+  de uma semente de síntese.
 - Dividir `rvgen/agente.py` em módulos por fase.
 
 ## Reprodutibilidade

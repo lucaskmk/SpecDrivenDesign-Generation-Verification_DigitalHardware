@@ -270,14 +270,39 @@ done
 | `sonnet55_evolui_im_2` | `anthropic/claude-sonnet-5.5` (evoluindo a RV32I) | `multiplier` + `divider` |
 | `luna6_im_1` | `openai/gpt-6-luna` (do zero) | dentro de `execution_unit` |
 
-Cada compilação leva de 30 s a alguns minutos. O resultado de cada CPU fica
-em `quartus_testing/resultados/<pasta>/relatorio.md` (compila?, Fmax,
-ALMs/LUTs/registradores/DSP e potência estimada). O alvo padrão é 100 MHz
-(`--periodo-ns 10`); como as cinco fazem multiplicação e divisão em um ciclo
-só, é provável que nenhuma atinja 100 MHz, e a comparação útil é a Fmax e a
-área de cada uma. Os `cpu.toml` não têm `rv32m_generic` porque o M é fixo
-(sem generic): use o `--isa padrao`, que é o padrão. Detalhes do script em
-[`quartus_testing/how_to_use.md`](../quartus_testing/how_to_use.md).
+O resultado de cada CPU fica em `quartus_testing/resultados/<pasta>/relatorio.md`
+(compila?, Fmax, ALMs/LUTs/registradores/DSP e potência estimada), que **não é
+versionado** (`quartus_testing/.gitignore` ignora `resultados/`). O alvo padrão
+é 100 MHz (`--periodo-ns 10`). Os `cpu.toml` não têm `rv32m_generic` porque o
+M é fixo (sem generic): use o `--isa padrao`, que é o padrão. Detalhes do
+script em [`quartus_testing/how_to_use.md`](../quartus_testing/how_to_use.md).
+O gabarito RV32IM também tem `cpu.toml` e roda do mesmo jeito:
+`python3 quartus_testing/quartus_cpu_check.py cpus/rv32im_gabarito`.
+
+**Resultado de 27/11/2026** (Windows, Python 3.12 do host e Docker Desktop;
+Quartus 25.1std.0 Lite; Cyclone V `5CEBA4F23C7`; uma síntese por CPU, semente
+padrão). A imagem ocupou 22,4 GB em disco (8,12 GB de conteúdo, `docker images`).
+Todas compilam e nenhuma atende os 100 MHz; detalhes e ressalvas na seção 4.13
+do [`docs/artigo.md`](../docs/artigo.md).
+
+| Pasta | Fmax (MHz) | ALMs | ALUTs | Registradores | DSP | Potência estimada (mW) | Compilação (min) |
+|---|---|---|---|---|---|---|---|
+| `luna6_evolui_im_5` | 9,87 | 4.071 | 6.655 | 1.023 | 9 | 836 | 63,5 |
+| `sol6_evolui_im_1` | 9,79 | 4.068 | 6.633 | 1.023 | 9 | 868 | 43,7 |
+| `carbon4_evolui_im_1` | 10,02 | 4.095 | 6.616 | 1.023 | 9 | 827 | 57,9 |
+| `sonnet55_evolui_im_2` | 10,01 | 3.996 | 6.479 | 1.023 | 3 | 809 | 50,3 |
+| `luna6_im_1` | 10,09 | 4.202 | 6.855 | 1.023 | 9 | 897 | 53,7 |
+| `cpus/rv32im_gabarito` | 9,90 | 4.027 | 6.503 | 1.023 | 3 | 783 | 45,4 |
+
+Fontes, em `quartus_testing/resultados/<pasta>/quartus_output_padrao/`: Fmax
+de `compilation/fmax.log`; ALMs, registradores e DSP de
+`reports/padrao.fit.summary`; ALUTs de `reports/resources.json`; potência de
+`reports/padrao.pow.summary`; tempo de `duracao_compilacao_s` no
+`relatorio.json`. Os tempos foram medidos com a mutação rodando ao mesmo
+tempo na máquina (estão inflados); conte com cerca de 45 a 65 minutos por
+CPU, não segundos. Nas seis, o caminho crítico passa pelo divisor
+combinacional (`reports/critical_path.log`), por isso o Fmax quase não muda
+entre os modelos.
 
 ## Novo experimento
 
