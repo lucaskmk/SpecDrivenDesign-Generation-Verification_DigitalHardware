@@ -38,7 +38,9 @@ blocos com códigos de operação diferentes. Por mutação, nos mesmos 226
 mutantes viáveis dos blocos do M de quatro modelos, os testes de componente
 escritos pela IA mataram 41% (IC 95% de 35% a 48%) e o juiz oficial 80% (de
 74% a 84%); a diferença vem de três dos quatro modelos, e no Gemini os
-testes da IA mataram mais que o juiz. Sintetizadas no Quartus (Cyclone V,
+testes da IA mataram mais que o juiz. Fora do M, em 10 blocos de duas CPUs
+do `gpt-6-luna` (559 mutantes viáveis), foram 29% (25% a 33%) contra 87%
+(84% a 90%). Sintetizadas no Quartus (Cyclone V,
 uma síntese de cada), cinco CPUs RV32IM aprovadas e o gabarito compilam com
 4,0 a 4,2 mil ALMs e Fmax de 9,8 a 10,1 MHz, longe do alvo de 100 MHz: o
 caminho crítico passa pelo divisor combinacional do monociclo, e essa
@@ -608,6 +610,60 @@ cada mutante como independente e por isso são otimistas. O total é puxado
 pelo luna 6 (103 de 226). O que se sustenta é a direção em três dos quatro
 modelos, e o oposto no Gemini, com p = 0,06 só.
 
+**Blocos fora do M.** Mesma ferramenta, sem oráculo (ele só cobre o M), em
+todos os blocos fora do M de duas CPUs do `gpt-6-luna`:
+`python -m rvgen mutacao experimentos/<cpu> --bloco <bloco> --paralelo 4`, na
+imagem `rvgen-veredito`, em 27/11/2026. Sem oráculo, quem sobrevive aos três
+níveis fica **não classificado**: pode ser equivalente ou um defeito que
+escapou de tudo; não dá para separar. Os dois blocos do `luna6_evolui_im_3`
+(`decoder` e `cpu`) não foram rodados: não começaram antes do limite de 10 h
+fixado para esta rodada.
+
+| CPU / bloco | Testes (bloco / `cpu`) | Mutantes | Natimortos | Viáveis (n) | Testes do bloco (IA) | Testes do `cpu` (IA) | Juiz | Não classificados | Só a IA / só o juiz |
+|---|---|---|---|---|---|---|---|---|---|
+| `luna6_evolui_im_5` / `alu` | 5 / 10 | 42 | 12 | 30 | 6 (20%; 10–37%) | 1 (3%; 1–17%) | 29 (97%; 83–99%) | 1 | 0 / 23 |
+| `luna6_evolui_im_5` / `register_file` | 5 / 10 | 16 | 0 | 16 | 12 (75%; 51–90%) | 1 (6%; 1–28%) | 15 (94%; 72–99%) | 1 | 0 / 3 |
+| `luna6_evolui_im_5` / `immediate_generator` | 5 / 10 | 24 | 0 | 24 | 12 (50%; 31–69%) | 4 (17%; 7–36%) | 21 (88%; 69–96%) | 3 | 0 / 9 |
+| `luna6_evolui_im_5` / `decoder` | 10 / 10 | 117 | 0 | 117 | 41 (35%; 27–44%) | 21 (18%; 12–26%) | 102 (87%; 80–92%) | 15 | 0 / 60 |
+| `luna6_evolui_im_5` / `cpu` | 10 / — | 87 | 9 | 78 | 25 (32%; 23–43%) | — | 65 (83%; 74–90%) | 10 | 3 / 43 |
+| `luna6_im_1` / `execution_unit` | 5 / 5 | 154 | 38 | 116 | 13 (11%; 7–18%) | 0 (0%; 0–3%) | 95 (82%; 74–88%) | 21 | 0 / 82 |
+| `luna6_im_1` / `load_store_unit` | 5 / 5 | 36 | 0 | 36 | 10 (28%; 16–44%) | 7 (19%; 10–35%) | 32 (89%; 75–96%) | 2 | 2 / 22 |
+| `luna6_im_1` / `register_file` | 5 / 5 | 18 | 0 | 18 | 13 (72%; 49–88%) | 1 (6%; 1–26%) | 15 (83%; 61–94%) | 1 | 2 / 3 |
+| `luna6_im_1` / `immediate_generator` | 5 / 5 | 22 | 0 | 22 | 10 (45%; 27–65%) | 3 (14%; 5–33%) | 19 (86%; 67–95%) | 3 | 0 / 9 |
+| `luna6_im_1` / `cpu` | 5 / — | 124 | 22 | 102 | 14 (14%; 8–22%) | — | 94 (92%; 85–96%) | 7 | 1 / 81 |
+
+Fonte: `experimentos/luna6_evolui_im_5/mutacao/{alu,register_file,immediate_generator,decoder,cpu}.json`
+e `experimentos/luna6_im_1/mutacao/{execution_unit,load_store_unit,register_file,immediate_generator,cpu}.json`.
+IC de Wilson de 95%, com n = viáveis da linha. No bloco `cpu` os testes do
+bloco são os do topo, e a coluna do `cpu` fica vazia. "Testes" conta os
+arquivos de teste que o `rvgen mutacao` achou (nas evoluídas entram os
+herdados da CPU RV32I, prefixo `anterior-`).
+
+Somando por CPU (IA = morto pelos testes do bloco ou do `cpu`):
+
+| CPU | Viáveis | IA | Juiz | Só a IA / só o juiz | Não classificados | McNemar exato |
+|---|---|---|---|---|---|---|
+| `luna6_evolui_im_5` (5 blocos) | 265 | 97 (37%; 31–43%) | 232 (88%; 83–91%) | 3 / 138 | 30 | p < 0,001 |
+| `luna6_im_1` (5 blocos) | 294 | 63 (21%; 17–26%) | 255 (87%; 82–90%) | 5 / 197 | 34 | p < 0,001 |
+| **Total** | **559** | **160 (29%; 25–33%)** | **487 (87%; 84–90%)** | **8 / 335** | **64** | **p < 0,001** |
+
+- **Fora do M o padrão do luna 6 se repete:** os testes de componente
+  mataram de 11% (`execution_unit`) a 75% (`register_file`) dos mutantes, e o
+  juiz de 82% a 97%. Nos 559 viáveis, só 8 foram pegos pela IA e não pelo
+  juiz; 335 o contrário.
+- **Os testes do topo `cpu` pegam pouco dos blocos internos** (0% a 19%),
+  como já se via no M.
+- **64 mutantes passaram por tudo** e ficam não classificados. A
+  `execution_unit` do `luna6_im_1`, que contém o M, tem 21 deles; sem oráculo
+  fora do M não há como dizer quantos são equivalentes.
+- **Não comparar com o M diretamente:** 29% e 87% aqui contra 41% e 80% nos
+  blocos do M, mas são blocos e operadores diferentes, e aqui só há o
+  `gpt-6-luna`.
+
+Ressalvas: n = 2 CPUs de um modelo só; uma rodada da mutação por bloco; os
+mutantes de um bloco não são independentes, então IC e p são otimistas;
+"não classificado" não é "equivalente".
+
 ### 4.11 Duas checagens sem IA
 
 **Oráculo do M no nível da CPU** (`python -m rvgen oraculo-m`,
@@ -986,7 +1042,9 @@ O que este trabalho mede e a busca de 24/11/2026 não achou ocupado:
   só quanto ele custa.
 - **O juiz deixa passar mutantes.** Na seção 4.10, o `spec-riscv-test`
   matou 80% dos mutantes viáveis do M (IC de 74% a 84%); 41 escaparam de
-  todos os testes e só o oráculo dirigido os pegou. "Aprovada no juiz" não
+  todos os testes e só o oráculo dirigido os pegou. Fora do M, 64 de 559
+  passaram pelos três níveis e, sem oráculo, não se sabe quantos são
+  defeitos. "Aprovada no juiz" não
   quer dizer "sem defeito", e isso vale para todas as aprovações deste
   texto.
 - **Ablação com um modelo só.** O resultado da seção 4.9 vale para o
@@ -1039,8 +1097,10 @@ CPUs RV32IM aprovadas (seção 4.13).
   27/11/2026) diz que os testes agora rodam com o framework ACT4, que
   substitui o RISCOF, marcado como obsoleto (*deprecated*); a integração tem
   de ser feita com o ACT4.
-- Mutação em mais blocos e com `--rotulos` e o oráculo do M no laço como
-  tratamentos; prova formal de equivalência dos sobreviventes.
+- Mutação nos blocos fora do M das CPUs dos outros modelos e nos dois do
+  `luna6_evolui_im_3` que não couberam no tempo (seção 4.10), e com
+  `--rotulos` e o oráculo do M no laço como tratamentos; prova formal de
+  equivalência dos sobreviventes, que fora do M ficaram não classificados.
 - Uma rodada real que exercite o laço do juiz corrigido e a evidência de
   interfaces, de preferência injetando desencontros de propósito.
 - Checagem de interfaces que pegue também código igual com significado

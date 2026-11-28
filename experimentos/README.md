@@ -59,6 +59,31 @@ divisão. Para refazer (no Docker do veredito; não chama IA):
 python3 -m rvgen mutacao experimentos/luna6_evolui_im_5 --bloco muldiv --oraculo rvgen/oraculo_m_cpu.py
 ```
 
+### Mutação dos blocos fora do M
+
+Arquivos novos de 27/11/2026, sem oráculo (ele só cobre o M), em
+`docs/artigo.md`, seção 4.10, tabela "Blocos fora do M":
+
+- `luna6_evolui_im_5/mutacao/`: `alu.json`, `register_file.json`,
+  `immediate_generator.json`, `decoder.json`, `cpu.json`;
+- `luna6_im_1/mutacao/`: `execution_unit.json`, `load_store_unit.json`,
+  `register_file.json`, `immediate_generator.json`, `cpu.json`.
+
+Nos 559 mutantes viáveis, os testes da IA (bloco ou `cpu`) mataram 160 (29%)
+e o juiz 487 (87%); 64 passaram por tudo e ficam **não classificados** (sem
+oráculo não dá para dizer se são equivalentes). Os blocos `decoder` e `cpu`
+do `luna6_evolui_im_3` não foram rodados (limite de 10 h). Para refazer um
+bloco (no Docker do veredito, montando o repositório em `/repo`; não chama
+IA; de 25 min a 5,5 h por bloco nesta máquina com duas filas em paralelo):
+
+```bash
+python3 -m rvgen mutacao experimentos/luna6_evolui_im_5 --bloco alu --paralelo 4
+python3 -m rvgen mutacao experimentos/luna6_im_1 --bloco execution_unit --paralelo 4
+```
+
+O trabalho fica em `out/mutacao/<cpu>/<bloco>/` (ignorado pelo git); o
+`src/` da CPU não é alterado.
+
 ### Checagens sem IA em qualquer CPU
 
 ```bash
