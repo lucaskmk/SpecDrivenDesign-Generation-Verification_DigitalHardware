@@ -133,7 +133,7 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 <div class="wrap">
 <header>
   <h1>Gerar e verificar CPUs RISC-V com IA</h1>
-  <p class="lead">Documento único do projeto: como funciona, onde está, o que mudou desde o código do professor, o que fazer a seguir e o histórico. Atualizado em 23/11/2026. A parte 2 compara o código do professor (<code>a3d29d6</code>) com <code>0f75780</code>; o que veio depois está no registro de atualizações.</p>
+  <p class="lead">Documento único do projeto: como funciona, onde está, o que mudou desde o código do professor, o que fazer a seguir e o histórico. Atualizado em 27/11/2026. A parte 2 compara o código do professor (<code>a3d29d6</code>) com <code>0f75780</code>; o que veio depois está no registro de atualizações.</p>
 </header>
 <nav><a href="#parte-1">Parte 1</a><a href="#parte-2">Parte 2</a><a href="#parte-3">Parte 3</a><a href="#parte-4">Parte 4</a><a href="#resumo">Resumo</a><a href="#cpus">CPUs</a><a href="#modelos">Modelos</a><a href="#passos">Próximos passos</a><a href="#perguntas">Perguntas</a><a href="#registro">Registro</a></nav>
 <div class="toc"><div><b>Parte 1</b><ol><li><a href="#resumo">1 · Resumo</a></li><li><a href="#ideia">2 · A ideia do paper e o que já está provado</a></li><li><a href="#f-professor">3 · O que o professor descreveu × o que o código faz</a></li><li><a href="#f-geral">4 · Visão geral</a></li><li><a href="#f-pilha">5 · A pilha, componente por componente</a></li><li><a href="#f-falha">6 · Quando um teste falha: quem errou?</a></li><li><a href="#f-integrada">7 · CPU integrada, correção e veredito</a></li><li><a href="#f-certificacao">8 · Quem testa o quê: spec-riscv-test × rvverify</a></li><li><a href="#cpus">9 · CPUs possíveis: RV32I, RV32IM e outras</a></li><li><a href="#modelos">10 · Modelos de IA: qual usar e com qual esforço</a></li><li><a href="#f-modelo">11 · Como uma chamada ao modelo funciona</a></li><li><a href="#f-papeis">12 · Os papéis de IA (26 chamadas, 1 modelo)</a></li><li><a href="#m-numeros">13 · Resultados: experimento e testes</a></li></ol></div><div><b>Parte 2</b><ol><li><a href="#veredito">14 · Ficou melhor que antes?</a></li><li><a href="#m-fluxo">15 · O fluxo antes e depois</a></li><li><a href="#m-antesdepois">16 · Antes → depois, por área</a></li><li><a href="#m-bugs">17 · Bugs achados rodando de verdade</a></li><li><a href="#m-commits">18 · Linha do tempo dos 16 commits</a></li></ol></div><div><b>Parte 3</b><ol><li><a href="#passos">19 · Próximos passos</a></li><li><a href="#m-aberto">20 · O que continua aberto</a></li><li><a href="#perguntas">21 · Perguntas para o professor</a></li></ol></div><div><b>Parte 4</b><ol><li><a href="#f-codigo">22 · Mapa do código</a></li><li><a href="#f-artefatos">23 · O que uma geração deixa no disco</a></li><li><a href="#f-comandos">24 · Comandos e flags</a></li><li><a href="#glossario">25 · Glossário</a></li><li><a href="#historico">26 · Histórico: a revisão de 29/10</a></li><li><a href="#registro">27 · Registro de atualizações</a></li></ol></div></div>
@@ -141,11 +141,13 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 
 <h2 id="resumo">1 · Resumo</h2>
 <div class="tldr" style="border-left-color:var(--ok)">
-  <b>Onde estamos (23/11/2026):</b> a ideia do professor fecha o ciclo completo, para RV32I e para RV32IM. As specs em Markdown viraram prompt, a IA gerou a CPU bloco a bloco e um juiz sem IA aprovou.
+  <b>Onde estamos (27/11/2026):</b> a ideia do professor fecha o ciclo completo, para RV32I e para RV32IM. As specs em Markdown viraram prompt, a IA gerou a CPU bloco a bloco e um juiz sem IA aprovou.
   <ul>
+    <li><b>Texto do paper reposicionado e números com intervalo (27/11, sem custo de IA):</b> uma revisão de 47 trabalhos mostrou que gerar CPU com agente, contrato por bloco com revisor e testbench sem ver o RTL já foram feitos por outros (seção 6 do <code>docs/artigo.md</code>). O que fica: repetição com intervalo de confiança (ainda por fazer), spec contra memória do modelo, testes da IA contra a suíte oficial nos mesmos mutantes, evoluir contra gerar do zero com custo, CPU inteira em VHDL. Com os dados que já existem: RV32IM do zero aprova 4 em 5 com a spec completa (IC 95% de 38% a 96%) e 2 em 4 com a reduzida (15% a 85%); evoluir gastou menos chamadas que gerar do zero (p ≈ 0,057, indício); nos 226 mutantes do M, testes da IA 41% contra juiz 80%; nos 559 de 10 blocos fora do M (só luna 6), 29% contra 87%. Corrigida a descrição do PRO-V. Ver <a href="#passos">próximos passos</a>.</li>
+    <li><b>Síntese no Quartus (27/11, sem custo de IA):</b> as 5 CPUs RV32IM aprovadas com <code>cpu.toml</code> e o gabarito RV32IM compilam no Cyclone V <code>5CEBA4F23C7</code> com 3.996 a 4.202 ALMs (22–23%), 1.023 registradores e Fmax de 9,79 a 10,09 MHz, longe do alvo de 100 MHz. Nas seis o caminho crítico passa pelo divisor combinacional do monociclo, por isso o Fmax quase não muda entre modelos. Uma síntese por CPU (n = 1, semente padrão); potência só estimada (783–897 mW). Ver seção 4.13 do <code>docs/artigo.md</code>.</li>
     <li><b>Resultado principal:</b> a CPU <code>experimentos/luna6_prof_3</code> (RV32I monociclo, gerada pelo <code>openai/gpt-6-luna</code>) passou <b>40/40</b> programas do <code>riscv-tests</code> no <code>spec-riscv-test</code>, o juiz do <code>rvgen</code>, sem nenhuma iteração de correção do VHDL. Antes disso o <code>spec-riscv-test</code> nunca tinha rodado numa CPU gerada.</li>
     <li><b>Evoluir em vez de gerar do zero (06/11):</b> com o novo <code>--evoluir-de</code>, a CPU RV32I aprovada virou RV32IM (<code>luna6_evolui_im_3</code>, 48/48) criando um bloco próprio para o M (<code>rv32m_unit</code>) e mudando só o <code>cpu</code>, que apenas integra; os outros 4 blocos ficaram iguais. 28 chamadas e ~US$ 0,06, contra 68 chamadas e ~US$ 0,13 gerando do zero. Antes de mudar, ela roda todos os testes antigos e lê o diff das specs. Ver <a href="#evoluir">Evoluir</a>.</li>
-    <li><b>A spec do M não foi o que fez acertar o M (23/11):</b> 3 rodadas com a <code>riscv-rv32m.md</code> completa e 3 com ela reduzida à tabela de codificação (sem divisão por zero, overflow e exemplos). Com o <code>gpt-6-luna</code>, todas as CPUs que chegaram ao juiz trataram os casos especiais mesmo assim; 5 aprovadas com 8/8 no M. A única reprovação (1/48) foi um desencontro de códigos entre dois blocos, não do M. Ver <a href="#ablacao-m">Ablação</a>.</li>
+    <li><b>Não detectamos efeito da spec do M no acerto do M (23/11; n pequeno, ver ressalva):</b> 3 rodadas com a <code>riscv-rv32m.md</code> completa e 3 com ela reduzida à tabela de codificação (sem divisão por zero, overflow e exemplos). Com o <code>gpt-6-luna</code>, todas as CPUs que chegaram ao juiz trataram os casos especiais mesmo assim; 5 aprovadas com 8/8 no M. A única reprovação (1/48) foi um desencontro de códigos entre dois blocos, não do M. Ver <a href="#ablacao-m">Ablação</a>.</li>
     <li><b>A qualidade dos testes da IA depende do modelo (24/11):</b> por mutação nos blocos do M dos 4 modelos, os testes de componente gerados mataram de 19% (luna 6) a 88% (gemini-4-carbon) dos mutantes, com o mesmo número de testes; o juiz oficial ficou entre 76% e 83%. Os erros que escaparam de tudo estão nas proteções de overflow da divisão. Ver <a href="#mutacao">Mutação</a>.</li>
     <li><b>Duas checagens novas sem IA (24/11):</b> um oráculo do M que roda em qualquer CPU (as 12 RV32IM aprovadas passam) e uma checagem dos códigos combinados entre blocos (acusa só a CPU que reprovou). O laço de correção do juiz não desiste mais com rodadas sobrando. Ver <a href="#checagens">Checagens</a>.</li>
     <li><b>Telemetria por fase (23/11):</b> <code>python -m rvgen telemetria</code> soma, por grupo de fases, chamadas, tokens, tempo, falhas, recusas e erros a partir do <code>sessao.jsonl</code>, sem custo de IA. Nos 4 modelos da comparação, os testes de componente levam 65% a 74% das chamadas e o laço do juiz não foi usado por nenhum. Ver <a href="#telemetria">Telemetria</a>.</li>
@@ -155,7 +157,7 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
     <li><b>Testes do repositório:</b> de 21 falhas para 0. Das 21, 19 foram corrigidas e 2 (binutils RISC-V) agora são puladas. Hoje: 330 ok / 26 pulados no Windows e 338 ok / 20 pulados no Linux (Docker).</li>
     <li><b>Ferramentas novas:</b> uma CPU gabarito escrita à mão para provar os juízes, um app para iterar nas specs a partir de uma base congelada e uma imagem Docker que refaz o veredito com versões fixas.</li>
   </ul>
-  <b>A principal ressalva:</b> é <b>um experimento por ISA</b> (n = 1 para RV32I e n = 1 para RV32IM), com um modelo só. A rodada I foi retomada 3 vezes com o gerador mudando entre as retomadas; a rodada IM não foi retomada. Provamos que <i>funcionou uma vez</i>, não que <i>funciona</i>. Os <a href="#passos">próximos passos</a> atacam isso.
+  <b>A principal ressalva:</b> o n ainda é pequeno. RV32I: 1 rodada aprovada, retomada 3 vezes com o gerador mudando. RV32IM do zero: 5 tentativas com a spec completa e 4 com a reduzida, com intervalos de confiança largos demais para comparar. Evolução e comparação de modelos: 1 rodada por configuração. Não há linha de base (fluxo sem a pilha de testes) e o modelo pode saber RISC-V de cor. Os <a href="#passos">próximos passos</a> atacam isso.
 </div>
 <div class="note"><b>Este é o documento único do projeto.</b> Ele substitui <code>fluxo-rvgen.html</code>, <code>fluxo-rvgen.md</code>, <code>projeto-completo.html</code> e <code>mudancas.html</code>, que estão no histórico do git. A exceção é o <code>docs/artigo.md</code>, que é o texto do paper. Todo resultado novo entra aqui; o que mudou no documento fica no <a href="#registro">registro de atualizações</a> no fim.</div>
 
@@ -167,11 +169,11 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <tr><td>IA gera a CPU bloco a bloco, com contrato e testes por bloco</td><td><span class="st ok">feito</span></td><td>5 blocos, 647 linhas de VHDL, 47 testes de componente passando na <code>luna6_prof_3</code>.</td></tr>
   <tr><td>Veredito sem IA, com testes oficiais</td><td><span class="st ok">feito</span></td><td><code>spec-riscv-test</code> com <code>riscv-tests</code>: 40/40.</td></tr>
   <tr><td>Veredito reproduzível por outra pessoa</td><td><span class="st pa">parcial</span></td><td>O veredito pode ser refeito com a imagem <code>docker/veredito</code>. A geração não: a sessão foi retomada com o código mudando.</td></tr>
-  <tr><td>Mostrar que funciona de forma consistente</td><td><span class="st di">falta</span></td><td>n = 1. Ver <a href="#passos">próximos passos</a>.</td></tr>
-  <tr><td>Medir o efeito das specs no resultado</td><td><span class="st di">falta</span></td><td>O app <code>iteracoes</code> já guarda cada variação de spec, mas nenhuma foi usada num experimento.</td></tr>
+  <tr><td>Mostrar que funciona de forma consistente</td><td><span class="st pa">parcial</span></td><td>RV32IM do zero: 4 de 5 (IC 95% de 38% a 96%). Falta repetir numa versão fixa. Ver <a href="#passos">próximos passos</a>.</td></tr>
+  <tr><td>Medir o efeito das specs no resultado</td><td><span class="st pa">parcial</span></td><td>Ablação do M (<code>it-001</code> × <code>it-002</code>, 4 rodadas de cada): não detectamos diferença, com n pequeno demais para dizer que não há. Ver <a href="#ablacao-m">Ablação</a>.</td></tr>
   <tr><td>RV32IM</td><td><span class="st ok">feito</span></td><td><code>luna6_im_1</code>: 48/48 gerada por IA; <code>rv32im_gabarito</code>: 48/48 à mão. Ver <a href="#cpus">CPUs possíveis</a>.</td></tr>
   <tr><td>Outras microarquiteturas (multiciclo, pipeline)</td><td><span class="st di">falta</span></td><td>O código aceita a palavra; a spec ainda tem a regra de monociclo.</td></tr>
-  <tr><td>Síntese em FPGA (Quartus)</td><td><span class="st di">falta</span></td><td><code>quartus_testing</code> existe, mas não rodou na CPU gerada.</td></tr>
+  <tr><td>Síntese em FPGA (Quartus)</td><td><span class="st ok">feito</span></td><td>27/11: 5 CPUs RV32IM geradas e o gabarito compilam; Fmax 9,8–10,1 MHz (alvo 100 MHz não atendido), ~4.000–4.200 ALMs. Uma síntese de cada; relatórios em <code>quartus_testing/resultados/</code>, não versionados.</td></tr>
 </table></div>
 
 <h2 id="f-professor">3 · O que o professor descreveu × o que o código faz</h2>
@@ -533,9 +535,9 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <tr><td><code>reduzida_4</code></td><td>reduzida</td><td><b>1/48</b></td><td>0/8</td><td>132</td><td>US$ 0,327</td></tr>
 </table></div>
 <ul>
-  <li><b>Tirar o conhecimento não mudou o M.</b> Em todas as rodadas, inclusive nas reduzidas, os contratos e o VHDL tratam divisão por zero e −2^31 ÷ −1. O luna 6 sabe isso de memória. Todas as CPUs foram julgadas de novo por fora.</li>
+  <li><b>Não detectamos diferença ao tirar o conhecimento.</b> Em todas as rodadas, inclusive nas reduzidas, os contratos e o VHDL tratam divisão por zero e −2^31 ÷ −1. O luna 6 parece saber isso de memória. Todas as CPUs foram julgadas de novo por fora. Com intervalo (27/11): completa 4 de 5 contando a <code>luna6_im_1</code> (IC 95% de 38% a 96%), reduzida 2 de 4 (15% a 85%); só na ablação, 3 de 4 contra 2 de 4, Fisher p = 1,0. Com n = 3 CPUs julgadas por braço não há poder para afirmar que não há efeito.</li>
   <li><b>A reprovação da <code>reduzida_4</code> não é do M.</b> A <code>control_unit</code> manda o código <code>01010</code> para o <code>LUI</code> e a <code>alu</code> faz <code>MUL</code> com esse código. Cada bloco passou nos próprios testes; o erro está no combinado entre eles. Foi a primeira vez que o laço de correção do juiz trabalhou: achou a hipótese certa, mas parou “sem nova correção autorizada” com 9 rodadas sobrando. Isso ficou em aberto.</li>
-  <li><b>Custo:</b> as aprovadas com a spec reduzida gastaram 84 chamadas, contra 64 a 70 com a completa. Com n = 3, é indício.</li>
+  <li><b>Custo:</b> as aprovadas com a spec reduzida gastaram 84 chamadas, contra 64 a 70 com a completa. As três reduzidas julgadas contra as quatro completas aprovadas: Mann–Whitney exato p ≈ 0,057 (p ≈ 0,13 sem a <code>reduzida_4</code>). É indício.</li>
   <li>Total gasto na ablação: cerca de US$ 1,13. Dois defeitos do gerador apareceram e foram corrigidos (regressão com vários testes recusada; teste que simulava para sempre).</li>
 </ul>
 
@@ -555,6 +557,8 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
   <li><b>O juiz oficial é estável:</b> 76–83% nos blocos que dividem. Os testes do <code>cpu</code> quase não tocam o M.</li>
   <li><b>O que escapa de tudo</b> (41 mutantes) está nas proteções de overflow da divisão, por exemplo <code>x ÷ −1</code> dar <code>0x80000000</code>: o <code>riscv-tests</code> só divide por −1 o próprio −2^31.</li>
   <li>Para o paper: o testador é o papel em que os modelos mais diferem, e é o que o UCAgent automatiza. Um bloco por modelo (dois no luna 6): é indício.</li>
+  <li><b>Somando os 6 blocos (27/11):</b> nos mesmos 226 mutantes, os testes da IA mataram 93 (41%, IC 95% de 35% a 48%) e o juiz 180 (80%, de 74% a 84%); só a IA pegou 5, só o juiz 92 (McNemar exato p &lt; 0,001). Por modelo a direção vale no luna 6, no sol e no Sonnet; no Gemini é o contrário (5 a 0, p = 0,06). O IC trata cada mutante como independente, o que é otimista: mutantes do mesmo bloco não são. <code>docs/artigo.md</code> 4.10.</li>
+  <li><b>Blocos fora do M (27/11, sem oráculo):</b> 10 blocos de <code>luna6_evolui_im_5</code> e <code>luna6_im_1</code> (ALU, banco de registradores, imediatos, decodificador, <code>execution_unit</code>, <code>load_store_unit</code> e o topo <code>cpu</code>). Nos 559 mutantes viáveis, testes da IA 160 (29%, IC 95% de 25% a 33%) contra juiz 487 (87%, de 84% a 90%); só a IA pegou 8, só o juiz 335. Por bloco, IA de 11% (<code>execution_unit</code>) a 75% (<code>register_file</code>), juiz de 82% a 97%. 64 passaram por tudo e ficam <b>não classificados</b>: sem oráculo fora do M, não dá para dizer se são equivalentes. Um modelo só e 2 CPUs; os 2 blocos do <code>luna6_evolui_im_3</code> não couberam no limite de 10 h. Arquivos em <code>experimentos/&lt;cpu&gt;/mutacao/</code>.</li>
 </ul>
 
 <h3 id="checagens">Duas checagens sem IA (24/11/2026)</h3>
@@ -857,26 +861,36 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 <div class="parte" id="parte-3"><span>Parte 3</span>Próximos passos e decisões</div>
 
 <h2 id="passos">19 · Próximos passos</h2>
-<p>Em ordem. Os três primeiros dão a evidência que o paper precisa e quase não pedem código novo.</p>
-<div class="find alta"><h3>1 · Repetir a geração (sair do n = 1) <span class="st ok">mais urgente</span></h3>
-  <p>Rodar a mesma configuração 5 a 10 vezes com o <code>gpt-6-luna</code>, numa versão fixa do código e sem retomar com o código mudando. Medir taxa de aprovação, custo, chamadas e iterações de correção. Custa cerca de US$ 0,15 por rodada. Falta só um script que rode N vezes e monte a tabela; o <code>rvgen comparar</code> já soma as sessões.</p></div>
-<div class="find alta"><h3>2 · Medir o efeito das specs (a tese do paper)</h3>
-  <p>A pergunta central de <i>spec-driven</i> é: <b>specs melhores geram hardware melhor?</b> Criar variações no app <code>iteracoes</code>: com e sem <code>vhdl.md</code>, <code>cpu.md</code> curto ou detalhado, com e sem a decomposição fixa. Rodar cada uma algumas vezes e comparar aprovação e custo. Pode virar a tabela principal do paper.</p></div>
-<div class="find alta"><h3>3 · Comparar modelos</h3>
-  <p>Os modelos baratos da <a href="#modelos">tabela de modelos</a> com a mesma spec, e um modelo forte como teto. Separa o que é mérito do método do que é mérito do modelo.</p></div>
-<div class="find media"><h3>4 · Subir a complexidade: pipeline <span class="st ok">RV32IM feito</span></h3>
-  <p>O RV32IM já foi gerado e aprovado (48/48). Falta o pipeline: ajustar a regra de monociclo do <code>cpu.md</code> e gerar. Deve forçar o laço de correção, que até agora só foi usado para corrigir testbenches (2 vezes na rodada IM).</p></div>
-<div class="find media"><h3>5 · Sintetizar no Quartus</h3>
-  <p>Rodar o <code>quartus_testing</code> na CPU gerada e no gabarito: área, Fmax e potência. Mostra que o resultado é hardware de verdade, não só simulação.</p></div>
-<div class="find baixa"><h3>6 · Reduzir custo e limpar</h3>
-  <p>Limitar a expansão de testes (56% das chamadas), opção de esforço por fase, modelo diferente por papel (VHDL × testes), dividir o <code>agente.py</code>. Tudo isso é otimização: vale depois de ter os números dos passos 1 a 3.</p></div>
+<p>Plano ranqueado depois da revisão de literatura de 24/11/2026 (47 trabalhos; ver seção 6 do <code>docs/artigo.md</code>). Custo entre parênteses: esperado / teto, em US$ de chamadas ao modelo. Nada além do passo 0 foi rodado; cada rodada paga só começa com o OK do usuário, com custo esperado e teto.</p>
+<div class="find alta"><h3>0 · Corrigir e reposicionar o texto (0 / 0) <span class="st ok">feito em 27/11</span></h3>
+  <p>Seção 6 do artigo descrita pela fonte (PRO-V corrigido; UVM² e UCAgent conferidos no texto; MAVF só pelo resumo, detalhes não verificados), trabalhos de 2025–2026 mais próximos, posição sem reivindicar novidade em CPU por agente, contrato por bloco ou testbench sem ver o RTL; ameaças de contaminação, falta de linha de base e juiz que deixa passar mutantes; estatística com os dados existentes (Wilson, Fisher, Mann–Whitney, McNemar); tabela de atrito; mutação em 10 blocos fora do M (ver <a href="#mutacao">Mutação</a>; os 2 do <code>luna6_evolui_im_3</code> ficaram de fora pelo limite de 10 h).</p></div>
+<div class="find alta"><h3>1 · Repetir numa versão fixa, com linha de base (6 / 15)</h3>
+  <p>3 braços × 20 rodadas com o luna 6: fluxo completo, fluxo sem as flags de testes de componente, evoluir. <b>H1:</b> o fluxo completo aprova mais que o fluxo sem testes de componente, e evoluir custa menos sem aprovar menos. Critério: 48/48 por tentativa; n = 20 por braço; Fisher, Wilson e Mann–Whitney. Com n = 20 só se detectam diferenças de cerca de 40 pontos.</p></div>
+<div class="find alta"><h3>2 · Spec × modelo, com spec contrafactual (8 / 20)</h3>
+  <p>2×2 (spec completa ou reduzida × luna 6 ou um modelo fraco) mais uma spec contrafactual que contradiz a memória do modelo (por exemplo, divisão por zero devolve 0). <b>H2:</b> com o modelo fraco a spec completa acerta mais o M que a reduzida; com o luna 6 não há diferença detectável; no contrafactual a maioria segue a spec. Critério: 8/8 nos <code>rv32um</code> e os 256 pares do oráculo; n = 15 por célula; Fisher com Holm; binomial exato exige 12 de 15.</p></div>
+<div class="find alta"><h3>3 · Mutação em escada, com tratamentos e prova formal (8 / 20)</h3>
+  <p>Gerar CPUs com <code>--rotulos</code> e com o oráculo do M no laço e medir a mutação; provar formalmente a equivalência dos sobreviventes. <b>H3:</b> nos mesmos mutantes, os testes da IA matam menos que o <code>riscv-tests</code>, e CPUs geradas com <code>--rotulos</code> ou com o oráculo no laço têm escore maior. McNemar entre níveis; Mann–Whitney entre tratamentos com a rodada como unidade, n = 10.</p></div>
+<div class="find media"><h3>4 · <code>riscv-arch-test</code> como terceiro juiz (0 / 0)</h3>
+  <p>O README oficial diz que os testes rodam com o framework ACT4, que substitui o RISCOF (obsoleto). Pede download do repositório: decisão do professor.</p></div>
+<div class="find media"><h3>5 · Medir a checagem entre blocos e o laço do juiz (7 / 15)</h3>
+  <p>Injetar desencontros de códigos entre blocos de propósito e ver se a checagem acusa e se o laço do juiz corrigido conserta. Hoje as duas coisas só foram testadas com modelo falso.</p></div>
+<div class="find media"><h3>6 · Sintetizar no Quartus (0 / 0) <span class="st ok">feito em 27/11</span></h3>
+  <p>Área e Fmax das CPUs aprovadas. Imagem baixada (22,4 GB em disco, 8,12 GB de conteúdo). 6 CPUs compilam, Fmax 9,79–10,09 MHz, 3.996–4.202 ALMs; de 44 a 64 min por compilação, medidos com a mutação rodando junto. O divisor combinacional domina; comparar modelos por área e Fmax pede divisão em vários ciclos.</p></div>
+<div class="find baixa"><h3>7 · Artefato com DOI e reprodução por terceiro (0 / 0)</h3>
+  <p>Publicar o repositório (ou parte dele) com DOI e pedir que outra pessoa refaça os vereditos com a imagem <code>docker/veredito</code>.</p></div>
+<div class="find baixa"><h3>8 · Segunda família de modelo com n = 5 (9–14 / 20)</h3>
+  <p>Repetir o passo 1 com um modelo de outra família, para separar o método do modelo.</p></div>
+<div class="find baixa"><h3>9 · Pipeline (5–30)</h3>
+  <p>Ajustar a regra de monociclo do <code>cpu.md</code> e gerar. Deve forçar o laço de correção.</p></div>
+<p>Hipóteses H1 a H3 fixadas antes de rodar, com o critério e o teste estatístico, para não escolher a análise depois de ver os dados.</p>
 
 <h2 id="m-aberto">20 · O que continua aberto</h2>
 <div class="cols">
-  <div class="card"><h3>n = 1</h3><p>Uma sessão aprovada, um modelo, uma configuração (<code>--max-casos-teste 4</code>). Não há taxa de sucesso nem variância. Podemos dizer que funcionou uma vez, não que “funciona”.</p></div>
+  <div class="card"><h3>n pequeno</h3><p>Só a geração RV32IM do zero tem mais de uma tentativa (5 com a spec completa, 4 com a reduzida; IC 95% de 38% a 96% e de 15% a 85%). Evolução e comparação de modelos: 1 rodada por configuração. Não há linha de base sem a pilha de testes.</p></div>
   <div class="card"><h3>rvverify só dá “parcial”</h3><p>Para uma CPU só RV32I ele nunca diz “aprovado”: a etapa RV32M exige um generic que o contrato atual proíbe. Está documentado em <code>entregas/README.md</code>, não resolvido.</p></div>
-  <div class="card"><h3>RV32IM não testado</h3><p>Tudo o que medimos é RV32I monociclo. O caminho RV32IM do prompt não rodou com IA nem com gabarito.</p></div>
-  <div class="card"><h3>Laço de correção sem teste real</h3><p>Nenhum teste de componente falhou. A triagem, as regressões e o laço de correção não foram exercitados nesta sessão.</p></div>
+  <div class="card"><h3>RV32IM: feito, com ressalvas</h3><p>12 CPUs RV32IM aprovadas (48/48), gabarito à mão e oráculo do M em 256 pares. Mas o juiz deixa passar mutantes: matou 80% dos mutantes viáveis do M (IC de 74% a 84%), e 41 só o oráculo pegou.</p></div>
+  <div class="card"><h3>Laço do juiz: uma rodada real, sem sucesso</h3><p>A triagem e as regressões já trabalharam em várias rodadas. O laço do juiz rodou de verdade só na <code>reduzida_4</code> e parou com 9 de 12 rodadas sobrando; o conserto (<code>cd381bb</code>) foi testado só com modelo falso, sem rodada real.</p></div>
+  <div class="card"><h3>Contaminação</h3><p>RISC-V monociclo está em muito código público; o modelo pode saber de cor. A ablação do M é compatível com isso. Uma spec contrafactual seria o teste (passo 2).</p></div>
   <div class="card"><h3>agente.py grande</h3><p>5.574 linhas num arquivo só. As correções só acrescentaram código.</p></div>
   <div class="card"><h3>Sessão retomada</h3><p>A CPU aprovada saiu de uma sessão retomada 3 vezes, todas depois de mudanças no gerador (e a sessão começou antes do commit <code>e492450</code>). Nenhum commit sozinho reproduz a sessão inteira.</p></div>
   <div class="card"><h3>Limites do juiz</h3><p><code>spec-riscv-test</code> usa um ambiente próprio (sem CSR/ECALL, relinkado em 0, sem <code>ma_data</code> e <code>fence_i</code>). <code>riscv-tests</code> não é certificação; a <code>riscv-arch-test</code> não é usada.</p></div>
@@ -886,6 +900,19 @@ p code,li code,td code,dd code,.card code{overflow-wrap:anywhere}
 
 <h2 id="perguntas">21 · Perguntas para o professor</h2>
 <p>Decisões que são dele. Em ordem de importância para o paper.</p>
+<h3>Novas (27/11/2026, depois da revisão de literatura)</h3>
+<ol>
+  <li><b>Qual das três perguntas é a tese:</b> o fluxo importa (passo 1), spec contra memória do modelo (passo 2) ou quem julga o juiz (passo 3)?</li>
+  <li><b>Onde submeter:</b> alvo ICLAD 2027 (6 páginas; o prazo de 2026 foi em março e a chamada de 2027 ainda não saiu), com MLCAD ou SBCCI de plano B?</li>
+  <li><b>Orçamento:</b> cerca de US$ 40 esperados, com teto de US$ 90, para os passos 1, 2, 3, 5 e 8?</li>
+  <li>Há um <b>cluster estável</b> para rodadas locais? As duas tentativas com vLLM caíram por infraestrutura.</li>
+  <li><b>Monociclo basta</b>, ou o paper exige pipeline?</li>
+  <li>Ele aceita a <b>spec contrafactual</b> (uma spec que contradiz a ISA num ponto) como experimento?</li>
+  <li>O <code>spec-riscv-test</code> e o gabarito podem ir num <b>artefato público anonimizado</b>?</li>
+  <li>A <code>riscv-arch-test</code> (agora com o ACT4) é <b>condição para submeter</b>?</li>
+  <li>A <code>luna6_prof_3</code>, retomada 3 vezes com o código mudando, vira <b>piloto</b> e sai da tabela principal?</li>
+</ol>
+<h3>Anteriores (05/11/2026)</h3>
 <ol>
   <li><b>Foco do paper:</b> o <i>método</i> (specs → hardware verificado) ou a <i>comparação entre modelos</i>? Isso decide se gastamos as rodadas em variações de spec ou em modelos.</li>
   <li><b>Quantas rodadas bastam</b> para submeter, com quais modelos, e qual o orçamento?</li>
@@ -1360,6 +1387,9 @@ python -m rvgen preparar --verificar</code></pre>
 <p>Ao mudar este documento, acrescente uma linha aqui e atualize o resumo do topo.</p>
 <div class="tblwrap"><table>
   <tr><th>Data</th><th>O que mudou</th></tr>
+  <tr><td>27/11/2026</td><td>Mutação nos blocos fora do M (sem custo de IA, sem oráculo): 10 blocos de <code>luna6_evolui_im_5</code> e <code>luna6_im_1</code>, 559 mutantes viáveis; testes da IA 29% (25–33%) contra juiz 87% (84–90%); 64 não classificados. <code>decoder</code> e <code>cpu</code> do <code>luna6_evolui_im_3</code> não rodados (limite de 10 h). Tabela na seção 4.10 do artigo.</td></tr>
+  <tr><td>27/11/2026</td><td>Síntese no Quartus (sem custo de IA): <code>luna6_evolui_im_5</code>, <code>sol6_evolui_im_1</code>, <code>carbon4_evolui_im_1</code>, <code>sonnet55_evolui_im_2</code>, <code>luna6_im_1</code> e <code>rv32im_gabarito</code> compilam; Fmax 9,79–10,09 MHz com caminho crítico no divisor, 3.996–4.202 ALMs, 3 ou 9 DSP. Seção 4.13 e ameaça “métrica de hardware limitada” no artigo; passo 6 do plano marcado como feito.</td></tr>
+  <tr><td>27/11/2026</td><td>Sem custo de IA. Artigo reposicionado após a revisão de 47 trabalhos (PRO-V corrigido, trabalhos de 2025–2026, ameaças de contaminação, sem linha de base e juiz que deixa passar mutantes). Estatística com os dados existentes: IC de Wilson, Fisher, Mann–Whitney e McNemar; tabela de atrito das 21 sessões; telemetria das 13 aprovadas (testes de 49% a 74% das chamadas, mediana 64%). Cartões de “O que continua aberto” corrigidos; próximos passos trocados pelo plano ranqueado com hipóteses fixadas; perguntas novas para o professor.</td></tr>
   <tr><td>24/11/2026</td><td>Mutação nos blocos do M dos 4 modelos (testes da IA de 19% a 88%, juiz 76–83%); oráculo do M na CPU inteira (12 aprovadas passam); checagem dos códigos entre blocos (acusa só a <code>reduzida_4</code>); laço do juiz não desiste com rodadas sobrando. Sem custo de IA.</td></tr>
   <tr><td>23/11/2026</td><td>Datas do topo e resumo do artigo atualizados com a ablação e a mutação; ameaça de escopo corrigida (RV32I e RV32IM monociclo).</td></tr>
   <tr><td>23/11/2026</td><td>Rótulos de rastreabilidade (<code>--rotulos</code>, catálogo <code>specs/rotulos.md</code>, iteração <code>it-003</code>): implementados e testados, sem rodada real ainda.</td></tr>
