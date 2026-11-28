@@ -1,0 +1,269 @@
+{
+  "cpu": "luna6_evolui_im_5",
+  "bloco": "register_file",
+  "isa": "rv32im",
+  "juiz_testes": null,
+  "data": "2026-11-27",
+  "testes_bloco": [
+    "test_register_file.py",
+    "lote-001-caso-01.py",
+    "lote-002-caso-01.py",
+    "lote-003-caso-01.py",
+    "lote-004-caso-01.py"
+  ],
+  "testes_cpu": [
+    "test_cpu.py",
+    "anterior-lote-001-caso-01.py",
+    "anterior-lote-002-caso-01.py",
+    "anterior-lote-003-caso-01.py",
+    "anterior-lote-005-caso-01.py",
+    "anterior-test_cpu.py",
+    "lote-001-caso-01.py",
+    "lote-002-caso-01.py",
+    "lote-003-caso-01.py",
+    "lote-004-caso-01.py"
+  ],
+  "mutantes": 16,
+  "natimortos": 0,
+  "por_nivel": {
+    "bloco": {
+      "mortos": 12,
+      "viaveis": 16,
+      "score": 0.75
+    },
+    "cpu": {
+      "mortos": 1,
+      "viaveis": 16,
+      "score": 0.062
+    },
+    "juiz": {
+      "mortos": 15,
+      "viaveis": 16,
+      "score": 0.938
+    }
+  },
+  "componentes_bloco_ou_cpu": {
+    "mortos": 12,
+    "viaveis": 16
+  },
+  "so_o_juiz_matou": [
+    "m006",
+    "m008",
+    "m014"
+  ],
+  "so_componentes_mataram": [],
+  "sobreviventes": [
+    "m003"
+  ],
+  "resultados": [
+    {
+      "id": "m001",
+      "operador": "relacional",
+      "linha": 25,
+      "original": "=",
+      "mutado": "/=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "sem relatorio",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m002",
+      "operador": "constante",
+      "linha": 25,
+      "original": "'1'",
+      "mutado": "'0'",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "sem relatorio",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m003",
+      "operador": "constante",
+      "linha": 27,
+      "original": "'0'",
+      "mutado": "'1'",
+      "compila": true,
+      "bloco": false,
+      "cpu": false,
+      "juiz": false,
+      "juiz_placar": "48/48",
+      "detalhe": ""
+    },
+    {
+      "id": "m004",
+      "operador": "relacional",
+      "linha": 30,
+      "original": "=",
+      "mutado": "/=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "sem relatorio",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m005",
+      "operador": "constante",
+      "linha": 30,
+      "original": "'1'",
+      "mutado": "'0'",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "sem relatorio",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m006",
+      "operador": "logico",
+      "linha": 30,
+      "original": "and",
+      "mutado": "or",
+      "compila": true,
+      "bloco": false,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "39/48",
+      "detalhe": ""
+    },
+    {
+      "id": "m007",
+      "operador": "relacional",
+      "linha": 30,
+      "original": "/=",
+      "mutado": "=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "sem relatorio",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m008",
+      "operador": "tipo",
+      "linha": 31,
+      "original": "unsigned(",
+      "mutado": "signed(",
+      "compila": true,
+      "bloco": false,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "0/48",
+      "detalhe": ""
+    },
+    {
+      "id": "m009",
+      "operador": "constante",
+      "linha": 38,
+      "original": "'0'",
+      "mutado": "'1'",
+      "compila": true,
+      "bloco": true,
+      "cpu": true,
+      "juiz": true,
+      "juiz_placar": "0/48",
+      "detalhe": "test_register_file.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m010",
+      "operador": "constante",
+      "linha": 39,
+      "original": "'0'",
+      "mutado": "'1'",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "33/48",
+      "detalhe": "test_register_file.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m011",
+      "operador": "relacional",
+      "linha": 41,
+      "original": "/=",
+      "mutado": "=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "sem relatorio",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m012",
+      "operador": "constante",
+      "linha": 41,
+      "original": "'1'",
+      "mutado": "'0'",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "0/48",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m013",
+      "operador": "relacional",
+      "linha": 42,
+      "original": "/=",
+      "mutado": "=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "0/48",
+      "detalhe": "lote-001-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m014",
+      "operador": "tipo",
+      "linha": 43,
+      "original": "unsigned(",
+      "mutado": "signed(",
+      "compila": true,
+      "bloco": false,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "17/48",
+      "detalhe": ""
+    },
+    {
+      "id": "m015",
+      "operador": "relacional",
+      "linha": 46,
+      "original": "/=",
+      "mutado": "=",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "0/48",
+      "detalhe": "lote-003-caso-01.py: 1 de 1 teste(s) reprovaram"
+    },
+    {
+      "id": "m016",
+      "operador": "tipo",
+      "linha": 47,
+      "original": "unsigned(",
+      "mutado": "signed(",
+      "compila": true,
+      "bloco": true,
+      "cpu": false,
+      "juiz": true,
+      "juiz_placar": "0/48",
+      "detalhe": "lote-004-caso-01.py: SystemExit: 1"
+    }
+  ],
+  "arquivo": "src/register_file.vhd"
+}
